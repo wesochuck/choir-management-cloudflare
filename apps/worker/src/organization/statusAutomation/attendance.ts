@@ -1,4 +1,10 @@
-import { isRsvpDeadlinePassed, performanceHasEnded, rsvpDeadlineFromDate } from "@choir/domain";
+import {
+  datePartInTimeZone,
+  endOfLocalDate,
+  isRsvpDeadlinePassed,
+  performanceHasEnded,
+  rsvpDeadlineFromDate,
+} from "@choir/domain";
 
 import { insertAudit } from "./audit";
 import { profileHasVoicePart, readProfiles, readTimezone } from "./store";
@@ -352,11 +358,13 @@ function isSelfServiceRsvpOpen(
   isCanceled: boolean,
   beforeStart: boolean,
   deadlinePassed: boolean,
+  rehearsalCutoffPassed: boolean,
 ): boolean {
-  if (isCanceled || !beforeStart) return false;
+  if (isCanceled) return false;
+  if (event.type === "Rehearsal") return !rehearsalCutoffPassed;
+  if (!beforeStart) return false;
   if (event.type === "Other") return event.otherEventRsvpMode !== "off";
-  if (event.type === "Performance") return !deadlinePassed;
-  return true;
+  return !deadlinePassed;
 }
 
 export function decorateEventWithRsvpDeadline(
@@ -379,10 +387,22 @@ export function decorateEventWithRsvpDeadline(
   const startsAt = new Date(event.startsAt);
   const beforeStart = Number.isFinite(startsAt.getTime()) && startsAt.getTime() > now.getTime();
   const deadlinePassed = isRsvpDeadlinePassed(deadline, now);
+  const rehearsalEndOfDay =
+    event.type === "Rehearsal" && Number.isFinite(startsAt.getTime())
+      ? endOfLocalDate(datePartInTimeZone(startsAt, timezone), timezone)
+      : null;
+  const rehearsalCutoffPassed =
+    rehearsalEndOfDay !== null ? now.getTime() > rehearsalEndOfDay.getTime() : !beforeStart;
   return {
     rsvpDeadlineAt: deadline?.deadlineAt ?? null,
     rsvpDeadlineDate: deadline?.deadlineDate ?? null,
     rsvpDeadlinePassed: deadlinePassed,
-    rsvpSelfServiceOpen: isSelfServiceRsvpOpen(event, isCanceled, beforeStart, deadlinePassed),
+    rsvpSelfServiceOpen: isSelfServiceRsvpOpen(
+      event,
+      isCanceled,
+      beforeStart,
+      deadlinePassed,
+      rehearsalCutoffPassed,
+    ),
   };
 }

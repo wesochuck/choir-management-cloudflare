@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest";
 import { defaultRosterConfiguration } from "@choir/domain";
 import { organizationRosterConfigurationRequestSchema } from "@choir/contracts";
-import { rsvpFollowUpSchedule } from "./communicationSchedule";
+import { attendanceReportDueAt, rsvpFollowUpSchedule } from "./communicationSchedule";
+
+describe("attendance report schedule", () => {
+  it("schedules the attendance report for 1:00 AM on the day following the event in the Organization timezone", () => {
+    // 7:30 PM rehearsal on Nov 9, 2026 in Eastern Time
+    const eveningEvent = "2026-11-10T00:30:00.000Z"; // 2026-11-09 19:30 EST
+    const eveningDue = attendanceReportDueAt(eveningEvent, "America/New_York");
+    expect(new Date(eveningDue).toISOString()).toBe("2026-11-10T06:00:00.000Z"); // 2026-11-10 01:00 EST
+
+    // 10:00 AM performance on Nov 9, 2026 in Eastern Time
+    const morningEvent = "2026-11-09T15:00:00.000Z"; // 2026-11-09 10:00 EST
+    const morningDue = attendanceReportDueAt(morningEvent, "America/New_York");
+    expect(new Date(morningDue).toISOString()).toBe("2026-11-10T06:00:00.000Z"); // Same overnight 1:00 AM slot
+  });
+
+  it("handles DST transitions and UTC properly", () => {
+    const utcEvent = "2026-06-15T18:00:00.000Z";
+    const utcDue = attendanceReportDueAt(utcEvent, "UTC");
+    expect(new Date(utcDue).toISOString()).toBe("2026-06-16T01:00:00.000Z");
+
+    // Event on March 10, 2024 (Spring Forward in America/New_York) -> next day March 11 01:00 EDT
+    const springForwardEvent = "2024-03-10T23:00:00.000Z"; // 19:00 EDT
+    const springForwardDue = attendanceReportDueAt(springForwardEvent, "America/New_York");
+    expect(new Date(springForwardDue).toISOString()).toBe("2024-03-11T05:00:00.000Z"); // 01:00 EDT is UTC-4
+  });
+
+  it("returns NaN for invalid startsAt", () => {
+    expect(attendanceReportDueAt("not-a-date", "America/New_York")).toBeNaN();
+  });
+});
 
 // Fixed historical snapshots exercise both sides of the New York DST transition.
 describe("communication RSVP schedule", () => {

@@ -1,4 +1,5 @@
 import { organizationRsvpSchema, singerEventsResponseSchema } from "@choir/contracts";
+import { addCalendarDays, datePartInTimeZone, zonedLocalDateTimeToUtc } from "@choir/domain";
 import {
   organizationRequest,
   provisionOrganization,
@@ -500,5 +501,95 @@ describe("linked-Profile self-service RSVP", () => {
       ).json(),
     );
     expect(withPast.events.some((event) => event.id === PERFORMANCE_ID)).toBe(true);
+  });
+
+  it("allows self-service rehearsal RSVP through the end of the rehearsal calendar day and rejects it once midnight has passed", async () => {
+    const tz = "America/New_York";
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec("UPDATE organization_metadata SET timezone = ?", tz);
+        return null;
+      },
+    );
+
+    const todayDatePart = datePartInTimeZone(new Date(), tz);
+    const yesterdayDatePart = addCalendarDays(todayDatePart, -1);
+    const todayStartsAt = zonedLocalDateTimeToUtc(`${todayDatePart}T00:01`, tz) ?? "";
+    const yesterdayStartsAt = zonedLocalDateTimeToUtc(`${yesterdayDatePart}T19:00`, tz) ?? "";
+
+    // 1. Rehearsal started earlier today: self-service RSVP remains open through 11:59:59 PM local time
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE events SET starts_at = ? WHERE id = ?",
+          todayStartsAt,
+          REHEARSAL_ID,
+        );
+        return null;
+      },
+    );
+
+    const cookie = await signIn();
+    const todaySchedule = singerEventsResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/singer/events?includePast=true", cookie),
+        )
+      ).json(),
+    );
+    const rehearsalToday = todaySchedule.events.find((e) => e.id === REHEARSAL_ID);
+    expect(rehearsalToday).toBeDefined();
+    expect(rehearsalToday?.rsvpSelfServiceOpen).toBe(true);
+
+    const sameDayDeclineResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "No", rsvpNote: "Out sick today" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(sameDayDeclineResponse.status).toBe(200);
+    await expect(sameDayDeclineResponse.json()).resolves.toMatchObject({
+      rsvp: "No",
+      rsvpNote: "Out sick today",
+    });
+
+    // 2. Rehearsal started yesterday: cutoff passed at midnight, self-service RSVP is closed
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE events SET starts_at = ? WHERE id = ?",
+          yesterdayStartsAt,
+          REHEARSAL_ID,
+        );
+        return null;
+      },
+    );
+
+    const yesterdaySchedule = singerEventsResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/singer/events?includePast=true", cookie),
+        )
+      ).json(),
+    );
+    const rehearsalYesterday = yesterdaySchedule.events.find((e) => e.id === REHEARSAL_ID);
+    expect(rehearsalYesterday).toBeDefined();
+    expect(rehearsalYesterday?.rsvpSelfServiceOpen).toBe(false);
+
+    const lateDeclineResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "No", rsvpNote: "Late note" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(lateDeclineResponse.status).toBe(409);
+    await expect(lateDeclineResponse.json()).resolves.toMatchObject({
+      code: "rsvp_closed",
+    });
   });
 });

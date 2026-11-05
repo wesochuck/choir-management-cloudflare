@@ -71,13 +71,16 @@ export {
   type RosterVoicePartLike,
 } from "./rosterStructure";
 export {
+  addCalendarDays,
   calculateOnBreakInactiveAt,
   calculateRsvpDeadline,
+  endOfLocalDate,
   evaluateProfileStatus,
   isMissedPerformance,
   isRsvpDeadlinePassed,
   rsvpDeadlineFromDate,
   performanceHasEnded,
+  startOfLocalDate,
   type AttendanceStatus,
   type AutomatedProfileStatus,
   type PerformanceAutomationRecord,

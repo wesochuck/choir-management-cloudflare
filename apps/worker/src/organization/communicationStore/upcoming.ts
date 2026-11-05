@@ -7,7 +7,7 @@ import {
   rsvpFollowUpSchedule,
   COMMUNICATION_PREVIEW_DAYS,
   EVENT_REMINDER_LEAD_MS,
-  ATTENDANCE_REPORT_DELAY_MS,
+  ATTENDANCE_REPORT_LOOKBACK_MS,
 } from "../communicationSchedule";
 
 interface UpcomingEvent {
@@ -45,7 +45,7 @@ export function upcomingCommunications(
      WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
        AND rsvp_deadline_date IS NOT NULL AND rsvp_deadline_date >= ? AND rsvp_deadline_date <= ?
        AND starts_at > ?`,
-      new Date(now.getTime() - ATTENDANCE_REPORT_DELAY_MS).toISOString(),
+      new Date(now.getTime() - ATTENDANCE_REPORT_LOOKBACK_MS).toISOString(),
       new Date(horizon + EVENT_REMINDER_LEAD_MS).toISOString(),
       // Allow timezone offsets and the maximum configurable 30-day RSVP lead time.
       new Date(now.getTime() - 86400000).toISOString().slice(0, 10),
@@ -101,7 +101,7 @@ export function upcomingCommunications(
       add(
         event,
         "attendance_report",
-        attendanceReportDueAt(event.startsAt),
+        attendanceReportDueAt(event.startsAt, timezone),
         `post-event-report:${organizationId}:${event.id}`,
         `Attendance report: ${event.title}`,
       );
@@ -109,7 +109,7 @@ export function upcomingCommunications(
       add(
         event,
         "attendance_report",
-        attendanceReportDueAt(event.startsAt),
+        attendanceReportDueAt(event.startsAt, timezone),
         `post-event-report:${organizationId}:${event.id}`,
         `Attendance report: ${event.title}`,
       );

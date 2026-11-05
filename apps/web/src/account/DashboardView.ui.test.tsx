@@ -453,6 +453,127 @@ describe("DashboardView", () => {
     expect(screen.queryByText("Needs response")).not.toBeInTheDocument();
   });
 
+  it("enables RSVP actions for rehearsals inheriting from parent performance and allows declining with a note", async () => {
+    const linkedRehearsal: MemberDashboardResponse["events"][number] = {
+      attendanceWarning: null,
+      callTime: "",
+      details: "",
+      directRsvp: "Pending",
+      durationMinutes: 90,
+      featuredAssignments: [],
+      id: "linked-rehearsal-1",
+      inheritedFromParent: true,
+      isInvited: true,
+      location: "Choir Room",
+      otherEventRsvpMode: null,
+      practice: { sourceEventId: null, status: "not_available", trackCount: 0 },
+      publicGraphicFileId: null,
+      resolvedRsvp: "Yes",
+      rsvpDeadlineAt: null,
+      rsvpDeadlineDate: null,
+      rsvpDeadlinePassed: false,
+      rsvpNote: "",
+      rsvpSelfServiceOpen: true,
+      seating: { status: "not_published" },
+      setList: [],
+      startsAt: "2026-11-10T19:00:00Z",
+      title: "Linked Holiday Rehearsal",
+      type: "Rehearsal",
+      venueAddress: "",
+      venueName: "",
+      volunteerCount: 0,
+      volunteerGoal: null,
+    };
+
+    const dashboardWithLinkedEvent: MemberDashboardResponse = {
+      ...mockDashboard,
+      events: [linkedRehearsal],
+    };
+
+    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValue(dashboardWithLinkedEvent);
+    const setRsvpSpy = vi.spyOn(authApi, "setMyEventRsvp").mockResolvedValue({
+      eventId: "linked-rehearsal-1",
+      profileId: "profile-1",
+      rsvp: "No",
+      rsvpNote: "Family conflict",
+      updatedAt: "2026-11-05T15:00:00Z",
+    });
+
+    render(<DashboardView accessStatus="ready" enabled={true} navigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Linked Holiday Rehearsal")).toBeInTheDocument();
+    });
+
+    const attendButton = screen.getByRole("button", { name: "Attend" });
+    const declineButton = screen.getByRole("button", { name: "Decline" });
+
+    expect(attendButton).not.toBeDisabled();
+    expect(declineButton).not.toBeDisabled();
+
+    fireEvent.click(declineButton);
+
+    const dialog = screen.getByRole("dialog", { name: "Decline rehearsal" });
+    expect(dialog).toBeInTheDocument();
+
+    const noteInput = screen.getByLabelText(/Note/i);
+    fireEvent.change(noteInput, { target: { value: "Family conflict" } });
+
+    const submitDecline = within(dialog).getByRole("button", { name: "Decline rehearsal" });
+    fireEvent.click(submitDecline);
+
+    await waitFor(() => {
+      expect(setRsvpSpy).toHaveBeenCalledWith("linked-rehearsal-1", "No", "Family conflict");
+    });
+  });
+
+  it("displays the decline note for declined rehearsals", async () => {
+    const declinedRehearsal: MemberDashboardResponse["events"][number] = {
+      attendanceWarning: null,
+      callTime: "",
+      details: "",
+      directRsvp: "No",
+      durationMinutes: 90,
+      featuredAssignments: [],
+      id: "declined-rehearsal-1",
+      inheritedFromParent: false,
+      isInvited: true,
+      location: "Choir Room",
+      otherEventRsvpMode: null,
+      practice: { sourceEventId: null, status: "not_available", trackCount: 0 },
+      publicGraphicFileId: null,
+      resolvedRsvp: "No",
+      rsvpDeadlineAt: null,
+      rsvpDeadlineDate: null,
+      rsvpDeadlinePassed: false,
+      rsvpNote: "Work travel",
+      rsvpSelfServiceOpen: true,
+      seating: { status: "not_published" },
+      setList: [],
+      startsAt: "2026-11-10T19:00:00Z",
+      title: "Declined Rehearsal",
+      type: "Rehearsal",
+      venueAddress: "",
+      venueName: "",
+      volunteerCount: 0,
+      volunteerGoal: null,
+    };
+
+    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValue({
+      ...mockDashboard,
+      events: [declinedRehearsal],
+    });
+
+    render(<DashboardView accessStatus="ready" enabled={true} navigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Declined Rehearsal")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Work travel")).toBeInTheDocument();
+    expect(screen.getByText(/Decline note:/)).toBeInTheDocument();
+  });
+
   it.each([true, false])(
     "renders the concert hero with practice only when its set list is published (%s)",
     async (published) => {

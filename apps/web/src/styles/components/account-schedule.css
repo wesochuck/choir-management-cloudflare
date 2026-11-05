@@ -480,7 +480,15 @@
   .member-event-card__footer-info p {
     margin: 0;
   }
-  .member-event-card__buttons,
+  .member-event-card__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin: 0 0 0 auto;
+    padding: 0;
+    border: 0;
+  }
   .member-event-card .member-dashboard__event-actions,
   .member-event-card .member-dashboard__rsvp-actions {
     display: flex;

@@ -34,7 +34,7 @@ function bulletinDialogTitle(
 }
 
 function isActionDisabled(event: DashboardEvent): boolean {
-  return !event.rsvpSelfServiceOpen || event.inheritedFromParent;
+  return !event.rsvpSelfServiceOpen;
 }
 
 function DashboardEventHighlights({ event }: { readonly event: DashboardEvent }) {
@@ -237,6 +237,11 @@ function DashboardEventCard({
         <>
           <div className="member-event-card__footer-info">
             {rsvpDeadlineFormatted ? <span>RSVP by {rsvpDeadlineFormatted}</span> : null}
+            {event.type === "Rehearsal" && event.directRsvp === "No" && event.rsvpNote ? (
+              <p className="schedule-rsvp__note">
+                <strong>Decline note:</strong> {event.rsvpNote}
+              </p>
+            ) : null}
             <DashboardEventFooter event={event} />
           </div>
           <div className="member-event-card__buttons">
@@ -857,7 +862,7 @@ export function DashboardView({
           navigate={navigate}
           onDeclineRehearsal={(event) => {
             setDeclineEvent(event);
-            setDeclineNote("");
+            setDeclineNote(event.rsvpNote || "");
             setActionError(null);
             setActionMessage(null);
           }}

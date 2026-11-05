@@ -45,7 +45,7 @@ function calendarDateFromParts(year: number, month: number, day: number): string
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function addCalendarDays(datePart: string, days: number): string {
+export function addCalendarDays(datePart: string, days: number): string {
   const [yearPart, monthPart, dayPart] = datePart.split("-");
   const year = Number(yearPart);
   const month = Number(monthPart);
@@ -61,14 +61,14 @@ function addCalendarDays(datePart: string, days: number): string {
   );
 }
 
-function startOfLocalDate(datePart: string, timezone: string): Date | null {
+export function startOfLocalDate(datePart: string, timezone: string): Date | null {
   const utc = zonedLocalDateTimeToUtc(`${datePart}T00:00`, timezone);
   if (!utc) return null;
   const result = new Date(utc);
   return Number.isFinite(result.getTime()) ? result : null;
 }
 
-function endOfLocalDate(datePart: string, timezone: string): Date | null {
+export function endOfLocalDate(datePart: string, timezone: string): Date | null {
   const nextDayStart = startOfLocalDate(addCalendarDays(datePart, 1), timezone);
   return nextDayStart ? new Date(nextDayStart.getTime() - 1) : null;
 }

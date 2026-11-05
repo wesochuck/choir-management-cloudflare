@@ -218,7 +218,7 @@ describe("Organization scheduler", () => {
          VALUES (?, 'Past Performance', 'Performance', ?, '19:00', 'Main Hall',
            'A wonderful concert', ?, ?)`,
         pastEventId,
-        new Date(now - 12.5 * 60 * 60 * 1_000).toISOString(),
+        new Date(now - 48 * 60 * 60 * 1_000).toISOString(),
         overdueAt,
         overdueAt,
       );
@@ -290,7 +290,7 @@ describe("Organization scheduler", () => {
         `INSERT INTO events (id, title, type, starts_at, call_time, location, details, created_at, updated_at)
          VALUES (?, 'Past Performance', 'Performance', ?, '19:00', 'Main Hall', 'Concert details', ?, ?)`,
         pastPerformanceId,
-        new Date(now - 12.5 * 60 * 60 * 1_000).toISOString(),
+        new Date(now - 48 * 60 * 60 * 1_000).toISOString(),
         overdueAt,
         overdueAt,
       );
@@ -298,7 +298,7 @@ describe("Organization scheduler", () => {
         `INSERT INTO events (id, title, type, starts_at, call_time, location, details, created_at, updated_at)
          VALUES (?, 'Past Rehearsal', 'Rehearsal', ?, '19:00', 'Room 2', 'Rehearsal details', ?, ?)`,
         pastRehearsalId,
-        new Date(now - 12.5 * 60 * 60 * 1_000).toISOString(),
+        new Date(now - 48 * 60 * 60 * 1_000).toISOString(),
         overdueAt,
         overdueAt,
       );
@@ -377,7 +377,7 @@ describe("Organization scheduler", () => {
         `INSERT INTO events (id, title, type, starts_at, call_time, location, created_at, updated_at)
          VALUES (?, 'Manual past performance', 'Performance', ?, '', 'Room 1', ?, ?)`,
         pastEventId,
-        new Date(now - 13 * 60 * 60 * 1_000).toISOString(),
+        new Date(now - 48 * 60 * 60 * 1_000).toISOString(),
         createdAt,
         createdAt,
       );
@@ -448,7 +448,7 @@ describe("Organization scheduler", () => {
         `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
          VALUES (?, 'Missing state past', 'Performance', ?, ?, ?)`,
         pastEventId,
-        new Date(now - 13 * 60 * 60 * 1_000).toISOString(),
+        new Date(now - 48 * 60 * 60 * 1_000).toISOString(),
         createdAt,
         createdAt,
       );
@@ -782,7 +782,7 @@ describe("Organization scheduler", () => {
   it("does not re-enqueue attendance_report jobs on re-alarm when already recorded in job_ledger", async () => {
     const stub = await provisionScheduler();
     const now = Date.now();
-    const pastStartsAt = new Date(now - 14 * 60 * 60 * 1_000).toISOString();
+    const pastStartsAt = new Date(now - 48 * 60 * 60 * 1_000).toISOString();
     const eventId = "77777777-7777-4777-8777-777777777777";
     const idempotencyKey = `post-event-report:organization-scheduler:${eventId}`;
 

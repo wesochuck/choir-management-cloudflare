@@ -7,7 +7,7 @@ import { prepareMusicTrackImportCleanupSweepInStore } from "./music/trackImportS
 import {
   EVENT_REMINDER_LEAD_MS,
   TICKET_REMINDER_LEAD_MS,
-  ATTENDANCE_REPORT_DELAY_MS,
+  attendanceReportDueAt,
   rsvpFollowUpSchedule,
 } from "./communicationSchedule";
 
@@ -296,7 +296,7 @@ export function createPostEventReportJobs(
   now: Date,
 ): void {
   const configuration = readRosterAutomationConfiguration(storage);
-  const dueBefore = new Date(now.getTime() - ATTENDANCE_REPORT_DELAY_MS).toISOString();
+  const timezone = readOrganizationTimezone(storage);
   const eventTypeClause = configuration.rehearsalAttendanceReportsEnabled
     ? "type IN ('Performance', 'Rehearsal')"
     : "type = 'Performance'";
@@ -307,10 +307,12 @@ export function createPostEventReportJobs(
        WHERE ${eventTypeClause} AND is_archived = 0 AND is_canceled = 0
          AND starts_at < ?
        ORDER BY starts_at DESC, id LIMIT 50`,
-      dueBefore,
+      now.toISOString(),
     )
     .toArray();
   for (const candidate of candidates) {
+    const dueAt = attendanceReportDueAt(candidate.eventStartsAt, timezone);
+    if (!Number.isFinite(dueAt) || now.getTime() < dueAt) continue;
     const idempotencyKey = `post-event-report:${organizationId}:${candidate.eventId}`;
     const alreadyQueuedOrProcessed =
       storage.sql

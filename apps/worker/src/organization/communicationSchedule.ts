@@ -1,9 +1,14 @@
-import { rsvpDeadlineFromDate } from "@choir/domain";
+import {
+  addCalendarDays,
+  datePartInTimeZone,
+  rsvpDeadlineFromDate,
+  zonedLocalDateTimeToUtc,
+} from "@choir/domain";
 import type { OrganizationRosterConfiguration } from "@choir/contracts";
 
 export const EVENT_REMINDER_LEAD_MS = 48 * 60 * 60 * 1000;
 export const TICKET_REMINDER_LEAD_MS = 36 * 60 * 60 * 1000;
-export const ATTENDANCE_REPORT_DELAY_MS = 12 * 60 * 60 * 1000;
+export const ATTENDANCE_REPORT_LOOKBACK_MS = 48 * 60 * 60 * 1000;
 export const COMMUNICATION_PREVIEW_DAYS = 90;
 
 export function eventReminderDueAt(startsAt: string): number {
@@ -14,8 +19,13 @@ export function ticketReminderDueAt(startsAt: string): number {
   return Date.parse(startsAt) - TICKET_REMINDER_LEAD_MS;
 }
 
-export function attendanceReportDueAt(startsAt: string): number {
-  return Date.parse(startsAt) + ATTENDANCE_REPORT_DELAY_MS;
+export function attendanceReportDueAt(startsAt: string, timezone: string): number {
+  const startDate = new Date(startsAt);
+  if (!Number.isFinite(startDate.getTime())) return Number.NaN;
+  const eventDatePart = datePartInTimeZone(startDate, timezone);
+  const nextDatePart = addCalendarDays(eventDatePart, 1);
+  const dueUtcIso = zonedLocalDateTimeToUtc(`${nextDatePart}T01:00`, timezone);
+  return dueUtcIso ? Date.parse(dueUtcIso) : Number.NaN;
 }
 
 export function rsvpFollowUpSchedule(
