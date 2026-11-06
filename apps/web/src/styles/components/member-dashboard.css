@@ -108,6 +108,28 @@
     color: rgba(255, 255, 255, 0.75);
   }
 
+  .member-concert-hero__meta-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: rgba(255, 255, 255, 0.4);
+    text-underline-offset: 2px;
+    border-radius: var(--radius-sm);
+    transition:
+      color 0.15s ease,
+      text-decoration-color 0.15s ease;
+  }
+
+  .member-concert-hero__meta-link:hover,
+  .member-concert-hero__meta-link:focus-visible {
+    color: #ffffff;
+    text-decoration-color: #ffffff;
+  }
+
+  .member-concert-hero__meta-link:focus-visible {
+    outline: 0.2rem solid var(--color-accent);
+    outline-offset: 0.25rem;
+  }
+
   .member-concert-hero__actions {
     margin-top: var(--spacing-xs);
   }

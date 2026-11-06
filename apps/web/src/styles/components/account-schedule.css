@@ -438,8 +438,32 @@
     margin-top: var(--spacing-xs);
     overflow-wrap: anywhere;
   }
-  .member-event-card__venue > span {
+  .member-event-card__venue > span,
+  .member-event-card__venue-link > span {
     color: var(--member-event-muted);
+  }
+  .member-event-card__venue-link {
+    display: grid;
+    width: fit-content;
+    max-width: 100%;
+    color: inherit;
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+  }
+  .member-event-card__venue-link:hover strong,
+  .member-event-card__venue-link:focus-visible strong {
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent);
+  }
+  .member-event-card__venue-link:hover span,
+  .member-event-card__venue-link:focus-visible span {
+    color: var(--color-text);
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent);
+  }
+  .member-event-card__venue-link:focus-visible {
+    outline: 0.2rem solid var(--color-accent);
+    outline-offset: 0.25rem;
   }
   .member-event-card__status {
     display: flex;

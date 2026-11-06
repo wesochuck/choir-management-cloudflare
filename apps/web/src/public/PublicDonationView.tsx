@@ -297,7 +297,9 @@ export function PublicDonationView({
                   <strong>{level.label}</strong>
                   {level.benefit ? <small>{level.benefit}</small> : null}
                 </span>
-                <strong>{formatDonationMoney(level.amountCents)}</strong>
+                <strong className="donation-level-amount">
+                  {formatDonationMoney(level.amountCents)}
+                </strong>
               </button>
             ))}
             <button

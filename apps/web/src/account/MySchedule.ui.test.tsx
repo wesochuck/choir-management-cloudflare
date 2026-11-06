@@ -246,10 +246,43 @@ describe("MySchedule event details and seating link (#192)", () => {
     expect(screen.getByText("2 hours")).toBeVisible();
     expect(screen.getByText("Symphony Hall")).toBeVisible();
     expect(screen.getByText("123 Symphony Way")).toBeVisible();
+    const mapLink = screen.getByRole("link", {
+      name: /Symphony Hall, 123 Symphony Way on Google Maps/i,
+    });
+    expect(mapLink).toHaveAttribute(
+      "href",
+      "https://www.google.com/maps/search/?api=1&query=Symphony%20Hall%2C%20123%20Symphony%20Way",
+    );
+    expect(mapLink).toHaveAttribute("target", "_blank");
+    expect(mapLink).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByText("Notes & attire:")).toBeInTheDocument();
     expect(
       screen.getByText("Concert black attire. Enter through stage door B."),
     ).toBeInTheDocument();
+  });
+
+  it("does not render a Google Maps link when event location is announced as placeholder", async () => {
+    const event = createSampleEvent({
+      location: "",
+      venueAddress: "",
+      venueName: "",
+    });
+
+    vi.mocked(getMySchedule).mockResolvedValueOnce({
+      events: [event],
+      profileId: "00000000-0000-4000-8000-000000000001",
+      requestId: "req-test-1",
+      timezone: "America/New_York",
+    });
+
+    render(<MySchedule enabled />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Summer Concert")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Location to be announced")).toBeVisible();
+    expect(screen.queryByRole("link", { name: /on Google Maps/i })).not.toBeInTheDocument();
   });
 
   it("displays seating link when seating chart is published for a performance", async () => {

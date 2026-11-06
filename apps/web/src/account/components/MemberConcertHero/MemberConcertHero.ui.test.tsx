@@ -60,6 +60,15 @@ describe("MemberConcertHero", () => {
     expect(screen.getByText("Winter Concert")).toBeInTheDocument();
     expect(screen.getByText("Next Performance")).toBeInTheDocument();
     expect(screen.getByText("Riverside Community Hall")).toBeInTheDocument();
+    const heroMapLink = screen.getByRole("link", {
+      name: /Riverside Community Hall on Google Maps/i,
+    });
+    expect(heroMapLink).toHaveAttribute(
+      "href",
+      "https://www.google.com/maps/search/?api=1&query=Riverside%20Community%20Hall%2C%20100%20Riverside%20Ave",
+    );
+    expect(heroMapLink).toHaveAttribute("target", "_blank");
+    expect(heroMapLink).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByText(/Sunday, December 6, 2026/)).toBeInTheDocument();
 
     // Stats
@@ -226,5 +235,26 @@ describe("MemberConcertHero", () => {
       ".member-concert-hero__progress-segment.is-active",
     );
     expect(activeSegments).toHaveLength(4);
+  });
+
+  it("does not render a Google Maps link when concert venue is a placeholder", () => {
+    const concert = createConcert({
+      location: "",
+      venueAddress: "",
+      venueName: "",
+    });
+
+    render(
+      <MemberConcertHero
+        busyEventId={null}
+        concert={concert}
+        onOpenPractice={vi.fn()}
+        rehearsalsRemainingCount={4}
+        timezone="America/New_York"
+      />,
+    );
+
+    expect(screen.getByText("Location to be announced")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /on Google Maps/i })).not.toBeInTheDocument();
   });
 });

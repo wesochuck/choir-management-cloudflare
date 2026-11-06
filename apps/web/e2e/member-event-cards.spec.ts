@@ -65,6 +65,28 @@ for (const path of ["/schedule", "/dashboard"]) {
       await expect(card.getByText("Starts 10:00 AM EST")).toBeVisible();
       await expect(card.getByText("2 hours")).toBeVisible();
       await expect(card.getByRole("link", { name: "Seat not assigned" })).toBeVisible();
+      const mapLink = card.getByRole("link", {
+        name: /Fairfield County Fairgrounds, 157 E Fair Ave, Lancaster, Ohio 43130 on Google Maps/i,
+      });
+      await expect(mapLink).toBeVisible();
+      await expect(mapLink).toHaveAttribute(
+        "href",
+        "https://www.google.com/maps/search/?api=1&query=Fairfield%20County%20Fairgrounds%2C%20157%20E%20Fair%20Ave%2C%20Lancaster%2C%20Ohio%2043130",
+      );
+      await expect(mapLink).toHaveAttribute("target", "_blank");
+      await expect(mapLink).toHaveAttribute("rel", "noopener noreferrer");
+      if (path === "/dashboard") {
+        const heroMapLink = page.locator(".member-concert-hero").getByRole("link", {
+          name: /Fairfield County Fairgrounds on Google Maps/i,
+        });
+        await expect(heroMapLink).toBeVisible();
+        await expect(heroMapLink).toHaveAttribute(
+          "href",
+          "https://www.google.com/maps/search/?api=1&query=Fairfield%20County%20Fairgrounds%2C%20157%20E%20Fair%20Ave%2C%20Lancaster%2C%20Ohio%2043130",
+        );
+        await expect(heroMapLink).toHaveAttribute("target", "_blank");
+        await expect(heroMapLink).toHaveAttribute("rel", "noopener noreferrer");
+      }
       await expect(card.getByRole("button", { name: "Open practice player" })).toBeVisible();
       await expect(card.locator('[data-feature-icon="headphones"]')).toHaveCount(1);
       await expect(card.getByText("Event details", { exact: true })).toHaveCount(0);

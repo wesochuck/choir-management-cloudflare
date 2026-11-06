@@ -1,5 +1,6 @@
 import type { MemberDashboardResponse } from "@choir/contracts";
 
+import { getEventVenueDetails } from "../../../shared/venueDetails";
 import { OrganizationFeatureIcon } from "../../organizationFeatures/OrganizationFeatureIcon";
 
 import { calculateConcertCountdown, formatConcertDateTime } from "./concertHeroUtils";
@@ -36,7 +37,6 @@ export function MemberConcertHero({
     concert.attendanceWarning?.totalRehearsals,
   );
 
-  const venueDisplay = concert.venueName || concert.location || "Location to be announced";
   const busy = busyEventId === concert.id;
   const hasGraphic = Boolean(concert.publicGraphicFileId);
   const backgroundImageUrl = hasGraphic
@@ -82,22 +82,7 @@ export function MemberConcertHero({
               {timeFormatted ? ` • ${timeFormatted}` : ""}
             </span>
           </div>
-          <div className="member-concert-hero__meta-row">
-            <svg
-              aria-hidden="true"
-              className="member-concert-hero__meta-icon"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-            <span>{venueDisplay}</span>
-          </div>
+          <HeroVenueMetaRow concert={concert} />
         </div>
         {hasConcertPractice ? (
           <div className="member-concert-hero__actions">
@@ -160,5 +145,44 @@ export function MemberConcertHero({
         </div>
       </div>
     </section>
+  );
+}
+
+function HeroVenueMetaRow({ concert }: { readonly concert: DashboardEvent }) {
+  const venueDisplay =
+    concert.venueName ||
+    concert.location ||
+    (concert.venueAddress ? concert.venueAddress : "Location to be announced");
+  const venueDetails = getEventVenueDetails(concert);
+
+  return (
+    <div className="member-concert-hero__meta-row">
+      <svg
+        aria-hidden="true"
+        className="member-concert-hero__meta-icon"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+      >
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+      {venueDetails.googleMapsUrl ? (
+        <a
+          aria-label={`${venueDisplay} on Google Maps (opens in a new tab)`}
+          className="member-concert-hero__meta-link"
+          href={venueDetails.googleMapsUrl}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          {venueDisplay}
+        </a>
+      ) : (
+        <span>{venueDisplay}</span>
+      )}
+    </div>
   );
 }

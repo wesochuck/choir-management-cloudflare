@@ -183,6 +183,15 @@ describe("DashboardView", () => {
 
       // Time range and details
       expect(screen.getByText("Starts 7:00 PM EDT")).toBeInTheDocument();
+      const mapLink = screen.getByRole("link", {
+        name: /Symphony Hall, 123 Symphony St on Google Maps/i,
+      });
+      expect(mapLink).toHaveAttribute(
+        "href",
+        "https://www.google.com/maps/search/?api=1&query=Symphony%20Hall%2C%20123%20Symphony%20St",
+      );
+      expect(mapLink).toHaveAttribute("target", "_blank");
+      expect(mapLink).toHaveAttribute("rel", "noopener noreferrer");
       expect(screen.getByText("Symphony Hall")).toBeInTheDocument();
       expect(screen.getByText("Arrive 6:45 PM")).toBeInTheDocument();
       expect(screen.getByText("RSVP by Oct 20, 2026")).toBeInTheDocument();

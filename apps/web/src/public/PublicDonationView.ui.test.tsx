@@ -78,6 +78,9 @@ describe("PublicDonationView", () => {
       "Custom amount",
     ]);
     expect(options[0]).toHaveClass("is-selected");
+    expect(options[0]?.querySelector(".donation-level-amount")?.textContent).toBe("$0.01");
+    expect(options[4]?.querySelector(".donation-level-amount")?.textContent).toBe("$100.00");
+    expect(options[5]?.querySelector(".donation-level-amount")).toBeNull();
     expect(
       within(screen.getByLabelText("Donation summary")).getAllByText("$0.01", {
         selector: "strong",

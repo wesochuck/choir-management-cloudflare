@@ -1,5 +1,6 @@
 import type { SingerEvent } from "@choir/contracts";
 import type { ReactNode } from "react";
+import { getEventVenueDetails } from "../shared/venueDetails";
 import { AppLink } from "./components/AuthenticatedShell/navigation";
 import { formatCallTime, formatEventDateTile } from "./dashboardFormatters";
 
@@ -45,10 +46,7 @@ export function MemberEventCard({
           <span className="member-event-card__type">{event.type}</span>
         </div>
         <EventTiming event={event} timezone={timezone} />
-        <div className="member-event-card__venue">
-          <strong>{event.venueName || event.location || "Location to be announced"}</strong>
-          {event.venueAddress ? <span>{event.venueAddress}</span> : null}
-        </div>
+        <EventVenue event={event} />
       </div>
       <div className="member-event-card__status">
         {status}
@@ -107,6 +105,38 @@ function EventTiming({
       {arrival ? <strong className="member-event-card__arrival">Arrive {arrival}</strong> : null}
       <strong>Starts {starts}</strong>
       {duration ? <span>{duration}</span> : null}
+    </div>
+  );
+}
+
+function EventVenue({ event }: { readonly event: SingerEvent }) {
+  const venueTitle =
+    event.venueName ||
+    event.location ||
+    (event.venueAddress ? event.venueAddress : "Location to be announced");
+  const venueDetails = getEventVenueDetails(event);
+  const showAddress = Boolean(event.venueAddress && event.venueAddress !== venueTitle);
+  const venueLabel = [venueTitle, showAddress ? event.venueAddress : ""].filter(Boolean).join(", ");
+
+  return (
+    <div className="member-event-card__venue">
+      {venueDetails.googleMapsUrl ? (
+        <a
+          aria-label={`${venueLabel} on Google Maps (opens in a new tab)`}
+          className="member-event-card__venue-link"
+          href={venueDetails.googleMapsUrl}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          <strong>{venueTitle}</strong>
+          {showAddress ? <span>{event.venueAddress}</span> : null}
+        </a>
+      ) : (
+        <>
+          <strong>{venueTitle}</strong>
+          {showAddress ? <span>{event.venueAddress}</span> : null}
+        </>
+      )}
     </div>
   );
 }

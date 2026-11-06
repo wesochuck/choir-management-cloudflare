@@ -66,10 +66,18 @@
   .donation-level-option > span {
     display: grid;
     gap: var(--spacing-3xs);
+    min-width: 0;
+    overflow-wrap: break-word;
   }
   .donation-level-option small {
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
+  }
+  .donation-level-amount,
+  .donation-level-option > strong:not(:only-child) {
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
   }
   .donation-level-option.is-selected {
     border-color: var(--color-accent);
@@ -258,6 +266,12 @@
     justify-content: space-between;
     align-items: center;
     font-size: var(--font-size-sm);
+    gap: var(--spacing-xs);
+  }
+  .public-donation-summary-row > strong,
+  .public-donation-summary-total > strong {
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .public-donation-summary-divider {
     border: 0;

@@ -824,6 +824,12 @@ test.describe("public donation checkout", () => {
     const levelButtons = page.locator(".donation-level-option");
     await expect(levelButtons).toHaveCount(6);
 
+    // Verify donation amounts do not wrap awkwardly
+    const firstAmount = page.locator(".donation-level-amount").first();
+    await expect(firstAmount).toBeVisible();
+    const whiteSpace = await firstAmount.evaluate((el) => window.getComputedStyle(el).whiteSpace);
+    expect(whiteSpace).toBe("nowrap");
+
     // Verify desktop level grid has 3 columns
     const levelGrid = page.locator(".public-donation-form .donation-level-grid");
     const gridColumns = await levelGrid.evaluate(
