@@ -1,5 +1,7 @@
 import type { MemberDashboardResponse } from "@choir/contracts";
 
+import { OrganizationFeatureIcon } from "../../organizationFeatures/OrganizationFeatureIcon";
+
 import { calculateConcertCountdown, formatConcertDateTime } from "./concertHeroUtils";
 
 type DashboardEvent = MemberDashboardResponse["events"][number];
@@ -109,15 +111,10 @@ export function MemberConcertHero({
               }}
               type="button"
             >
-              <svg
-                aria-hidden="true"
+              <OrganizationFeatureIcon
                 className="member-concert-hero__button-icon"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <circle cx="12" cy="12" fill="none" r="10" stroke="currentColor" strokeWidth="2" />
-                <polygon points="10 8 16 12 10 16 10 8" />
-              </svg>
+                iconId="headphones"
+              />
               <span>{busy ? "Opening…" : "Open Practice Player"}</span>
             </button>
           </div>

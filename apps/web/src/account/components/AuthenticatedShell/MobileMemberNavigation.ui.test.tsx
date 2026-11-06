@@ -33,38 +33,46 @@ describe("mobile Member navigation", () => {
       within(controls())
         .getAllByRole("link")
         .map((link) => link.getAttribute("href")),
-    ).toEqual(["/dashboard", "/schedule"]);
-    fireEvent.click(screen.getByRole("button", { name: "Practice" }));
+    ).toEqual(["/dashboard", "/schedule", "/practice"]);
+    expect(screen.getByRole("link", { name: "Practice" }).querySelector("svg")).toHaveAttribute(
+      "data-feature-icon",
+      "headphones",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(
       within(sheet())
         .getAllByRole("link")
-        .slice(0, 2)
-        .map((link) => link.textContent),
-    ).toEqual(["Practice", "Resources"]);
-    fireEvent.click(within(sheet()).getByRole("button", { name: "More" }));
-    expect(
-      within(sheet())
-        .getAllByRole("link")
-        .slice(0, 3)
+        .slice(0, 4)
         .map((link) => link.getAttribute("href")),
-    ).toEqual(["/profile", "/directory", "/dues"]);
+    ).toEqual(["/profile", "/directory", "/dues", "/member/resources"]);
     expect(document.querySelector('a[href^="/admin"]')).toBeNull();
     expect(memberGroups[1]?.items[0]?.href).toBe("/schedule");
   });
 
-  it.each(["practice_player", "resources"])("keeps Practice as a menu with only %s", (enabled) => {
+  it("links Practice directly to the player when only practice_player is enabled", () => {
     render(
       <MobileMemberNavigation
-        groups={filtered([enabled])}
+        groups={filtered(["practice_player"])}
         path="/dashboard"
         navigate={navigate()}
       />,
     );
     expect(screen.queryByRole("link", { name: "Schedule" })).toBeNull();
     expect(screen.queryByRole("button", { name: "More" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Practice" }));
-    const destination = enabled === "resources" ? "Resources" : "Practice";
-    expect(within(sheet()).getByRole("link", { name: destination })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Practice" })).toHaveAttribute("href", "/practice");
+  });
+
+  it("moves Resources under More when only resources is enabled", () => {
+    render(
+      <MobileMemberNavigation
+        groups={filtered(["resources"])}
+        path="/dashboard"
+        navigate={navigate()}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: "Practice" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(within(sheet()).getByRole("link", { name: "Resources" })).toBeVisible();
     expect(within(sheet()).getAllByRole("link")).toHaveLength(2); // destination and Home footer
   });
 
@@ -85,7 +93,7 @@ describe("mobile Member navigation", () => {
     const props = { path: "/dashboard", navigate: navigate() };
     const { rerender } = render(<MobileMemberNavigation {...props} groups={memberGroups} />);
     fireEvent.click(screen.getByRole("button", { name: "More" }));
-    rerender(<MobileMemberNavigation {...props} groups={filtered(["resources"])} />);
+    rerender(<MobileMemberNavigation {...props} groups={filtered(["practice_player"])} />);
     expect(screen.queryByRole("dialog")).toBeNull();
     rerender(<MobileMemberNavigation {...props} groups={memberGroups} />);
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -107,18 +115,16 @@ describe("mobile Member navigation", () => {
         ? "Home"
         : ["/schedule", "/calendar"].includes(path)
           ? "Schedule"
-          : ["/practice", "/member/resources"].includes(path)
+          : path === "/practice"
             ? "Practice"
             : "More";
-    const control = screen.getByRole(
-      current === "Home" || current === "Schedule" ? "link" : "button",
-      { name: current },
-    );
+    const direct = current !== "More";
+    const control = screen.getByRole(direct ? "link" : "button", { name: current });
     expect(control).toHaveAttribute(
-      current === "Home" || current === "Schedule" ? "aria-current" : "data-active",
-      current === "Home" || current === "Schedule" ? "page" : "true",
+      direct ? "aria-current" : "data-active",
+      direct ? "page" : "true",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Practice" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(document.querySelector("button[aria-current]")).toBeNull();
     if (current === "Schedule")
       expect(within(sheet()).getByRole("link", { name: "Schedule" })).toHaveAttribute(
@@ -127,13 +133,12 @@ describe("mobile Member navigation", () => {
       );
   });
 
-  it("toggles one sheet, switches groups and dismisses without navigation", async () => {
+  it("toggles one sheet and dismisses without navigation", async () => {
     const go = navigate();
     render(<MobileMemberNavigation groups={memberGroups} path="/schedule" navigate={go} />);
-    const opener = screen.getByRole("button", { name: "Practice" });
+    const opener = screen.getByRole("button", { name: "More" });
     opener.focus();
     fireEvent.click(opener);
-    fireEvent.click(within(sheet()).getByRole("button", { name: "More" }));
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     fireEvent.click(within(sheet()).getByRole("button", { name: "More" }));
     await waitFor(() => {
@@ -171,7 +176,7 @@ describe("mobile Member navigation", () => {
     const { rerender } = render(
       <MobileMemberNavigation groups={memberGroups} path="/schedule" navigate={go} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Practice" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
     fireEvent.click(within(sheet()).getByRole("link", { name: "Resources" }), { ctrlKey: true });
     expect(go).not.toHaveBeenCalled();
     expect(sheet()).toBeVisible();

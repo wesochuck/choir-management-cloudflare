@@ -240,11 +240,8 @@ test("cycles through repeat modes in published set list player", async ({ page }
     node.dataset.navigationSentinel = "same-player";
   });
   const bar = page.getByRole("navigation", { name: "Mobile Member navigation" });
-  await bar.getByRole("button", { name: "Practice", exact: true }).click();
-  await page
-    .getByRole("dialog", { name: "Practice & resources" })
-    .getByRole("button", { name: "More", exact: true })
-    .click();
+  await bar.getByRole("button", { name: "More", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "More" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
   await expect(audio).toHaveAttribute("src", source ?? "");

@@ -146,6 +146,7 @@ describe("MemberConcertHero", () => {
     const button = screen.getByRole("button", {
       name: `Open Practice Player for ${concert.title}`,
     });
+    expect(button.querySelector("svg")).toHaveAttribute("data-feature-icon", "headphones");
     fireEvent.click(button);
 
     expect(onOpenPractice).toHaveBeenCalledWith(concert);

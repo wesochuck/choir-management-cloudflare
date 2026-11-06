@@ -6,7 +6,6 @@ import { AppLink } from "./navigation";
 import { MobileNavItem } from "./mobileNavigation";
 import type { NavigationGroup, NavigationItem } from "./types";
 
-type Menu = "practice" | "more";
 const phoneQuery = "(max-width: 48rem)";
 function subscribePhone(onChange: () => void) {
   const query = window.matchMedia(phoneQuery);
@@ -25,20 +24,20 @@ function MemberBottomControls({
   practice,
   more,
   current,
-  activeMenu,
+  moreOpen,
   go,
   onOpen,
-  onMenuChange,
+  onMoreToggle,
 }: {
   readonly home: NavigationItem | undefined;
   readonly schedule: NavigationItem | undefined;
-  readonly practice: NavigationGroup | undefined;
+  readonly practice: NavigationItem | undefined;
   readonly more: readonly NavigationItem[];
   readonly current: string | undefined;
-  readonly activeMenu: Menu | null;
+  readonly moreOpen: boolean;
   readonly go: (href: string) => void;
   readonly onOpen: (element: HTMLElement) => void;
-  readonly onMenuChange: (menu: Menu | null) => void;
+  readonly onMoreToggle: () => void;
 }) {
   const direct = (item: NavigationItem | undefined, label: string) =>
     item ? (
@@ -56,27 +55,25 @@ function MemberBottomControls({
         <span className="mobile-bottom-nav__label">{label}</span>
       </AppLink>
     ) : null;
-  const trigger = (id: Menu, label: string, items: readonly NavigationItem[]) =>
-    items.length ? (
-      <button
-        type="button"
-        className="mobile-bottom-nav__item"
-        aria-haspopup="dialog"
-        aria-expanded={activeMenu === id}
-        data-open={activeMenu === id ? "true" : undefined}
-        data-active={items.some((item) => item.href === current) ? "true" : undefined}
-        onClick={(event) => {
-          if (!activeMenu) onOpen(event.currentTarget);
-          onMenuChange(activeMenu === id ? null : id);
-        }}
-      >
-        <span className="mobile-bottom-nav__icon-wrap">
-          {id === "practice" ? (
-            <OrganizationFeatureIcon
-              className="mobile-bottom-nav__icon"
-              iconId={practice?.iconId ?? "music"}
-            />
-          ) : (
+  return (
+    <div className="mobile-bottom-nav__items">
+      {direct(home, "Home")}
+      {direct(schedule, "Schedule")}
+      {direct(practice, "Practice")}
+      {more.length ? (
+        <button
+          type="button"
+          className="mobile-bottom-nav__item"
+          aria-haspopup="dialog"
+          aria-expanded={moreOpen}
+          data-open={moreOpen ? "true" : undefined}
+          data-active={more.some((item) => item.href === current) ? "true" : undefined}
+          onClick={(event) => {
+            if (!moreOpen) onOpen(event.currentTarget);
+            onMoreToggle();
+          }}
+        >
+          <span className="mobile-bottom-nav__icon-wrap">
             <svg
               aria-hidden="true"
               className="mobile-bottom-nav__icon"
@@ -87,35 +84,27 @@ function MemberBottomControls({
               <circle cx="12" cy="12" r="2" />
               <circle cx="19" cy="12" r="2" />
             </svg>
-          )}
-        </span>
-        <span className="mobile-bottom-nav__label">{label}</span>
-      </button>
-    ) : null;
-  return (
-    <div className="mobile-bottom-nav__items">
-      {direct(home, "Home")}
-      {direct(schedule, "Schedule")}
-      {trigger("practice", "Practice", practice?.items ?? [])}
-      {trigger("more", "More", more)}
+          </span>
+          <span className="mobile-bottom-nav__label">More</span>
+        </button>
+      ) : null}
     </div>
   );
 }
 
 function projectMemberNavigation(groups: readonly NavigationGroup[]) {
   // Project only the already-filtered Member catalog. Desktop placement stays intact.
+  // Practice opens the player directly; every other music item (Resources) joins More.
   const home = groups.find((group) => group.id === "home")?.items[0];
   const membership = groups.find((group) => group.id === "people");
   const schedule = membership?.items.find((item) => item.module === "events");
-  const more = membership?.items.filter((item) => item !== schedule) ?? [];
-  const practice = groups.find((group) => group.id === "music");
-  return {
-    home,
-    schedule,
-    more,
-    practice,
-    membershipTitle: membership?.label ?? "Your membership",
-  };
+  const music = groups.find((group) => group.id === "music")?.items ?? [];
+  const practice = music.find((item) => item.module === "practice_player");
+  const more = [
+    ...(membership?.items.filter((item) => item !== schedule) ?? []),
+    ...music.filter((item) => item !== practice),
+  ];
+  return { home, schedule, practice, more };
 }
 
 export function MobileMemberNavigation({
@@ -128,22 +117,21 @@ export function MobileMemberNavigation({
   readonly navigate: (href: string) => Promise<boolean>;
 }) {
   const phone = useSyncExternalStore(subscribePhone, isPhone);
-  const [menu, setMenu] = useState<Menu | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
   const [previousContext, setPreviousContext] = useState({ path, phone });
   if (previousContext.path !== path || previousContext.phone !== phone) {
     setPreviousContext({ path, phone });
-    setMenu(null);
+    setMenuOpen(false);
   }
-  const { home, schedule, more, practice, membershipTitle } = projectMemberNavigation(groups);
+  const { home, schedule, practice, more } = projectMemberNavigation(groups);
   const current = activeHref(groups, path.replace(/^\/calendar(?=[/?]|$)/, "/schedule"));
-  const available = { practice: Boolean(practice?.items.length), more: more.length > 0 };
-  const activeMenu = menu && available[menu] ? menu : null;
+  const moreOpen = menuOpen && more.length > 0;
   // Drop unavailable menu state immediately, including during reactive module refreshes.
-  if (menu !== activeMenu) setMenu(activeMenu);
+  if (menuOpen !== moreOpen) setMenuOpen(moreOpen);
   if (!phone) return null;
   const close = () => {
-    setMenu(null);
+    setMenuOpen(false);
   };
   const go = (href: string) => {
     void navigate(href).then((accepted) => {
@@ -157,25 +145,25 @@ export function MobileMemberNavigation({
       practice={practice}
       more={more}
       current={current}
-      activeMenu={activeMenu}
+      moreOpen={moreOpen}
       go={go}
       onOpen={(element) => {
         opener.current = element;
       }}
-      onMenuChange={setMenu}
+      onMoreToggle={() => {
+        setMenuOpen(!moreOpen);
+      }}
     />
   );
-  const title =
-    activeMenu === "practice" ? (practice?.label ?? "Practice & resources") : membershipTitle;
   return (
     <>
       <nav aria-label="Mobile Member navigation" className="mobile-bottom-nav">
         {controls}
       </nav>
       <Dialog
-        open={activeMenu !== null}
+        open={moreOpen}
         onClose={close}
-        title={title}
+        title="More"
         dirty={false}
         className="mobile-member-sheet"
         bodyClassName="mobile-bottom-sheet__body"
@@ -193,7 +181,7 @@ export function MobileMemberNavigation({
         }
       >
         <div className="mobile-bottom-sheet__links">
-          {(activeMenu === "practice" ? (practice?.items ?? []) : more).map((item) => (
+          {more.map((item) => (
             <MobileNavItem
               key={item.href}
               currentHref={current}

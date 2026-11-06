@@ -53,17 +53,17 @@ for (const theme of ["light", "dark"] as const) {
       window.scrollTo({ top: 160, behavior: "instant" });
     });
     const scroll = await page.evaluate(() => scrollY);
-    const practice = bar.getByRole("button", { name: "Practice", exact: true });
+    await expect(bar.getByRole("link", { name: "Practice", exact: true })).toHaveAttribute(
+      "href",
+      "/practice",
+    );
+    const practice = bar.getByRole("button", { name: "More", exact: true });
     await practice.click();
-    const dialog = page.getByRole("dialog", { name: "Practice & resources" });
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("link", { name: "Practice", exact: true })).toBeVisible();
-    await expect(dialog.getByRole("link", { name: "Resources" })).toBeVisible();
-    expect((await dialog.boundingBox())?.height).toBeLessThan(450);
-    await shot("practice-open");
-    await dialog.getByRole("button", { name: "More", exact: true }).click();
-    const more = page.getByRole("dialog", { name: "Your membership" });
+    const dialog = page.getByRole("dialog", { name: "More" });
+    const more = dialog;
     await expect(more).toBeVisible();
+    await expect(more.getByRole("link", { name: "Resources" })).toBeVisible();
+    expect((await dialog.boundingBox())?.height).toBeLessThan(450);
     await expect(more.getByRole("link", { name: "My Profile" })).toBeVisible();
     await expect(more.getByRole("link", { name: "Directory" })).toBeVisible();
     await expect(more.getByRole("link", { name: "Season dues" })).toBeVisible();
@@ -157,7 +157,7 @@ test("Member dirty Profile guards Home, Schedule and sheet destinations", async 
   expect(saveBounds.y + saveBounds.height).toBeLessThanOrEqual(barBounds.y);
   for (const destination of ["Home", "Schedule", "Directory"]) {
     await bar.getByRole("button", { name: "More" }).click();
-    const more = page.getByRole("dialog", { name: "Your membership" });
+    const more = page.getByRole("dialog", { name: "More" });
     await more.getByRole("link", { name: destination, exact: true }).click();
     const confirm = page.getByRole("dialog", { name: "Leave with unsaved changes?" });
     await expect(confirm).toBeVisible();
@@ -187,9 +187,9 @@ for (const theme of ["light", "dark"] as const) {
     const bar = page.getByRole("navigation", { name: "Mobile Member navigation" });
     await expect(bar.getByRole("link", { name: "Home" })).toBeVisible();
     await expect(bar.getByRole("link", { name: "Schedule" })).toHaveCount(0);
-    await expect(bar.getByRole("button", { name: "More" })).toHaveCount(0);
-    await bar.getByRole("button", { name: "Practice" }).click();
-    const dialog = page.getByRole("dialog", { name: "Practice & resources" });
+    await expect(bar.getByRole("link", { name: "Practice" })).toHaveCount(0);
+    await bar.getByRole("button", { name: "More" }).click();
+    const dialog = page.getByRole("dialog", { name: "More" });
     await expect(dialog.getByRole("link", { name: "Resources" })).toBeVisible();
     await expect(dialog.locator('a[href^="/admin"]')).toHaveCount(0);
     await page.screenshot({ path: info.outputPath(`resources-only-${theme}.png`) });
