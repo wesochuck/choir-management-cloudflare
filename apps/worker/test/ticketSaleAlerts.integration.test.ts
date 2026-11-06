@@ -180,7 +180,7 @@ describe("Ticket Sale Alerts integration", () => {
     expect(alertMessage?.destination).toBe(ORDINARY_USER_EMAIL);
     expect(alertMessage?.subject).toContain("Ticket sale: Winter Festival — 2 × $41.50");
     expect(alertMessage?.content).toContain("Ticket Buyer");
-    expect(alertMessage?.content).toContain("buyer@example\\.test");
+    expect(alertMessage?.content).toContain("buyer@example.test");
     expect(alertMessage?.content).toContain("/admin/tickets");
 
     const receipt = await runInDurableObject(stub, (_instance, state) => {

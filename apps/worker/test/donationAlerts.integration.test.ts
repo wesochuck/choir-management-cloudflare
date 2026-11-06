@@ -153,7 +153,7 @@ describe("Donation Alerts integration", () => {
     expect(alertMessage?.content).toContain("## Donation receipt");
     expect(alertMessage?.content).toContain("- **Amount:** $75.00");
     expect(alertMessage?.content).toContain("Generous Donor");
-    expect(alertMessage?.content).toContain("generous\\.donor@example\\.test");
+    expect(alertMessage?.content).toContain("generous.donor@example.test");
     expect(alertMessage?.content).toContain("- **Tribute:** In honor of Beloved Singer");
     expect(alertMessage?.content).toContain("/admin/donations");
   });
@@ -217,11 +217,11 @@ describe("Donation Alerts integration", () => {
     expect(alertMessage?.subject).toBe("Donation receipt: Offline Patron — $500.00");
     expect(alertMessage?.content).toContain("- **Amount:** $500.00");
     expect(alertMessage?.content).toContain(
-      "- **Donor:** Offline Patron (offline\\.donor@example\\.test)",
+      "- **Donor:** Offline Patron (offline.donor@example.test)",
     );
     expect(alertMessage?.content).toContain("- **Tribute:** In memory of Choir Legacy");
     expect(alertMessage?.content).toContain("- **Payment method:** Check");
-    expect(alertMessage?.content).toContain("- **Payment reference:** Check \\#7721");
+    expect(alertMessage?.content).toContain("- **Payment reference:** Check #7721");
     expect(alertMessage?.content).toContain("/admin/donations");
 
     const receipt = await runInDurableObject(stub, (_instance, state) => {
@@ -421,7 +421,7 @@ describe("Donation Alerts integration", () => {
     expect(alertMessages[0]?.subject).toBe("Donation receipt: Stripe Donor — $125.00");
     expect(alertMessages[0]?.content).toContain("- **Amount:** $125.00");
     expect(alertMessages[0]?.content).toContain(
-      "- **Donor:** Stripe Donor (stripe\\.donor@example\\.test)",
+      "- **Donor:** Stripe Donor (stripe.donor@example.test)",
     );
     expect(alertMessages[0]?.content).toContain("- **Tribute:** In honor of Music Program");
     expect(alertMessages[0]?.content).toContain("/admin/donations");
