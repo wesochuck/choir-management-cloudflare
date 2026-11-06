@@ -1,4 +1,4 @@
-import { loudnessByFileIdSchema } from "@choir/contracts";
+import { activeRosterInviteSummarySchema, loudnessByFileIdSchema } from "@choir/contracts";
 import {
   communicationUnsubscribeRequestSchema,
   publicAuditionInquiryRequestSchema,
@@ -8,6 +8,7 @@ import {
 } from "@choir/contracts";
 import { z } from "zod";
 import { validateStartupConfig } from "../env";
+import { findActiveRosterInvite } from "../control/rosterInviteEnrollmentService";
 import {
   parseUnsubscribeSubject,
   unsubscribeOrganizationContact,
@@ -98,11 +99,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
-    const details = await resolvePlayerDetails(
-      context.env,
-      resolved.value.organizationId,
-      body.data.token,
-    );
+    const [details, activeRosterInvite] = await Promise.all([
+      resolvePlayerDetails(context.env, resolved.value.organizationId, body.data.token),
+      findActiveRosterInvite(context.env, resolved.value.organizationId),
+    ]);
     if (isErrorResponse(details)) {
       const status: number = typeof details.status === "number" ? details.status : 404;
       return context.json(
@@ -118,7 +118,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         status as Parameters<typeof context.json>[1],
       );
     }
-    return context.json({ ...details, requestId: context.get("requestId") });
+    return context.json({
+      ...details,
+      activeRosterInvite: activeRosterInvite ?? undefined,
+      requestId: context.get("requestId"),
+    });
   });
 
   router.get("/api/public/player/media/:fileId", async (context) => {
@@ -481,11 +485,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
-    const details = await resolvePublicPlayerPlaylist(
-      context.env,
-      resolved.value.organizationId,
-      token,
-    );
+    const [details, activeRosterInvite] = await Promise.all([
+      resolvePublicPlayerPlaylist(context.env, resolved.value.organizationId, token),
+      findActiveRosterInvite(context.env, resolved.value.organizationId),
+    ]);
     if (isErrorResponse(details)) {
       return context.json(
         {
@@ -507,8 +510,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         organizationName: z.string().trim().min(1).max(120),
         performerLabel: z.string().trim().min(1).max(50).default("Performer"),
         trackLabels: z.record(z.string().min(1).max(100), z.string().min(1).max(100)).optional(),
+        activeRosterInvite: activeRosterInviteSummarySchema.nullable().optional(),
       })
-      .safeParse(details);
+      .safeParse({ ...details, activeRosterInvite });
     if (!playlist.success) {
       return context.json(
         {
@@ -520,6 +524,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     return context.json({
+      activeRosterInvite: playlist.data.activeRosterInvite ?? undefined,
       loudnessByFileId: playlist.data.loudnessByFileId,
       allPieces: playlist.data.items,
       event: {

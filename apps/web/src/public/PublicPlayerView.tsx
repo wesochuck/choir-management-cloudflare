@@ -3,10 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 import {
   PlayerBrand,
   PlayerHeader,
+  PlayerRosterInviteBanner,
+  PlayerRosterInviteModal,
   PublicPracticePlayer,
   createTokenTrackSource,
   fetchPlayerDetails,
   fetchPublicPlayerPlaylist,
+  readRosterInviteBannerDismissed,
+  shouldShowRosterInviteBanner,
+  writeRosterInviteBannerDismissed,
   type PageStatus,
 } from "./player";
 import { useRosterPartStatus } from "./player/useRosterPart";
@@ -30,11 +35,18 @@ export function PublicPlayerView() {
   const [pageStatus, setPageStatus] = useState<PageStatus>({
     type: token ? "loading" : "no_token",
   });
-  const rosterResolution = useRosterPartStatus();
+  const [rosterReloadTrigger, setRosterReloadTrigger] = useState(0);
+  const rosterResolution = useRosterPartStatus(rosterReloadTrigger);
   const rosterPart = rosterResolution.status === "assigned" ? rosterResolution.voicePart : null;
   const currentToken = token;
 
   const [retryCount, setRetryCount] = useState(0);
+  const [selectedPartKey, setSelectedPartKey] = useState<string | null>(null);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const scope = typeof window === "undefined" ? "" : window.location.host;
+  const [isBannerDismissed, setIsBannerDismissed] = useState(() =>
+    readRosterInviteBannerDismissed(scope),
+  );
 
   useEffect(() => {
     if (!currentToken) return;
@@ -178,19 +190,60 @@ export function PublicPlayerView() {
 
   if (pageStatus.type !== "ready") return null;
   const details = pageStatus.details;
+  const hasActiveInvite = Boolean(details.activeRosterInvite?.token);
+  const isAnonymous = rosterResolution.status === "unavailable";
+  const showBanner = shouldShowRosterInviteBanner({
+    hasActiveInvite,
+    isAnonymous,
+    isDismissed: isBannerDismissed,
+  });
+
+  const handleDismissBanner = () => {
+    writeRosterInviteBannerDismissed(scope);
+    setIsBannerDismissed(true);
+  };
+
+  const handleJoinComplete = () => {
+    setIsJoinModalOpen(false);
+    setRosterReloadTrigger((prev) => prev + 1);
+  };
 
   return (
     <main className="public-player-layout">
       <PlayerBrand organizationName={details.organizationName} />
       <section aria-labelledby="player-title" className="public-player">
         <PlayerHeader details={details} />
+        {showBanner ? (
+          <PlayerRosterInviteBanner
+            onDismiss={handleDismissBanner}
+            onSignUp={() => {
+              setIsJoinModalOpen(true);
+            }}
+            organizationName={details.organizationName}
+          />
+        ) : null}
         <PublicPracticePlayer
           details={details}
           initialTrackKey={rosterPart ?? undefined}
+          onTrackKeyChange={(key) => {
+            setSelectedPartKey(key);
+          }}
           rosterProfile={rosterResolution}
           source={source}
         />
       </section>
+      {details.activeRosterInvite ? (
+        <PlayerRosterInviteModal
+          initialVoicePart={selectedPartKey ?? rosterPart}
+          onClose={() => {
+            setIsJoinModalOpen(false);
+          }}
+          onComplete={handleJoinComplete}
+          open={isJoinModalOpen}
+          organizationName={details.organizationName}
+          token={details.activeRosterInvite.token}
+        />
+      ) : null}
     </main>
   );
 }

@@ -61,6 +61,12 @@ export const rosterInviteTokenSchema = z
   .max(4096)
   .regex(/^[A-Za-z0-9._-]+$/);
 
+export const activeRosterInviteSummarySchema = z.object({
+  expiresAt: z.iso.datetime(),
+  label: z.string().min(1).max(100),
+  token: rosterInviteTokenSchema,
+});
+
 export const rosterInvitePreviewRequestSchema = z.object({
   token: rosterInviteTokenSchema,
 });
@@ -162,6 +168,7 @@ export const rosterInviteEnrollmentStatusResponseSchema = z.object({
 });
 
 export type RosterInviteExpirationDays = z.infer<typeof rosterInviteExpirationDaysSchema>;
+export type ActiveRosterInviteSummary = z.infer<typeof activeRosterInviteSummarySchema>;
 export type CreateRosterInviteLinkRequest = z.infer<typeof createRosterInviteLinkRequestSchema>;
 export type RosterInviteLinkStatus = z.infer<typeof rosterInviteLinkStatusSchema>;
 export type RosterInviteLinkSummary = z.infer<typeof rosterInviteLinkSummarySchema>;

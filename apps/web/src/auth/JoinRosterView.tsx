@@ -3,7 +3,15 @@ import type {
   RosterInviteConfiguredSection,
   RosterInvitePreviewResponse,
 } from "@choir/contracts";
-import { useCallback, useEffect, useId, useMemo, useState, type SyntheticEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type ReactNode,
+  type SyntheticEvent,
+} from "react";
 
 import {
   AuthApiError,
@@ -15,6 +23,14 @@ import {
   signInWithCode,
   startRosterInvite,
 } from "../api";
+
+export interface JoinRosterViewProps {
+  readonly embedded?: boolean;
+  readonly initialToken?: string | null | undefined;
+  readonly initialVoicePart?: string | null | undefined;
+  readonly onCancel?: () => void;
+  readonly onComplete?: () => void;
+}
 
 type JoinStep =
   | "checking"
@@ -38,9 +54,33 @@ function extractInviteToken(): string | null {
   return searchParams.get("token");
 }
 
+function resolveCandidateVoicePart(
+  voiceParts: readonly RosterInviteConfiguredPart[],
+  initialVoicePart?: string | null,
+): string {
+  const normalizedInitial = initialVoicePart?.trim().toLowerCase();
+  if (normalizedInitial) {
+    const matched = voiceParts.find(
+      (p) =>
+        p.label.toLowerCase() === normalizedInitial ||
+        p.fullName.toLowerCase() === normalizedInitial ||
+        p.label.toLowerCase().includes(normalizedInitial) ||
+        normalizedInitial.includes(p.label.toLowerCase()),
+    );
+    if (matched) return matched.label;
+  }
+  return voiceParts[0]?.label ?? "";
+}
+
 // eslint-disable-next-line complexity -- multi-step self-service invite onboarding
-export function JoinRosterView() {
-  const token = useMemo(() => extractInviteToken(), []);
+export function JoinRosterView({
+  embedded = false,
+  initialToken,
+  initialVoicePart,
+  onCancel,
+  onComplete,
+}: JoinRosterViewProps = {}) {
+  const token = useMemo(() => initialToken ?? extractInviteToken(), [initialToken]);
 
   const [step, setStep] = useState<JoinStep>(() => (token ? "checking" : "invalid_link"));
   const [errorMessage, setErrorMessage] = useState<string | null>(() =>
@@ -90,51 +130,56 @@ export function JoinRosterView() {
     };
   }, [resendCountdown]);
 
-  const loadOptionsAndProceed = useCallback(async (activeToken: string): Promise<void> => {
-    setErrorMessage(null);
-    try {
-      const options = await getRosterInviteOptions(activeToken);
-      setSections(options.sections);
-      setVoiceParts(options.voiceParts);
-      setPerformerLabel(
-        options.rosterStructure === "sections_only" ? "Section" : options.performerLabel || "Part",
-      );
+  const loadOptionsAndProceed = useCallback(
+    async (activeToken: string): Promise<void> => {
+      setErrorMessage(null);
+      try {
+        const options = await getRosterInviteOptions(activeToken);
+        setSections(options.sections);
+        setVoiceParts(options.voiceParts);
+        setPerformerLabel(
+          options.rosterStructure === "sections_only"
+            ? "Section"
+            : options.performerLabel || "Part",
+        );
 
-      if (options.alreadyEnrolled) {
-        setStep("already_enrolled");
-        return;
-      }
+        if (options.alreadyEnrolled) {
+          setStep("already_enrolled");
+          return;
+        }
 
-      if (options.profileMatchStatus === "review_required") {
-        setStep("review_required");
-        return;
-      }
+        if (options.profileMatchStatus === "review_required") {
+          setStep("review_required");
+          return;
+        }
 
-      setMatchingProfile(options.matchingProfile);
-      if (options.matchingProfile) {
-        setDisplayName(options.matchingProfile.displayName);
-        setSelectedVoicePart(options.matchingProfile.voicePart || "Existing Profile");
+        setMatchingProfile(options.matchingProfile);
+        if (options.matchingProfile) {
+          setDisplayName(options.matchingProfile.displayName);
+          setSelectedVoicePart(options.matchingProfile.voicePart || "Existing Profile");
+          setStep("fill_profile");
+          return;
+        }
+
+        const existingName = options.existingProfile?.displayName;
+        if (existingName) {
+          setDisplayName((current) => (current ? current : existingName));
+        }
+        const candidatePart = resolveCandidateVoicePart(options.voiceParts, initialVoicePart);
+        if (candidatePart) {
+          setSelectedVoicePart((current) => (current ? current : candidatePart));
+        }
         setStep("fill_profile");
-        return;
+      } catch (err: unknown) {
+        if (err instanceof AuthApiError) {
+          setErrorMessage(err.message);
+        } else {
+          setErrorMessage("Could not load choir registration options.");
+        }
       }
-
-      const existingName = options.existingProfile?.displayName;
-      if (existingName) {
-        setDisplayName((current) => (current ? current : existingName));
-      }
-      const firstPart = options.voiceParts[0]?.label;
-      if (firstPart) {
-        setSelectedVoicePart((current) => (current ? current : firstPart));
-      }
-      setStep("fill_profile");
-    } catch (err: unknown) {
-      if (err instanceof AuthApiError) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage("Could not load choir registration options.");
-      }
-    }
-  }, []);
+    },
+    [initialVoicePart],
+  );
 
   // Initial load: validate token and check preview
   useEffect(() => {
@@ -333,70 +378,107 @@ export function JoinRosterView() {
     }
   }
 
-  if (step === "checking") {
+  const renderCard = (titleId: string, content: ReactNode) => {
+    if (embedded) {
+      return (
+        <div aria-labelledby={titleId} className="join-roster-embedded">
+          {content}
+        </div>
+      );
+    }
     return (
       <main className="auth-layout">
-        <section aria-labelledby="join-loading-title" className="auth-card">
-          <h1 id="join-loading-title">Verifying invite link…</h1>
-          <p role="status">Checking organization invite details…</p>
+        <section aria-labelledby={titleId} className="auth-card">
+          {content}
         </section>
       </main>
+    );
+  };
+
+  if (step === "checking") {
+    return renderCard(
+      "join-loading-title",
+      <>
+        <h1 id="join-loading-title">Verifying invite link…</h1>
+        <p role="status">Checking organization invite details…</p>
+      </>,
     );
   }
 
   if (step === "invalid_link") {
-    return (
-      <main className="auth-layout">
-        <section aria-labelledby="join-invalid-title" className="auth-card">
-          <h1 id="join-invalid-title">Invite link unavailable</h1>
-          {errorMessage ? (
-            <p className="notice notice--error" role="alert">
-              {errorMessage}
-            </p>
+    return renderCard(
+      "join-invalid-title",
+      <>
+        <h1 id="join-invalid-title">Invite link unavailable</h1>
+        {errorMessage ? (
+          <p className="notice notice--error" role="alert">
+            {errorMessage}
+          </p>
+        ) : (
+          <p className="notice notice--error" role="alert">
+            This invite link is invalid, expired, or has reached its capacity limit.
+          </p>
+        )}
+        <div className="form-actions form-actions--end">
+          {onCancel ? (
+            <button className="button button--secondary" onClick={onCancel} type="button">
+              Close
+            </button>
           ) : (
-            <p className="notice notice--error" role="alert">
-              This invite link is invalid, expired, or has reached its capacity limit.
-            </p>
+            <a className="button button--secondary" href="/">
+              Return home
+            </a>
           )}
-          <a className="button button--secondary" href="/">
-            Return home
-          </a>
-        </section>
-      </main>
+        </div>
+      </>,
     );
   }
 
   if (step === "already_enrolled") {
-    return (
-      <main className="auth-layout">
-        <section aria-labelledby="already-enrolled-title" className="auth-card">
-          <h1 id="already-enrolled-title">You are already a member</h1>
-          <p className="notice notice--success" role="status">
-            You are already registered on the roster for {preview?.organizationName ?? "this choir"}
-            .
-          </p>
-          <a className="button button--primary" href="/account">
-            Go to choir dashboard
-          </a>
-        </section>
-      </main>
+    return renderCard(
+      "already-enrolled-title",
+      <>
+        <h1 id="already-enrolled-title">You are already a member</h1>
+        <p className="notice notice--success" role="status">
+          You are already registered on the roster for {preview?.organizationName ?? "this choir"}.
+        </p>
+        <div
+          className={`form-actions ${onComplete ? "form-actions--between" : "form-actions--end"}`}
+        >
+          {onComplete ? (
+            <button className="button button--primary" onClick={onComplete} type="button">
+              Keep practicing
+            </button>
+          ) : (
+            <a className="button button--primary" href="/account">
+              Go to choir dashboard
+            </a>
+          )}
+          {onComplete ? (
+            <a className="button button--secondary" href="/account">
+              Go to choir dashboard
+            </a>
+          ) : null}
+        </div>
+      </>,
     );
   }
 
   if (step === "review_required") {
-    return (
-      <main className="auth-layout">
-        <section aria-labelledby="profile-review-title" className="auth-card">
-          <h1 id="profile-review-title">Ask an Organization administrator for help</h1>
-          <p className="notice notice--warning" role="status">
-            We found a roster record that needs review before this invitation can be completed. Your
-            account and the roster record have not been linked.
+    return renderCard(
+      "profile-review-title",
+      <>
+        <h1 id="profile-review-title">Ask an Organization administrator for help</h1>
+        <p className="notice notice--warning" role="status">
+          We found a roster record that needs review before this invitation can be completed. Your
+          account and the roster record have not been linked.
+        </p>
+        {errorMessage ? (
+          <p className="notice notice--error" role="alert">
+            {errorMessage}
           </p>
-          {errorMessage ? (
-            <p className="notice notice--error" role="alert">
-              {errorMessage}
-            </p>
-          ) : null}
+        ) : null}
+        <div className="form-actions form-actions--between">
           <button
             className="button button--secondary"
             onClick={() => {
@@ -406,257 +488,289 @@ export function JoinRosterView() {
           >
             Check again
           </button>
-          <a className="button button--secondary" href="/">
-            Return home
-          </a>
-        </section>
-      </main>
+          {onCancel ? (
+            <button className="button button--secondary" onClick={onCancel} type="button">
+              Close
+            </button>
+          ) : (
+            <a className="button button--secondary" href="/">
+              Return home
+            </a>
+          )}
+        </div>
+      </>,
     );
   }
 
   if (step === "success") {
-    return (
-      <main className="auth-layout">
-        <section aria-labelledby="join-success-title" className="auth-card">
-          <h1 id="join-success-title">Welcome to {preview?.organizationName}!</h1>
-          <p className="notice notice--success" role="status">
-            {matchingProfile
-              ? "You have successfully joined. Your existing roster Profile and history were preserved."
-              : "You have successfully joined the roster. Your profile is active and your voice part is set."}
-          </p>
-          <a className="button button--primary" href="/account">
-            Go to choir dashboard
-          </a>
-        </section>
-      </main>
+    return renderCard(
+      "join-success-title",
+      <>
+        <h1 id="join-success-title">Welcome to {preview?.organizationName}!</h1>
+        <p className="notice notice--success" role="status">
+          {matchingProfile
+            ? "You have successfully joined. Your existing roster Profile and history were preserved."
+            : "You have successfully joined the roster. Your profile is active and your voice part is set."}
+        </p>
+        <div
+          className={`form-actions ${onComplete ? "form-actions--between" : "form-actions--end"}`}
+        >
+          {onComplete ? (
+            <button className="button button--primary" onClick={onComplete} type="button">
+              Keep practicing
+            </button>
+          ) : (
+            <a className="button button--primary" href="/account">
+              Go to choir dashboard
+            </a>
+          )}
+          {onComplete ? (
+            <a className="button button--secondary" href="/account">
+              Go to choir dashboard
+            </a>
+          ) : null}
+        </div>
+      </>,
     );
   }
 
   if (step === "submitting") {
-    return (
-      <main className="auth-layout">
-        <section aria-labelledby="join-submitting-title" className="auth-card">
-          <h1 id="join-submitting-title">Joining {preview?.organizationName}…</h1>
-          <p role="status">Finalizing your roster membership and choir profile…</p>
-        </section>
-      </main>
+    return renderCard(
+      "join-submitting-title",
+      <>
+        <h1 id="join-submitting-title">Joining {preview?.organizationName}…</h1>
+        <p role="status">Finalizing your roster membership and choir profile…</p>
+      </>,
     );
   }
 
-  return (
-    <main className="auth-layout">
-      <section aria-labelledby="join-roster-title" className="auth-card">
-        <h1 id="join-roster-title">Join {preview?.organizationName}</h1>
+  return renderCard(
+    "join-roster-title",
+    <>
+      <h1 id="join-roster-title">Join {preview?.organizationName}</h1>
 
-        {errorMessage ? (
-          <p className="notice notice--error" role="alert">
-            {errorMessage}
+      {errorMessage ? (
+        <p className="notice notice--error" role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
+
+      {statusMessage ? (
+        <p className="notice notice--success" role="status">
+          {statusMessage}
+        </p>
+      ) : null}
+
+      {step === "enter_email" ? (
+        <form
+          autoComplete="on"
+          noValidate
+          onSubmit={(e) => {
+            void handleSendEmail(e);
+          }}
+        >
+          <p style={{ marginBottom: "1rem" }}>
+            Enter your email address to get started and receive a one-time verification code.
           </p>
-        ) : null}
-
-        {statusMessage ? (
-          <p className="notice notice--success" role="status">
-            {statusMessage}
-          </p>
-        ) : null}
-
-        {step === "enter_email" ? (
-          <form
-            autoComplete="on"
-            noValidate
-            onSubmit={(e) => {
-              void handleSendEmail(e);
-            }}
-          >
-            <p style={{ marginBottom: "1rem" }}>
-              Enter your email address to get started and receive a one-time verification code.
-            </p>
-            <div className="field">
-              <label htmlFor={emailInputId}>Email address</label>
-              <input
-                autoComplete="email"
-                id={emailInputId}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                }}
-                placeholder="you@example.com"
-                required
-                type="email"
-                value={email}
-              />
-            </div>
-            <div className="form-actions form-actions--end">
-              <button className="button button--primary" disabled={isSendingCode} type="submit">
-                {isSendingCode ? "Sending code…" : "Continue with email"}
-              </button>
-            </div>
-          </form>
-        ) : null}
-
-        {step === "enter_otp" ? (
-          <form
-            autoComplete="off"
-            noValidate
-            onSubmit={(e) => {
-              void handleVerifyOtp(e);
-            }}
-          >
-            <p style={{ marginBottom: "1rem" }}>
-              We sent a verification code to <strong>{email}</strong>. Enter the code below to
-              continue.
-            </p>
-            <div className="field">
-              <label htmlFor={otpInputId}>Verification code</label>
-              <input
-                autoComplete="one-time-code"
-                id={otpInputId}
-                inputMode="numeric"
-                maxLength={8}
-                onChange={(e) => {
-                  setOtp(e.target.value);
-                }}
-                placeholder="e.g. 123456"
-                required
-                value={otp}
-              />
-            </div>
-            <div
-              style={{
-                alignItems: "center",
-                display: "flex",
-                justifyContent: "space-between",
-                marginTop: "1.5rem",
+          <div className="field">
+            <label htmlFor={emailInputId}>Email address</label>
+            <input
+              autoComplete="email"
+              id={emailInputId}
+              onChange={(e) => {
+                setEmail(e.target.value);
               }}
-            >
-              <button
-                className="button button--secondary"
-                disabled={resendCountdown > 0 || isSendingCode}
-                onClick={() => {
-                  void handleResendCode();
-                }}
-                type="button"
-              >
-                {resendCountdown > 0 ? `Resend code (${String(resendCountdown)}s)` : "Resend code"}
+              placeholder="you@example.com"
+              required
+              type="email"
+              value={email}
+            />
+          </div>
+          <div
+            className={`form-actions ${onCancel ? "form-actions--between" : "form-actions--end"}`}
+          >
+            {onCancel ? (
+              <button className="button button--secondary" onClick={onCancel} type="button">
+                Cancel
               </button>
-              <button className="button button--primary" disabled={isVerifyingCode} type="submit">
-                {isVerifyingCode ? "Verifying…" : "Confirm code"}
-              </button>
-            </div>
-          </form>
-        ) : null}
+            ) : null}
+            <button className="button button--primary" disabled={isSendingCode} type="submit">
+              {isSendingCode ? "Sending code…" : "Continue with email"}
+            </button>
+          </div>
+        </form>
+      ) : null}
 
-        {step === "fill_profile" ? (
-          <form
-            autoComplete="off"
-            noValidate
-            onSubmit={(e) => {
-              void handleRedeem(e);
+      {step === "enter_otp" ? (
+        <form
+          autoComplete="off"
+          noValidate
+          onSubmit={(e) => {
+            void handleVerifyOtp(e);
+          }}
+        >
+          <p style={{ marginBottom: "1rem" }}>
+            We sent a verification code to <strong>{email}</strong>. Enter the code below to
+            continue.
+          </p>
+          <div className="field">
+            <label htmlFor={otpInputId}>Verification code</label>
+            <input
+              autoComplete="one-time-code"
+              id={otpInputId}
+              inputMode="numeric"
+              maxLength={8}
+              onChange={(e) => {
+                setOtp(e.target.value);
+              }}
+              placeholder="e.g. 123456"
+              required
+              value={otp}
+            />
+          </div>
+          <div
+            style={{
+              alignItems: "center",
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: "1.5rem",
             }}
           >
-            {matchingProfile ? (
-              <p className="notice notice--info" role="status">
-                Joining will connect your account to your existing roster profile for{" "}
-                <strong>{matchingProfile.displayName}</strong>. Your saved Profile information and
-                history will be preserved.
-              </p>
-            ) : (
-              <p style={{ marginBottom: "1rem" }}>
-                Choose your {performerLabel.toLowerCase()} and set your roster preferences to
-                complete registration.
-              </p>
-            )}
+            <button
+              className="button button--secondary"
+              disabled={resendCountdown > 0 || isSendingCode}
+              onClick={() => {
+                void handleResendCode();
+              }}
+              type="button"
+            >
+              {resendCountdown > 0 ? `Resend code (${String(resendCountdown)}s)` : "Resend code"}
+            </button>
+            <button className="button button--primary" disabled={isVerifyingCode} type="submit">
+              {isVerifyingCode ? "Verifying…" : "Confirm code"}
+            </button>
+          </div>
+        </form>
+      ) : null}
 
-            {!matchingProfile ? (
-              <div className="form-stack">
-                <div className="field">
-                  <label htmlFor={nameInputId}>Your name</label>
-                  <input
-                    id={nameInputId}
-                    maxLength={100}
-                    onChange={(e) => {
-                      setDisplayName(e.target.value);
-                    }}
-                    placeholder="e.g. Alice Singer"
-                    required
-                    value={displayName}
-                  />
-                </div>
+      {step === "fill_profile" ? (
+        <form
+          autoComplete="off"
+          noValidate
+          onSubmit={(e) => {
+            void handleRedeem(e);
+          }}
+        >
+          {matchingProfile ? (
+            <p className="notice notice--info" role="status">
+              Joining will connect your account to your existing roster profile for{" "}
+              <strong>{matchingProfile.displayName}</strong>. Your saved Profile information and
+              history will be preserved.
+            </p>
+          ) : (
+            <p style={{ marginBottom: "1rem" }}>
+              Choose your {performerLabel.toLowerCase()} and set your roster preferences to complete
+              registration.
+            </p>
+          )}
 
-                <div className="field">
-                  <label htmlFor={voicePartSelectId}>{performerLabel}</label>
-                  <select
-                    id={voicePartSelectId}
-                    onChange={(e) => {
-                      setSelectedVoicePart(e.target.value);
-                    }}
-                    required
-                    value={selectedVoicePart}
-                  >
-                    {sections.length > 0
-                      ? sections.map((sec) => {
-                          const secParts = voiceParts.filter((p) => p.sectionCode === sec.code);
-                          if (secParts.length === 0) return null;
-                          return (
-                            <optgroup key={sec.code} label={sec.name}>
-                              {secParts.map((p) => (
-                                <option key={p.label} value={p.label}>
-                                  {p.fullName || p.label}
-                                </option>
-                              ))}
-                            </optgroup>
-                          );
-                        })
-                      : voiceParts.map((p) => (
-                          <option key={p.label} value={p.label}>
-                            {p.fullName || p.label}
-                          </option>
-                        ))}
-                  </select>
-                </div>
-
-                <div className="field">
-                  <label htmlFor={phoneInputId}>Phone number (optional)</label>
-                  <input
-                    autoComplete="tel"
-                    id={phoneInputId}
-                    maxLength={50}
-                    onChange={(e) => {
-                      setPhone(e.target.value);
-                    }}
-                    placeholder="e.g. (555) 123-4567"
-                    type="tel"
-                    value={phone}
-                  />
-                </div>
-
-                <label className="choice-field">
-                  <input
-                    checked={showInDirectory}
-                    id={directoryCheckboxId}
-                    onChange={(e) => {
-                      setShowInDirectory(e.target.checked);
-                    }}
-                    type="checkbox"
-                  />
-                  <span className="choice-field__content">
-                    Show my contact info in member directory
-                  </span>
-                </label>
+          {!matchingProfile ? (
+            <div className="form-stack">
+              <div className="field">
+                <label htmlFor={nameInputId}>Your name</label>
+                <input
+                  id={nameInputId}
+                  maxLength={100}
+                  onChange={(e) => {
+                    setDisplayName(e.target.value);
+                  }}
+                  placeholder="e.g. Alice Singer"
+                  required
+                  value={displayName}
+                />
               </div>
-            ) : null}
 
-            <div className="form-actions form-actions--end">
-              <button className="button button--primary" disabled={isRedeeming} type="submit">
-                {isRedeeming
-                  ? "Joining…"
-                  : matchingProfile
-                    ? "Join with existing profile"
-                    : "Join roster"}
-              </button>
+              <div className="field">
+                <label htmlFor={voicePartSelectId}>{performerLabel}</label>
+                <select
+                  id={voicePartSelectId}
+                  onChange={(e) => {
+                    setSelectedVoicePart(e.target.value);
+                  }}
+                  required
+                  value={selectedVoicePart}
+                >
+                  {sections.length > 0
+                    ? sections.map((sec) => {
+                        const secParts = voiceParts.filter((p) => p.sectionCode === sec.code);
+                        if (secParts.length === 0) return null;
+                        return (
+                          <optgroup key={sec.code} label={sec.name}>
+                            {secParts.map((p) => (
+                              <option key={p.label} value={p.label}>
+                                {p.fullName || p.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })
+                    : voiceParts.map((p) => (
+                        <option key={p.label} value={p.label}>
+                          {p.fullName || p.label}
+                        </option>
+                      ))}
+                </select>
+              </div>
+
+              <div className="field">
+                <label htmlFor={phoneInputId}>Phone number (optional)</label>
+                <input
+                  autoComplete="tel"
+                  id={phoneInputId}
+                  maxLength={50}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                  }}
+                  placeholder="e.g. (555) 123-4567"
+                  type="tel"
+                  value={phone}
+                />
+              </div>
+
+              <label className="choice-field">
+                <input
+                  checked={showInDirectory}
+                  id={directoryCheckboxId}
+                  onChange={(e) => {
+                    setShowInDirectory(e.target.checked);
+                  }}
+                  type="checkbox"
+                />
+                <span className="choice-field__content">
+                  Show my contact info in member directory
+                </span>
+              </label>
             </div>
-          </form>
-        ) : null}
-      </section>
-    </main>
+          ) : null}
+
+          <div
+            className={`form-actions ${onCancel ? "form-actions--between" : "form-actions--end"}`}
+          >
+            {onCancel ? (
+              <button className="button button--secondary" onClick={onCancel} type="button">
+                Cancel
+              </button>
+            ) : null}
+            <button className="button button--primary" disabled={isRedeeming} type="submit">
+              {isRedeeming
+                ? "Joining…"
+                : matchingProfile
+                  ? "Join with existing profile"
+                  : "Join roster"}
+            </button>
+          </div>
+        </form>
+      ) : null}
+    </>,
   );
 }

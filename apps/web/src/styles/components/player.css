@@ -1633,6 +1633,91 @@
     }
   }
 
+  /* Roster Invite Encouragement Banner */
+
+  .public-player__invite-banner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 0.75rem);
+    box-shadow: var(--shadow-sm);
+    margin-block-end: var(--spacing-xs);
+  }
+
+  @media (min-width: 48rem) {
+    .public-player__invite-banner {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing-md);
+    }
+  }
+
+  .public-player__invite-banner-body {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+  .public-player__invite-banner-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    border-radius: var(--radius-md, 0.5rem);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+  }
+
+  .public-player__invite-banner-text-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .public-player__invite-banner-heading {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text);
+  }
+
+  .public-player__invite-banner-copy {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    line-height: var(--line-height-normal);
+  }
+
+  .public-player__invite-banner-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+  }
+
+  .public-player__invite-banner-actions .button {
+    white-space: nowrap;
+  }
+
+  .player-roster-invite-dialog .join-roster-embedded {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    width: 100%;
+  }
+
+  .player-roster-invite-dialog .join-roster-embedded h1 {
+    font-size: var(--font-size-md);
+    margin-block-end: var(--spacing-xs);
+  }
+
   /* Reduced Motion */
 
   @media (prefers-reduced-motion: reduce) {

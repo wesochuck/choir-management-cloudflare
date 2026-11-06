@@ -19,7 +19,7 @@ const INITIAL_RESOLUTION: RosterPartResolution = { status: "loading", voicePart:
  * outcome, and late resolutions flow through the existing initial-track
  * guard in the shared player.
  */
-export function useRosterPartStatus(): RosterPartResolution {
+export function useRosterPartStatus(reloadTrigger = 0): RosterPartResolution {
   const [resolution, setResolution] = useState<RosterPartResolution>(INITIAL_RESOLUTION);
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export function useRosterPartStatus(): RosterPartResolution {
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [reloadTrigger]);
 
   return resolution;
 }

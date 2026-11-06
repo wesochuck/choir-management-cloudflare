@@ -1,6 +1,7 @@
 import { loudnessByFileIdSchema } from "./loudness";
 import { z } from "zod";
 import { musicTrackFileIdsSchema } from "./music";
+import { activeRosterInviteSummarySchema } from "./rosterInvites";
 export const playerPlaylistItemSchema = z.object({
   arranger: z.string().nullable().optional(),
   composer: z.string().nullable().optional(),
@@ -21,6 +22,7 @@ export const playerBrandingSchema = z.object({
 export type PlayerBranding = z.infer<typeof playerBrandingSchema>;
 
 export const publicPlayerDetailsResponseSchema = z.object({
+  activeRosterInvite: activeRosterInviteSummarySchema.nullable().optional(),
   loudnessByFileId: loudnessByFileIdSchema.optional(),
   eventArtworkFileId: z.uuid().nullable().optional(),
   eventId: z.uuid(),
@@ -37,6 +39,7 @@ export const publicPlayerDetailsResponseSchema = z.object({
 export type PublicPlayerDetailsResponse = z.infer<typeof publicPlayerDetailsResponseSchema>;
 
 export const publicPlayerPlaylistResponseSchema = z.object({
+  activeRosterInvite: activeRosterInviteSummarySchema.nullable().optional(),
   loudnessByFileId: loudnessByFileIdSchema.optional(),
   allPieces: z.array(playerPlaylistItemSchema),
   event: z.object({

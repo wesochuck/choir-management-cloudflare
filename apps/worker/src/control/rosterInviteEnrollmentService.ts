@@ -1,4 +1,5 @@
 import type {
+  ActiveRosterInviteSummary,
   CreateRosterInviteLinkRequest,
   RosterInviteLinkStatus,
   RosterInviteLinkSummary,
@@ -200,6 +201,47 @@ export async function generateRosterInviteShareUrl(
     expiresAt: new Date(row.expires_at).toISOString(),
     id: row.id,
     shareUrl,
+  };
+}
+
+export async function findActiveRosterInvite(
+  env: Pick<Env, "CONTROL_DB" | "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  now = Date.now(),
+): Promise<ActiveRosterInviteSummary | null> {
+  const row = await env.CONTROL_DB.prepare(
+    `SELECT * FROM organization_roster_invite_links
+     WHERE organization_id = ?
+       AND revoked_at IS NULL
+       AND expires_at > ?
+       AND (max_uses IS NULL OR (committed_uses + active_reservations) < max_uses)
+     ORDER BY created_at DESC LIMIT 1`,
+  )
+    .bind(organizationId, now)
+    .first<RosterInviteLinkRow>();
+
+  if (!row) {
+    return null;
+  }
+
+  const envelope: SignedLinkEnvelope = {
+    algorithm: "HS256",
+    expiresAt: Math.floor(row.expires_at / 1000),
+    issuedAt: Math.floor(row.created_at / 1000),
+    nonce: row.nonce,
+    organizationId: row.organization_id,
+    purpose: "roster_invite",
+    resourceId: row.id,
+    revocation: String(row.revocation_version),
+    version: 1,
+  };
+
+  const token = await issueSignedLink(env.SIGNED_LINK_SECRET, envelope);
+
+  return {
+    expiresAt: new Date(row.expires_at).toISOString(),
+    label: row.label,
+    token,
   };
 }
 

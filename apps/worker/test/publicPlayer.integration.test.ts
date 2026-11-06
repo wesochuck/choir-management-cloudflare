@@ -388,6 +388,69 @@ describe("public player signed flow", () => {
     expect(logoBytes).toEqual(samplePng);
   });
 
+  it("includes active roster invite in player playlist when active, and omits when revoked", async () => {
+    // 1. Without any active roster invite, activeRosterInvite is omitted/undefined
+    const alphaToken = await issuePublicPlayerToken("organization-alpha", ALPHA_EVENT);
+    const initialResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/player/playlist?token=${encodeURIComponent(alphaToken)}`),
+    );
+    expect(initialResponse.status).toBe(200);
+    const initialBody = publicPlayerPlaylistResponseSchema.parse(await initialResponse.json());
+    expect(initialBody.activeRosterInvite).toBeUndefined();
+
+    // 2. Insert an active roster invite into organization_roster_invite_links for organization-alpha
+    const now = Date.now();
+    const linkId = "roster-invite-alpha-1";
+    await database
+      .prepare(
+        `INSERT INTO organization_roster_invite_links
+         (id, organization_id, label, created_by_user_id, created_at, expires_at, nonce, revocation_version, max_uses, committed_uses, active_reservations)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, 10, 0, 0)`,
+      )
+      .bind(
+        linkId,
+        "organization-alpha",
+        "Fall 2026 Open Rehearsal",
+        "public-player",
+        now,
+        now + 7 * 86_400_000,
+        "test-nonce-roster-123",
+      )
+      .run();
+
+    // 3. Player playlist now returns activeRosterInvite with valid token and label
+    const activeResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/player/playlist?token=${encodeURIComponent(alphaToken)}`),
+    );
+    expect(activeResponse.status).toBe(200);
+    const activeBody = publicPlayerPlaylistResponseSchema.parse(await activeResponse.json());
+    expect(activeBody.activeRosterInvite).toBeDefined();
+    expect(activeBody.activeRosterInvite?.label).toBe("Fall 2026 Open Rehearsal");
+    expect(activeBody.activeRosterInvite?.token).toBeTruthy();
+
+    // 4. Bravo does NOT get Alpha's active roster invite (tenant isolation)
+    const bravoToken = await issuePublicPlayerToken("organization-bravo", BRAVO_EVENT);
+    const bravoResponse = await exports.default.fetch(
+      api("bravo.localhost", `/api/public/player/playlist?token=${encodeURIComponent(bravoToken)}`),
+    );
+    expect(bravoResponse.status).toBe(200);
+    const bravoBody = publicPlayerPlaylistResponseSchema.parse(await bravoResponse.json());
+    expect(bravoBody.activeRosterInvite).toBeUndefined();
+
+    // 5. Revoking the link removes it from the public player response
+    await database
+      .prepare(`UPDATE organization_roster_invite_links SET revoked_at = ? WHERE id = ?`)
+      .bind(Date.now(), linkId)
+      .run();
+
+    const revokedResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/player/playlist?token=${encodeURIComponent(alphaToken)}`),
+    );
+    expect(revokedResponse.status).toBe(200);
+    const revokedBody = publicPlayerPlaylistResponseSchema.parse(await revokedResponse.json());
+    expect(revokedBody.activeRosterInvite).toBeUndefined();
+  });
+
   it("rejects a token used on the wrong hostname", async () => {
     const token = await issuePlayerToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);
     const response = await exports.default.fetch(

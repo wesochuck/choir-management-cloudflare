@@ -1,4 +1,5 @@
-import type { LoudnessMeasurement } from "@choir/contracts";
+import type { ActiveRosterInviteSummary, LoudnessMeasurement } from "@choir/contracts";
+export type { ActiveRosterInviteSummary };
 declare global {
   interface Navigator {
     readonly audioSession?: {
@@ -32,6 +33,7 @@ export interface PlayerDetails {
   readonly performerLabel?: string | undefined;
   readonly profileName?: string | undefined;
   readonly trackLabels?: Record<string, string> | undefined;
+  readonly activeRosterInvite?: ActiveRosterInviteSummary | null | undefined;
 }
 
 export interface ResolvedTrack {

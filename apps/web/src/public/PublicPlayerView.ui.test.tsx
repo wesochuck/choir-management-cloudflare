@@ -11,6 +11,7 @@ import {
 } from "./player";
 import { PublicPlayerView } from "./PublicPlayerView";
 import * as playerApi from "./player/api";
+import * as webApi from "../api";
 import {
   clearPinnedPieceTrack,
   readPinnedPieceTracks,
@@ -193,6 +194,100 @@ describe("PublicPlayerView UI & Branding", () => {
 
       expect(screen.getByText("2026 Christmas Concert")).toBeInTheDocument();
       expect(screen.queryByText("Choir Management")).not.toBeInTheDocument();
+    });
+
+    it("renders the roster invite banner when an active invite exists and visitor is anonymous", async () => {
+      setLocationSearch("?token=test-token");
+      sessionStorage.clear();
+
+      const detailsWithInvite: PlayerDetails = {
+        ...mockDetails,
+        activeRosterInvite: {
+          expiresAt: "2026-12-31T23:59:59.000Z",
+          label: "Spring 2026 Roster",
+          token: "valid-roster-invite-token-123456",
+        },
+      };
+
+      vi.spyOn(playerApi, "fetchPlayerDetails").mockResolvedValue(detailsWithInvite);
+      vi.spyOn(webApi, "getMemberProfile").mockRejectedValue(new Error("Anonymous"));
+
+      render(<PublicPlayerView />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: "Singing with Lancaster Community Chorus?" }),
+        ).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText(
+          "Register for a free account to save your voice part preference across devices, view rehearsal schedules, and RSVP to concerts.",
+        ),
+      ).toBeInTheDocument();
+
+      expect(screen.getByRole("button", { name: "Sign Up" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Maybe later" })).toBeInTheDocument();
+
+      // Clicking "Maybe later" dismisses the banner
+      fireEvent.click(screen.getByRole("button", { name: "Maybe later" }));
+      expect(
+        screen.queryByRole("heading", { name: "Singing with Lancaster Community Chorus?" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("opens the join modal when Sign Up is clicked", async () => {
+      setLocationSearch("?token=test-token");
+      sessionStorage.clear();
+
+      const detailsWithInvite: PlayerDetails = {
+        ...mockDetails,
+        activeRosterInvite: {
+          expiresAt: "2026-12-31T23:59:59.000Z",
+          label: "Spring 2026 Roster",
+          token: "valid-roster-invite-token-123456",
+        },
+      };
+
+      vi.spyOn(playerApi, "fetchPlayerDetails").mockResolvedValue(detailsWithInvite);
+      vi.spyOn(webApi, "getMemberProfile").mockRejectedValue(new Error("Anonymous"));
+      vi.spyOn(webApi, "previewRosterInvite").mockResolvedValue({
+        expiresAt: "2026-12-31T23:59:59.000Z",
+        logoFileId: null,
+        organizationName: "Lancaster Community Chorus",
+        organizationSlug: "lancaster",
+        requestId: "req-1",
+      });
+
+      render(<PublicPlayerView />);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Sign Up" })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Sign Up" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("dialog", { name: "Join Lancaster Community Chorus" }),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("does not render the banner when activeRosterInvite is omitted or user is authenticated", async () => {
+      setLocationSearch("?token=test-token");
+      sessionStorage.clear();
+
+      vi.spyOn(playerApi, "fetchPlayerDetails").mockResolvedValue(mockDetails);
+      vi.spyOn(webApi, "getMemberProfile").mockRejectedValue(new Error("Anonymous"));
+
+      render(<PublicPlayerView />);
+
+      await waitFor(() => {
+        expect(screen.getByText("2026 Christmas Concert")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole("heading", { name: /Singing with/ })).not.toBeInTheDocument();
     });
   });
 

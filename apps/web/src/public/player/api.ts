@@ -1,8 +1,8 @@
-import { loudnessByFileIdSchema } from "@choir/contracts";
+import { activeRosterInviteSummarySchema, loudnessByFileIdSchema } from "@choir/contracts";
 import { getPublicPlayerDetails, getPublicPlayerPlaylist } from "../../api";
 import { getCachedPlayerMetadata, saveCachedPlayerMetadata } from "../../offline/mediaStore";
 import { isPlayerDetails, isPlayerPlaylistItem, isRecord } from "./guards";
-import type { PlayerDetails, PlayerPlaylistItem } from "./types";
+import type { ActiveRosterInviteSummary, PlayerDetails, PlayerPlaylistItem } from "./types";
 
 function normalizePlaylistItem(item: {
   readonly title: string;
@@ -46,6 +46,11 @@ function parseTrackLabels(value: unknown): Record<string, string> {
   return result;
 }
 
+function parseActiveRosterInvite(data: unknown): ActiveRosterInviteSummary | null {
+  const result = activeRosterInviteSummarySchema.safeParse(data);
+  return result.success ? result.data : null;
+}
+
 export function parsePlayerDetails(data: unknown): PlayerDetails {
   if (!isPlayerDetails(data)) throw new Error("invalid_response");
   return {
@@ -60,6 +65,7 @@ export function parsePlayerDetails(data: unknown): PlayerDetails {
     performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
     profileName: typeof data.profileName === "string" ? data.profileName : undefined,
     trackLabels: parseTrackLabels(data.trackLabels),
+    activeRosterInvite: parseActiveRosterInvite(data.activeRosterInvite),
   };
 }
 
@@ -86,6 +92,7 @@ export function parsePublicPlaylistDetails(data: unknown): PlayerDetails {
     organizationName: typeof data.organizationName === "string" ? data.organizationName : undefined,
     performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
     trackLabels: parseTrackLabels(data.trackLabels),
+    activeRosterInvite: parseActiveRosterInvite(data.activeRosterInvite),
   };
 }
 
