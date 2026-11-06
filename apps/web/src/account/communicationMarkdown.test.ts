@@ -94,6 +94,18 @@ describe("renderCommunicationMarkdownPreview", () => {
     );
   });
 
+  it("handles backslash-escaped characters in preview without rendering escape slashes", () => {
+    const rendered = renderCommunicationMarkdownPreview(
+      "Buyer: Robin Leach (leachrobing@gmail\\.com) and \\[VIP\\] \\*not italic\\*",
+    );
+    expect(rendered).toContain("leachrobing@gmail.com");
+    expect(rendered).toContain("[VIP]");
+    expect(rendered).toContain("*not italic*");
+    expect(rendered).not.toContain("<em>not italic</em>");
+    expect(rendered).not.toContain("gmail\\.com");
+    expect(rendered).not.toContain("\\[");
+  });
+
   it("populates preview placeholders without changing the source", () => {
     const source = "Hi {recipientName}, {eventTitle}. {{RSVP_LINKS}}";
     const rendered = renderCommunicationMarkdownPreview(

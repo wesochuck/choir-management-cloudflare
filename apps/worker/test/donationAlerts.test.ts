@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  renderCommunicationMarkdown,
+  renderCommunicationText,
+} from "../src/communications/provider";
+import {
   buildDonationAlertContent,
   formatDonationPaymentMethod,
   queueDonationAlert,
@@ -37,12 +41,19 @@ describe("buildDonationAlertContent", () => {
     expect(alert.subject).toBe("Donation receipt: Alex Donor — $100.00");
     expect(alert.contentMarkdown).toContain("## Donation receipt");
     expect(alert.contentMarkdown).toContain("- **Amount:** $100.00");
-    expect(alert.contentMarkdown).toContain("- **Donor:** Alex Donor (donor@example\\.test)");
+    expect(alert.contentMarkdown).toContain("- **Donor:** Alex Donor (donor@example.test)");
+    expect(alert.contentMarkdown).not.toContain("donor@example\\.test");
     expect(alert.contentMarkdown).toContain("- **Payment method:** Stripe");
     expect(alert.contentMarkdown).toContain(
       "[View donations in admin](https://example.test/admin/donations)",
     );
     expect(alert.contentMarkdown).not.toContain("Processing fee covered");
+    expect(renderCommunicationMarkdown(alert.contentMarkdown)).toContain(
+      "Alex Donor (donor@example.test)",
+    );
+    expect(renderCommunicationText(alert.contentMarkdown)).toContain(
+      "Alex Donor (donor@example.test)",
+    );
   });
 
   it("includes covered processing fee and total charged when feeCents is present", () => {
@@ -67,7 +78,8 @@ describe("buildDonationAlertContent", () => {
     expect(alert.contentMarkdown).toContain("- **Donor:** Alex Donor");
     expect(alert.contentMarkdown).not.toContain("()");
     expect(alert.contentMarkdown).toContain("- **Payment method:** Check");
-    expect(alert.contentMarkdown).toContain("- **Payment reference:** Check \\#1042");
+    expect(alert.contentMarkdown).toContain("- **Payment reference:** Check #1042");
+    expect(alert.contentMarkdown).not.toContain("Check \\#1042");
   });
 
   it("includes donation level, tribute, and program ad sponsorship details", () => {
@@ -111,9 +123,16 @@ describe("buildDonationAlertContent", () => {
     });
 
     expect(alert.contentMarkdown).toContain("O'Connor & \\[Friends\\] \\*Special\\*");
-    expect(alert.contentMarkdown).toContain("Ref\\_\\#123\\*456\\*");
-    expect(alert.contentMarkdown).toContain("Dr\\. Jekyll & Mr\\. \\*Hyde\\*");
-    expect(alert.contentMarkdown).toContain("Mary\\_Jane \\(1950\\-2020\\) \\[Honoree\\]");
+    expect(alert.contentMarkdown).toContain("Ref\\_#123\\*456\\*");
+    expect(alert.contentMarkdown).toContain("Dr. Jekyll & Mr. \\*Hyde\\*");
+    expect(alert.contentMarkdown).toContain("Mary\\_Jane (1950-2020) \\[Honoree\\]");
+    expect(renderCommunicationMarkdown(alert.contentMarkdown)).toContain(
+      "Mary_Jane (1950-2020) [Honoree]",
+    );
+    expect(renderCommunicationText(alert.contentMarkdown)).toContain(
+      "Mary_Jane (1950-2020) [Honoree]",
+    );
+    expect(renderCommunicationText(alert.contentMarkdown)).toContain("Dr. Jekyll & Mr. *Hyde*");
   });
 });
 

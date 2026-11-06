@@ -15,26 +15,7 @@ const administratorMembershipRowSchema = z.object({
   role: z.enum(["admin", "owner"]),
 });
 
-const markdownCharacters = [
-  "\\",
-  "`",
-  "*",
-  "_",
-  "[",
-  "]",
-  "{",
-  "}",
-  "(",
-  ")",
-  "#",
-  "+",
-  ".",
-  "!",
-  "|",
-  ">",
-  "~",
-  "-",
-] as const;
+const markdownCharacters = ["\\", "`", "*", "_", "[", "]"] as const;
 
 interface RsvpDeclineNoticeInput {
   readonly actorUserId: string;
@@ -188,7 +169,7 @@ export async function queueRsvpDeclineNotice(
     `**${escapeMarkdown(event.displayName)}** (${escapeMarkdown(declinedProfile.voicePart || "Voice part not assigned")}) declined a ${eventType} RSVP.`,
     "",
     `- **Event:** ${escapeMarkdown(event.title)}`,
-    `- **Date:** ${escapeMarkdown(formatEventDate(event.startsAt, calendarSettings.timezone))}`,
+    `- **Date:** ${formatEventDate(event.startsAt, calendarSettings.timezone)}`,
     "",
     "**Note**",
     noteMarkdown(event.rsvpNote),

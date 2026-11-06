@@ -291,6 +291,32 @@ describe("Organization communication provider", () => {
     );
   });
 
+  it("handles backslash-escaped markdown characters without leaking backslashes into rendered HTML or text", () => {
+    const input =
+      "Hello \\[VIP\\] \\*not italic\\* \\_not underlined\\_ `\\`not code\\`` and email: leachrobing@gmail\\.com";
+    const html = renderCommunicationMarkdown(input);
+    expect(html).toContain("[VIP]");
+    expect(html).toContain("*not italic*");
+    expect(html).toContain("_not underlined_");
+    expect(html).toContain("leachrobing@gmail.com");
+    expect(html).not.toContain("<em>not italic</em>");
+    expect(html).not.toContain("<em>not underlined</em>");
+    expect(html).not.toContain("\\[");
+    expect(html).not.toContain("\\*");
+    expect(html).not.toContain("\\_");
+    expect(html).not.toContain("\\.");
+
+    const text = renderCommunicationText(input);
+    expect(text).toContain("[VIP]");
+    expect(text).toContain("*not italic*");
+    expect(text).toContain("_not underlined_");
+    expect(text).toContain("leachrobing@gmail.com");
+    expect(text).not.toContain("\\[");
+    expect(text).not.toContain("\\*");
+    expect(text).not.toContain("\\_");
+    expect(text).not.toContain("\\.");
+  });
+
   it("preserves base64url underscores in sent HTML and plain-text link and code spans", async () => {
     const email = platformEmailBinding();
     const signedUrl = "https://example.com/tickets?token=header_part_middle_tail";

@@ -21,26 +21,7 @@ const purchaseResponseSchema = z.object({
   timezone: z.string().nullable().optional(),
 });
 
-const markdownCharacters = [
-  "\\",
-  "`",
-  "*",
-  "_",
-  "[",
-  "]",
-  "{",
-  "}",
-  "(",
-  ")",
-  "#",
-  "+",
-  ".",
-  "!",
-  "|",
-  ">",
-  "~",
-  "-",
-] as const;
+const markdownCharacters = ["\\", "`", "*", "_", "[", "]"] as const;
 
 export interface TicketSaleAlertInput {
   readonly actorUserId?: string;
@@ -194,7 +175,7 @@ async function resolvePurchaseDetails(
   };
 }
 
-function buildAlertContent(
+export function buildAlertContent(
   input: TicketSaleAlertInput,
   effectiveTitle: string,
   eventStartsAt: string | null,
@@ -212,12 +193,12 @@ function buildAlertContent(
     `- **Event:** ${escapeMarkdown(effectiveTitle)}`,
   ];
   if (eventStartsAt) {
-    lines.push(`- **Date:** ${escapeMarkdown(formatEventDate(eventStartsAt, timezone))}`);
+    lines.push(`- **Date:** ${formatEventDate(eventStartsAt, timezone)}`);
   }
   lines.push(
     `- **Quantity:** ${String(input.quantity)}`,
     `- **Amount paid:** ${formattedAmount}`,
-    `- **Buyer:** ${escapeMarkdown(input.buyerName)} (${escapeMarkdown(input.buyerEmail)})`,
+    `- **Buyer:** ${escapeMarkdown(input.buyerName)} (${input.buyerEmail})`,
     `- **Order link:** [${input.orderUrl}](${input.orderUrl})`,
     "",
     `[View ticket orders in admin](${input.orderUrl})`,

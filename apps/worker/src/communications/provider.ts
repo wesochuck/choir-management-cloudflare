@@ -101,6 +101,31 @@ function isSafeHttpUrl(value: string): boolean {
   }
 }
 
+const MARKDOWN_ESCAPE_PATTERN = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
+const ESCAPE_PLACEHOLDER_PREFIX = "\uE000";
+const ESCAPE_PLACEHOLDER_SUFFIX = "\uE001";
+const ESCAPE_RESTORE_PATTERN = /\uE000([0-9a-f]+)\uE001/g;
+
+function protectMarkdownEscapes(value: string): string {
+  return value.replace(
+    MARKDOWN_ESCAPE_PATTERN,
+    (_, char: string) =>
+      `${ESCAPE_PLACEHOLDER_PREFIX}${char.charCodeAt(0).toString(16)}${ESCAPE_PLACEHOLDER_SUFFIX}`,
+  );
+}
+
+function restoreMarkdownEscapedHtml(value: string): string {
+  return value.replace(ESCAPE_RESTORE_PATTERN, (_, hex: string) =>
+    escapeEmailHtml(String.fromCharCode(Number.parseInt(hex, 16))),
+  );
+}
+
+function restoreMarkdownEscapedText(value: string): string {
+  return value.replace(ESCAPE_RESTORE_PATTERN, (_, hex: string) =>
+    String.fromCharCode(Number.parseInt(hex, 16)),
+  );
+}
+
 function renderMarkdownEmphasis(value: string): string {
   return escapeEmailHtml(value)
     .replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#17181d;font-weight:700;">$1</strong>')
@@ -127,9 +152,10 @@ function renderMarkdownInline(value: string): string {
     const rawLink = link[0];
     const label = link[1] ?? "Open link";
     const url = link[2] ?? "";
+    const effectiveUrl = restoreMarkdownEscapedText(url);
     rendered += renderMarkdownText(value.slice(cursor, link.index));
-    rendered += isSafeHttpUrl(url)
-      ? `<a href="${escapeEmailHtml(url)}" style="color:#1b4d3e;font-weight:700;text-decoration:underline;">${renderMarkdownText(label)}</a>`
+    rendered += isSafeHttpUrl(effectiveUrl)
+      ? `<a href="${escapeEmailHtml(effectiveUrl)}" style="color:#1b4d3e;font-weight:700;text-decoration:underline;">${renderMarkdownText(label)}</a>`
       : renderMarkdownText(rawLink);
     cursor = link.index + rawLink.length;
   }
@@ -148,7 +174,11 @@ function renderMarkdownBlock(trimmed: string): string {
   }
   const standaloneLink = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(trimmed);
   if (standaloneLink) {
-    return renderEmailAction(standaloneLink[1] ?? "Open link", standaloneLink[2] ?? "");
+    const effectiveUrl = restoreMarkdownEscapedText(standaloneLink[2] ?? "");
+    return renderEmailAction(
+      restoreMarkdownEscapedText(standaloneLink[1] ?? "Open link"),
+      effectiveUrl,
+    );
   }
   return trimmed
     ? `<p style="color:#30343b;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;margin:0 0 18px;">${renderMarkdownInline(trimmed)}</p>`
@@ -168,7 +198,7 @@ function renderBlockquote(lines: readonly string[]): string {
 
 /** Render the deliberately small Markdown subset exposed by the message editor. */
 export function renderCommunicationMarkdown(value: string): string {
-  const lines = value.split("\n");
+  const lines = protectMarkdownEscapes(value).split("\n");
   const output: string[] = [];
   let inList = false;
   let inBlockquote = false;
@@ -221,11 +251,11 @@ export function renderCommunicationMarkdown(value: string): string {
 
   flushList();
   flushBlockquote();
-  return output.join("");
+  return restoreMarkdownEscapedHtml(output.join(""));
 }
 
 export function renderCommunicationText(value: string): string {
-  const normalized = value
+  const normalized = protectMarkdownEscapes(value)
     .replace(/^#{1,3}\s+/gm, "")
     .replace(/^\s*\*\s+/gm, "- ")
     .replace(/^[ \t]*>[ \t]?/gm, "");
@@ -238,7 +268,9 @@ export function renderCommunicationText(value: string): string {
       `${stripMarkdownEmphasis(protectedSpan[2] ?? "Open link")}: ${protectedSpan[3] ?? ""}`;
     cursor = protectedSpan.index + protectedSpan[0].length;
   }
-  return (rendered + stripMarkdownEmphasis(normalized.slice(cursor))).trim();
+  return restoreMarkdownEscapedText(
+    (rendered + stripMarkdownEmphasis(normalized.slice(cursor))).trim(),
+  );
 }
 
 function stripMarkdownEmphasis(value: string): string {

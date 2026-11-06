@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { organizationProfileSchema, type OrganizationProfile } from "@choir/contracts";
 import {
+  renderCommunicationMarkdown,
+  renderCommunicationText,
+} from "../src/communications/provider";
+import {
+  buildAlertContent,
   escapeMarkdown,
   financialAlertRecipients,
   formatEventDate,
@@ -135,10 +140,49 @@ describe("ticketSaleAlerts recipient resolution", () => {
 });
 
 describe("ticketSaleAlerts content helpers", () => {
-  it("escapes markdown special characters", () => {
+  it("escapes markdown special characters without escaping periods, hyphens, or parentheses", () => {
     expect(escapeMarkdown("Jane & John [VIP] *Special* _Guest_")).toBe(
       "Jane & John \\[VIP\\] \\*Special\\* \\_Guest\\_",
     );
+    expect(escapeMarkdown("Robin Leach Jr. (VIP) Mary-Jane")).toBe(
+      "Robin Leach Jr. (VIP) Mary-Jane",
+    );
+  });
+
+  it("builds ticket sale alert markdown and renders emails without escaping email addresses or dates", () => {
+    const alert = buildAlertContent(
+      {
+        amountPaidCents: 2091,
+        buyerEmail: "leachrobing@gmail.com",
+        buyerName: "Robin Leach",
+        currency: "USD",
+        eventId: "event-1",
+        orderUrl: "https://example.test/admin/tickets",
+        organizationId: "org-1",
+        purchaseId: "purchase-1",
+        quantity: 2,
+        requestId: "req-1",
+      },
+      "2026 Christmas Concert",
+      "2026-12-13T20:00:00.000Z",
+      "America/New_York",
+    );
+
+    expect(alert.subject).toBe("Ticket sale: 2026 Christmas Concert — 2 × $20.91");
+    expect(alert.contentMarkdown).toContain("- **Event:** 2026 Christmas Concert");
+    expect(alert.contentMarkdown).toContain("- **Date:** Sunday, December 13, 2026 at 3:00 PM");
+    expect(alert.contentMarkdown).toContain("- **Quantity:** 2");
+    expect(alert.contentMarkdown).toContain("- **Amount paid:** $20.91");
+    expect(alert.contentMarkdown).toContain("- **Buyer:** Robin Leach (leachrobing@gmail.com)");
+    expect(alert.contentMarkdown).not.toContain("gmail\\.com");
+
+    const html = renderCommunicationMarkdown(alert.contentMarkdown);
+    expect(html).toContain("Robin Leach (leachrobing@gmail.com)");
+    expect(html).not.toContain("gmail\\.com");
+
+    const text = renderCommunicationText(alert.contentMarkdown);
+    expect(text).toContain("Buyer: Robin Leach (leachrobing@gmail.com)");
+    expect(text).not.toContain("gmail\\.com");
   });
 
   it("formats money correctly including $0.00 for comp orders", () => {

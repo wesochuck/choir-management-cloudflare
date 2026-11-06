@@ -85,7 +85,7 @@ function formatSponsorshipLine(
 function formatBuyerLine(buyerName: string, buyerEmail?: string | null): string {
   const email = buyerEmail?.trim();
   if (email && email.length > 0) {
-    return `- **Donor:** ${escapeMarkdown(buyerName)} (${escapeMarkdown(email)})`;
+    return `- **Donor:** ${escapeMarkdown(buyerName)} (${email})`;
   }
   return `- **Donor:** ${escapeMarkdown(buyerName)}`;
 }

@@ -27,6 +27,31 @@ function isSafeHttpUrl(value: string): boolean {
   }
 }
 
+const MARKDOWN_ESCAPE_PATTERN = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
+const ESCAPE_PLACEHOLDER_PREFIX = "\uE000";
+const ESCAPE_PLACEHOLDER_SUFFIX = "\uE001";
+const ESCAPE_RESTORE_PATTERN = /\uE000([0-9a-f]+)\uE001/g;
+
+function protectMarkdownEscapes(value: string): string {
+  return value.replace(
+    MARKDOWN_ESCAPE_PATTERN,
+    (_, char: string) =>
+      `${ESCAPE_PLACEHOLDER_PREFIX}${char.charCodeAt(0).toString(16)}${ESCAPE_PLACEHOLDER_SUFFIX}`,
+  );
+}
+
+function restoreMarkdownEscapedHtml(value: string): string {
+  return value.replace(ESCAPE_RESTORE_PATTERN, (_, hex: string) =>
+    escapeHtml(String.fromCharCode(Number.parseInt(hex, 16))),
+  );
+}
+
+function restoreMarkdownEscapedText(value: string): string {
+  return value.replace(ESCAPE_RESTORE_PATTERN, (_, hex: string) =>
+    String.fromCharCode(Number.parseInt(hex, 16)),
+  );
+}
+
 function renderInline(value: string): string {
   const links: string[] = [];
   const escaped = escapeHtml(value);
@@ -37,9 +62,12 @@ function renderInline(value: string): string {
   const withLinks = withPolls.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
     (match, label: string, url: string) => {
-      if (!isSafeHttpUrl(url)) return match;
+      const effectiveUrl = restoreMarkdownEscapedText(url);
+      if (!isSafeHttpUrl(effectiveUrl)) return match;
       const index = links.length;
-      const target = url.startsWith("/") ? "" : ' target="_blank" rel="noopener noreferrer"';
+      const target = effectiveUrl.startsWith("/")
+        ? ""
+        : ' target="_blank" rel="noopener noreferrer"';
       links.push(`<a href="${url}"${target}>${label}</a>`);
       return `@@LINK_${String(index)}@@`;
     },
@@ -182,7 +210,7 @@ export function renderCommunicationMarkdownPreview(
   const source = hasLogo
     ? value.replace(/\{\{organizationLogo\}\}|\{organizationLogo\}/g, logoMarker)
     : value;
-  const rendered = populateCommunicationPreview(source, replacements)
+  const rendered = protectMarkdownEscapes(populateCommunicationPreview(source, replacements))
     .split("\n")
     .map((line) => {
       const trimmed = line.trim();
@@ -196,5 +224,6 @@ export function renderCommunicationMarkdownPreview(
     })
     .join("")
     .replace(/(<li>.*?<\/li>)+/g, (list) => `<ul>${list}</ul>`);
-  return hasLogo ? rendered.replaceAll(logoMarker, logoHtml) : rendered;
+  const finalHtml = hasLogo ? rendered.replaceAll(logoMarker, logoHtml) : rendered;
+  return restoreMarkdownEscapedHtml(finalHtml);
 }
