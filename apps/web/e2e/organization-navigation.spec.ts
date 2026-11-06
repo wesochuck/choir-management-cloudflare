@@ -17,8 +17,9 @@ async function expectReadableMenuIcons(sheet: Locator) {
     const icon = destination.locator("svg[data-feature-icon]");
     await expect(icon).toBeVisible();
     const bounds = await icon.boundingBox();
-    expect(bounds?.width).toBe(24);
-    expect(bounds?.height).toBe(24);
+    // Sheet transforms can yield sub-pixel layout (e.g. 23.99997); assert to 0.05px.
+    expect(bounds?.width).toBeCloseTo(24, 1);
+    expect(bounds?.height).toBeCloseTo(24, 1);
     const row = await destination.boundingBox();
     expect(row?.height).toBeGreaterThanOrEqual(44);
     expect(row?.height).toBeLessThanOrEqual(60);
