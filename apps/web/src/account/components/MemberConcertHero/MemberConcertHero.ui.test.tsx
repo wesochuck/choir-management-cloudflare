@@ -257,4 +257,63 @@ describe("MemberConcertHero", () => {
     expect(screen.getByText("Location to be announced")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /on Google Maps/i })).not.toBeInTheDocument();
   });
+
+  it("renders attendance summary and declined badge when member declined performance and self-service is closed", () => {
+    const concert = createConcert({
+      directRsvp: "No",
+      resolvedRsvp: "No",
+      rsvpSelfServiceOpen: false,
+    });
+
+    render(
+      <MemberConcertHero
+        busyEventId={null}
+        concert={concert}
+        onOpenPractice={vi.fn()}
+        rehearsalsRemainingCount={0}
+        timezone="America/New_York"
+      />,
+    );
+
+    expect(screen.getByText("Your Attendance")).toBeInTheDocument();
+    expect(screen.getByText("Declined")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "You are marked as not attending this performance cycle. Linked rehearsals are excluded from your schedule.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Self-service RSVP is closed for this concert. Contact a director or roster manager if your availability has changed.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Rehearsals Remaining")).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  it("renders attendance summary with update guidance when member declined and self-service is open", () => {
+    const concert = createConcert({
+      directRsvp: "No",
+      resolvedRsvp: "No",
+      rsvpSelfServiceOpen: true,
+    });
+
+    render(
+      <MemberConcertHero
+        busyEventId={null}
+        concert={concert}
+        onOpenPractice={vi.fn()}
+        rehearsalsRemainingCount={0}
+        timezone="America/New_York"
+      />,
+    );
+
+    expect(screen.getByText("Your Attendance")).toBeInTheDocument();
+    expect(screen.getByText("Declined")).toBeInTheDocument();
+    expect(
+      screen.getByText("You can update your RSVP in the upcoming events list below."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Rehearsals Remaining")).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
 });

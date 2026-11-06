@@ -246,6 +246,40 @@
     background-color: #0066ff;
   }
 
+  .member-concert-hero__declined-card {
+    background-color: var(--color-surface, #ffffff);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    width: 20rem;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    box-shadow:
+      0 4px 6px -1px rgba(0, 0, 0, 0.1),
+      0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    color: var(--color-text, #1f2937);
+  }
+
+  .member-concert-hero__declined-badge-row {
+    display: flex;
+    align-items: center;
+  }
+
+  .member-concert-hero__declined-message {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+    color: var(--color-text, #1f2937);
+  }
+
+  .member-concert-hero__declined-help {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-normal);
+    color: var(--color-text-muted, #6b7280);
+  }
+
   @media (max-width: 768px) {
     .member-concert-hero {
       flex-direction: column;
@@ -270,6 +304,11 @@
     .member-concert-hero__stat-card {
       flex: 1;
       min-width: 0;
+    }
+
+    .member-concert-hero__declined-card {
+      width: 100%;
+      max-width: none;
     }
   }
 

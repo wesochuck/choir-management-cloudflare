@@ -729,6 +729,72 @@ describe("DashboardView", () => {
     expect(screen.queryByText("Rehearsals Remaining")).not.toBeInTheDocument();
   });
 
+  it("renders concert hero in declined state when next performance is marked declined", async () => {
+    const dashboardWithDeclinedConcert: MemberDashboardResponse = {
+      ...mockDashboard,
+      events: [
+        {
+          attendanceWarning: null,
+          callTime: "14:00",
+          details: "Large work with strings",
+          directRsvp: "No",
+          durationMinutes: 120,
+          featuredAssignments: [],
+          id: "concert-declined-1",
+          inheritedFromParent: false,
+          location: "Crossroads Center",
+          practice: {
+            sourceEventId: "concert-declined-1",
+            status: "available",
+            trackCount: 4,
+          },
+          publicGraphicFileId: null,
+          resolvedRsvp: "No",
+          rsvpDeadlineAt: "2026-09-20T23:59:59Z",
+          rsvpDeadlineDate: "2026-09-20",
+          rsvpDeadlinePassed: true,
+          rsvpNote: "",
+          rsvpSelfServiceOpen: false,
+          seating: { status: "declined" },
+          setList: [],
+          startsAt: "2026-11-15T15:00:00Z",
+          title: "Earth and Sky and Sea",
+          type: "Performance",
+          venueAddress: "2095 W Fair Ave",
+          venueName: "Crossroads Center",
+        },
+      ],
+    };
+
+    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValueOnce(dashboardWithDeclinedConcert);
+
+    render(<DashboardView accessStatus="ready" enabled={true} navigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("region", { name: "Featured performance: Earth and Sky and Sea" }),
+      ).toBeInTheDocument();
+    });
+
+    const hero = screen.getByRole("region", {
+      name: "Featured performance: Earth and Sky and Sea",
+    });
+    expect(within(hero).getByText("Your Attendance")).toBeInTheDocument();
+    expect(within(hero).getByText("Declined")).toBeInTheDocument();
+    expect(
+      within(hero).getByText(
+        "You are marked as not attending this performance cycle. Linked rehearsals are excluded from your schedule.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(hero).getByText(
+        "Self-service RSVP is closed for this concert. Contact a director or roster manager if your availability has changed.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(hero).queryByText("Rehearsals Remaining")).not.toBeInTheDocument();
+    expect(within(hero).queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
   it("opens practice player when Open Practice Player button in concert hero is clicked", async () => {
     const dashboardWithConcert: MemberDashboardResponse = {
       ...mockDashboard,

@@ -28,6 +28,7 @@ export function MemberConcertHero({
   rehearsalsRemainingCount,
   timezone,
 }: MemberConcertHeroProps) {
+  const isDeclined = concert.resolvedRsvp === "No";
   const concertDate = new Date(concert.startsAt);
   const { dateFormatted, timeFormatted } = formatConcertDateTime(concert.startsAt, timezone);
   const { weeks, days, rehearsalsRemaining, totalSegments } = calculateConcertCountdown(
@@ -109,40 +110,64 @@ export function MemberConcertHero({
       <div aria-hidden="true" className="member-concert-hero__divider" />
 
       <div className="member-concert-hero__right">
-        <h3 className="member-concert-hero__countdown-title">Rehearsals Remaining</h3>
-        <div className="member-concert-hero__stats">
-          <div className="member-concert-hero__stat-card">
-            <span className="member-concert-hero__stat-value">{weeks}</span>
-            <span className="member-concert-hero__stat-label">
-              {weeks === 1 ? "Week" : "Weeks"}
-            </span>
-          </div>
-          <div className="member-concert-hero__stat-card">
-            <span className="member-concert-hero__stat-value">{days}</span>
-            <span className="member-concert-hero__stat-label">{days === 1 ? "Day" : "Days"}</span>
-          </div>
-          <div className="member-concert-hero__stat-card">
-            <span className="member-concert-hero__stat-value">{rehearsalsRemaining}</span>
-            <span className="member-concert-hero__stat-label">
-              {rehearsalsRemaining === 1 ? "Rehearsal" : "Rehearsals"}
-            </span>
-          </div>
-        </div>
-        <div
-          aria-label="Rehearsals remaining progress"
-          aria-valuemax={totalSegments}
-          aria-valuemin={0}
-          aria-valuenow={rehearsalsRemaining}
-          className="member-concert-hero__progress"
-          role="progressbar"
-        >
-          {Array.from({ length: totalSegments }).map((_, idx) => (
-            <span
-              className={`member-concert-hero__progress-segment${idx < rehearsalsRemaining ? " is-active" : ""}`}
-              key={idx}
-            />
-          ))}
-        </div>
+        {isDeclined ? (
+          <>
+            <h3 className="member-concert-hero__countdown-title">Your Attendance</h3>
+            <div className="member-concert-hero__declined-card">
+              <div className="member-concert-hero__declined-badge-row">
+                <span className="rsvp-status-badge rsvp-status-badge--No">Declined</span>
+              </div>
+              <p className="member-concert-hero__declined-message">
+                You are marked as not attending this performance cycle. Linked rehearsals are
+                excluded from your schedule.
+              </p>
+              <p className="member-concert-hero__declined-help">
+                {concert.rsvpSelfServiceOpen
+                  ? "You can update your RSVP in the upcoming events list below."
+                  : "Self-service RSVP is closed for this concert. Contact a director or roster manager if your availability has changed."}
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <h3 className="member-concert-hero__countdown-title">Rehearsals Remaining</h3>
+            <div className="member-concert-hero__stats">
+              <div className="member-concert-hero__stat-card">
+                <span className="member-concert-hero__stat-value">{weeks}</span>
+                <span className="member-concert-hero__stat-label">
+                  {weeks === 1 ? "Week" : "Weeks"}
+                </span>
+              </div>
+              <div className="member-concert-hero__stat-card">
+                <span className="member-concert-hero__stat-value">{days}</span>
+                <span className="member-concert-hero__stat-label">
+                  {days === 1 ? "Day" : "Days"}
+                </span>
+              </div>
+              <div className="member-concert-hero__stat-card">
+                <span className="member-concert-hero__stat-value">{rehearsalsRemaining}</span>
+                <span className="member-concert-hero__stat-label">
+                  {rehearsalsRemaining === 1 ? "Rehearsal" : "Rehearsals"}
+                </span>
+              </div>
+            </div>
+            <div
+              aria-label="Rehearsals remaining progress"
+              aria-valuemax={totalSegments}
+              aria-valuemin={0}
+              aria-valuenow={rehearsalsRemaining}
+              className="member-concert-hero__progress"
+              role="progressbar"
+            >
+              {Array.from({ length: totalSegments }).map((_, idx) => (
+                <span
+                  className={`member-concert-hero__progress-segment${idx < rehearsalsRemaining ? " is-active" : ""}`}
+                  key={idx}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </section>
   );
