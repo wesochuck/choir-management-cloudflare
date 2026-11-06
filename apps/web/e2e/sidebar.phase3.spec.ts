@@ -662,15 +662,14 @@ test("member desktop groups and mobile bottom menus work in both themes", async 
     if (mobile) {
       const bar = page.getByRole("navigation", { name: "Mobile Member navigation" });
       await expect(bar.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+      await expect(bar.getByRole("link", { name: "Practice", exact: true })).toHaveAttribute(
+        "href",
+        "/practice",
+      );
       await bar.getByRole("button", { name: "More" }).click();
-      const menu = page.getByRole("dialog", { name: "Your membership" });
+      const menu = page.getByRole("dialog", { name: "More" });
       await expect(menu.getByRole("link", { name: "My Profile", exact: true })).toBeVisible();
-      await menu.getByRole("button", { name: "Practice", exact: true }).click();
-      await expect(
-        page
-          .getByRole("dialog", { name: "Practice & resources" })
-          .getByRole("link", { name: "Practice", exact: true }),
-      ).toBeVisible();
+      await expect(menu.getByRole("link", { name: "Resources", exact: true })).toBeVisible();
       await page.screenshot({ path: info.outputPath(`member-bottom-${theme}.png`) });
       await page.keyboard.press("Escape");
       continue;
