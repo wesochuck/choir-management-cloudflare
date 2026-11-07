@@ -1032,6 +1032,27 @@
       grid-template-columns: 1fr;
     }
 
+    .directory-grid li {
+      display: grid;
+      grid-template-columns: 4rem minmax(0, 1fr);
+      align-content: start;
+      column-gap: var(--spacing-sm);
+      row-gap: var(--spacing-3xs);
+    }
+
+    .directory-grid .profile-photo--directory {
+      grid-column: 1;
+      grid-row: 1 / span 4;
+      align-self: start;
+    }
+
+    .directory-grid h3,
+    .directory-grid p {
+      grid-column: 2;
+      min-width: 0;
+      margin: 0;
+    }
+
     .profile-performance-card {
       grid-template-columns: 1fr;
     }

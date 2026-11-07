@@ -37,6 +37,15 @@ for (const theme of ["light", "dark"] as const) {
                 email: "alexandria.montgomery.wellington@communitychorus.example.org",
                 voicePart: "First Alto Section – community choir and seasonal performers",
               },
+              {
+                ...buildDirectoryAltoProfile(),
+                id: "22222222-3333-4444-8555-666666666666",
+                displayName: "Casey Singer",
+                voicePart: "T1",
+                email: "",
+                phone: "",
+                photoFileId: null,
+              },
             ],
             requestId: "11111111-1111-4111-8111-111111111111",
           },
@@ -51,6 +60,14 @@ for (const theme of ["light", "dark"] as const) {
       await expect(
         page.getByRole("banner").getByRole("link", { name: "Lancaster Community Chorus" }),
       ).toBeVisible();
+      const compactCard = page.getByRole("listitem", { name: "Directory Profile: Casey Singer" });
+      const avatar = await compactCard.locator(".profile-photo--directory").boundingBox();
+      const title = await compactCard.getByRole("heading", { name: "Casey Singer" }).boundingBox();
+      const card = await compactCard.boundingBox();
+      if (!avatar || !title || !card) throw new Error("Expected directory card layout bounds.");
+      expect(title.x).toBeGreaterThanOrEqual(avatar.x + avatar.width);
+      expect(Math.abs(title.y - avatar.y)).toBeLessThanOrEqual(1);
+      expect(card.height).toBeLessThan(170);
       const overflow = await page.evaluate(() =>
         [...document.querySelectorAll("body *")].flatMap((element) => {
           const bounds = element.getBoundingClientRect();
@@ -72,12 +89,27 @@ for (const theme of ["light", "dark"] as const) {
         JSON.stringify(overflow),
       ).toBeLessThanOrEqual(width);
       await page.screenshot({ path: testInfo.outputPath("directory-mobile.png"), fullPage: true });
+      await page.getByRole("searchbox", { name: "Search directory" }).fill("Casey");
+      await expect(compactCard).toBeVisible();
+      await page.screenshot({
+        path: testInfo.outputPath("directory-compact-mobile.png"),
+        fullPage: true,
+      });
       await page.getByRole("searchbox", { name: "Search directory" }).fill("Alexandria");
       await expect(
         page.getByRole("listitem", {
           name: "Directory Profile: Alexandria MontgomeryWellingtonJacksonWilliams",
         }),
       ).toBeVisible();
+      await page.setViewportSize({ width: 1280, height: 900 });
+      const desktopCard = page.getByRole("listitem", {
+        name: "Directory Profile: Alexandria MontgomeryWellingtonJacksonWilliams",
+      });
+      const desktopAvatar = await desktopCard.locator(".profile-photo--directory").boundingBox();
+      const desktopTitle = await desktopCard.getByRole("heading").boundingBox();
+      if (!desktopAvatar || !desktopTitle)
+        throw new Error("Expected desktop directory layout bounds.");
+      expect(desktopTitle.y).toBeGreaterThanOrEqual(desktopAvatar.y + desktopAvatar.height);
     });
   }
 }
