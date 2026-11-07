@@ -1,3 +1,55 @@
+# Notification inbox design QA — November 7, 2026
+
+final result: passed
+
+Selected visual: third displayed design,
+`/Users/wesosborn/.codex/generated_images/01a1b77a-51d7-7bf2-b74d-1c13d2dbbd93/exec-64245bf1-78ce-4e65-86df-17cbdd945b27.png`.
+Rendered evidence: `/private/tmp/choir-notifications-mobile-dark.png` and
+`/private/tmp/choir-notifications-mobile-light.png`. Combined comparison:
+`/private/tmp/notification-design-comparison.png`.
+
+The source is 984 × 1599 pixels. Mobile Chromium uses the Pixel 7 viewport (412 × 839 CSS pixels,
+device scale factor 2.625); the full-page implementation capture is 1082 × 2349 pixels. Both images
+were normalized to 393 pixels wide for the combined comparison. The implementation scrolls; its
+full-page height is not the viewport height. State: first notification expanded, second collapsed,
+all notifications selected, read notifications. The test also opens and closes the second row with
+Enter and Space and selects a category through the native selector.
+
+Findings and comparison history:
+
+- Initial rendered capture exposed a duplicate Notifications heading from the shell and page. Fixed
+  by letting this route own its heading, matching other independently headed pages.
+- Initial capture exposed extra content inset from a nested main element. Replaced it with a
+  labelled section, preserving one main landmark and restoring usable width.
+- Initial View record action stretched across its row. Scoped its width and alignment to retain the
+  mock's left-aligned action. The final combined comparison confirms those fixes.
+- No remaining actionable P0/P1/P2 findings in the notification content. The mock's global header
+  and bottom navigation are reference context; the existing shell is preserved. The test account
+  workspace uses the fixture brand and has no Organization bottom navigation. This is an expected
+  fixture/state difference, not a navigation change. The separately reported mobile workspace
+  switcher remains outside this implementation.
+
+Required fidelity surfaces:
+
+- Typography: existing Inter/system stack and shared size/weight tokens; full wrapping titles and
+  1rem body text. The deliberately longer second fixture title verifies wrapping without ellipsis.
+- Spacing: flat list, dividers, icon gutter, metadata above title, readable open details and
+  separate count/pagination. Larger real content remains scrollable rather than clipped to the mock
+  frame.
+- Colors: existing light/dark tokens and native selector; zero serious/critical axe findings in the
+  changed region in either theme.
+- Assets: existing Organization feature icons and shell brand; no generated replacement assets.
+- Copy: short subtitle and category selector match the chosen direction. Real notification titles,
+  descriptions, destinations and read-state actions remain sourced from the existing API.
+
+The same combined image makes the selector, title wrapping and action alignment readable at normal
+scale, so separate cropped evidence was not needed. Focused desktop/mobile browser tests also verify
+no horizontal overflow, page errors, external requests or broken images, and exactly one h1. Fifteen
+notification component tests, web typecheck and changed-file lint passed. Screen-reader testing and
+full release qualification were not performed for this local implementation.
+
+## Earlier design QA
+
 # Bulk track review design QA
 
 final result: passed

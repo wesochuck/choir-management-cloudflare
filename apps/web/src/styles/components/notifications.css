@@ -206,7 +206,145 @@
     margin-inline: auto;
   }
 
+  .notification-inbox-filter {
+    margin-block: var(--spacing-lg) var(--spacing-xl);
+  }
+
+  .notification-inbox-filter select {
+    width: 100%;
+    min-height: 3rem;
+    font-size: var(--font-size-body);
+  }
+
+  .notification-page-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .notification-page-item {
+    display: grid;
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xl) var(--spacing-xs);
+    border-bottom: 1px solid var(--color-border);
+  }
+
   .notification-page-item--unread {
-    border-left: 3px solid var(--color-primary, #2563eb);
+    border-inline-start: 3px solid var(--color-primary);
+  }
+
+  .notification-page-item__icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-top: var(--spacing-3xs);
+    color: var(--color-text-muted);
+  }
+
+  .notification-page-item__metadata {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-2xs) var(--spacing-sm);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+  }
+
+  .notification-page-item__unread-label {
+    color: var(--color-primary);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .notification-page-item__summary {
+    position: relative;
+    list-style: none;
+    min-height: 2.75rem;
+    padding-block: var(--spacing-xs);
+    padding-inline-end: var(--spacing-xl);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+  }
+
+  .notification-page-item__summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* Match the existing native-details disclosure used by music-genre-filter. */
+  .notification-page-item__summary::after {
+    content: "⌃";
+    position: absolute;
+    inset-inline-end: 0;
+    top: var(--spacing-xs);
+    transform: rotate(180deg);
+    color: var(--color-text-muted);
+  }
+
+  .notification-page-item__details[open] > summary::after {
+    transform: rotate(0deg);
+  }
+
+  .notification-page-item__summary:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
+  }
+
+  .notification-page-item__summary h2 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--line-height-snug);
+    overflow-wrap: anywhere;
+  }
+
+  .notification-page-item__hint {
+    display: block;
+    margin-top: var(--spacing-3xs);
+    font-size: var(--font-size-base);
+    color: var(--color-text-muted);
+  }
+
+  .notification-page-item__details[open] .notification-page-item__hint {
+    display: none;
+  }
+
+  .notification-page-item__body p {
+    margin: 0;
+    font-size: var(--font-size-body);
+    line-height: var(--line-height-relaxed);
+    overflow-wrap: anywhere;
+  }
+
+  .notification-page-item__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
+  }
+
+  .notification-page-item__actions .button {
+    width: auto;
+    flex: none;
+    justify-content: flex-start;
+    min-height: 2.75rem;
+    padding-inline: 0;
+    color: var(--color-primary);
+  }
+
+  .notification-inbox-count {
+    margin-block: var(--spacing-md);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .notification-inbox-pagination {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-lg);
+  }
+
+  .notification-inbox-pagination .button {
+    flex: 1;
+    min-height: 2.75rem;
   }
 }

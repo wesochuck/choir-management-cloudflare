@@ -33,7 +33,7 @@ describe("NotificationInboxPage", () => {
     window.scrollTo = vi.fn();
   });
 
-  it("renders page header and tabs", async () => {
+  it("renders the page header, category selector, and first expanded notification", async () => {
     vi.spyOn(api, "listNotifications").mockResolvedValue({
       hasMoreUnread: false,
       nextCursor: null,
@@ -55,15 +55,22 @@ describe("NotificationInboxPage", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Notifications" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "All" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Unread" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Auditions" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Ticket sales" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Donations" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Show notifications" })).toHaveValue("all");
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "All notifications",
+      "Unread",
+      "Auditions",
+      "Ticket sales",
+      "Donations",
+      "RSVP declines",
+      "Compliance",
+    ]);
     expect(await screen.findByText("Audition inquiry: Alice")).toBeInTheDocument();
+    expect(screen.getByText(sampleNotice.body)).toBeVisible();
+    expect(screen.getByText(sampleNotice.title).closest("details")).toHaveAttribute("open");
   });
 
-  it("switches filter tabs and triggers filtered list query", async () => {
+  it("changes the selector and triggers the filtered list query", async () => {
     const listSpy = vi.spyOn(api, "listNotifications").mockResolvedValue({
       hasMoreUnread: false,
       nextCursor: null,
@@ -82,14 +89,85 @@ describe("NotificationInboxPage", () => {
       />,
     );
 
-    const auditionsTab = await screen.findByRole("tab", { name: "Auditions" });
-    fireEvent.click(auditionsTab);
+    fireEvent.change(await screen.findByRole("combobox", { name: "Show notifications" }), {
+      target: { value: "audition" },
+    });
 
     expect(listSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         filter: "audition",
       }),
     );
+  });
+
+  it("reveals details without marking read and preserves authorized record actions", async () => {
+    vi.spyOn(api, "listNotifications").mockResolvedValue({
+      hasMoreUnread: false,
+      nextCursor: null,
+      notifications: [
+        sampleNotice,
+        {
+          ...sampleNotice,
+          id: "33333333-3333-4333-8333-333333333333",
+          title: "Second inquiry",
+          body: "Second inquiry details.",
+        },
+      ],
+      requestId: "11111111-1111-4111-8111-111111111111",
+      snapshotBoundary: sampleNotice.createdAt,
+      unreadCount: 2,
+    });
+    const markRead = vi.spyOn(api, "markNotificationRead").mockResolvedValue({
+      notification: { ...sampleNotice, readAt: new Date().toISOString() },
+      requestId: "11111111-1111-4111-8111-111111111111",
+      success: true,
+    });
+    const navigate = vi.fn();
+    renderWithClient(
+      <NotificationInboxPage
+        onNavigate={navigate}
+        organizationId="org-1"
+        userId="user-1"
+        userRole="administrator"
+      />,
+    );
+    const heading = await screen.findByRole("heading", { name: "Second inquiry" });
+    const details = heading.closest("details");
+    const summary = heading.closest("summary");
+    expect(details).not.toHaveAttribute("open");
+    if (!summary) throw new Error("Expected a native disclosure summary.");
+    fireEvent.click(summary);
+    expect(details).toHaveAttribute("open");
+    expect(markRead).not.toHaveBeenCalled();
+    const viewRecord = screen.getAllByRole("button", { name: "View record →" })[1];
+    if (!viewRecord) throw new Error("Expected the second record action.");
+    fireEvent.click(viewRecord);
+    await waitFor(() => {
+      expect(markRead).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333");
+    });
+    expect(navigate).toHaveBeenCalledWith("/admin/auditions");
+  });
+
+  it("keeps details available without exposing unauthorized admin links", async () => {
+    vi.spyOn(api, "listNotifications").mockResolvedValue({
+      hasMoreUnread: false,
+      nextCursor: null,
+      notifications: [sampleNotice],
+      requestId: "11111111-1111-4111-8111-111111111111",
+      snapshotBoundary: sampleNotice.createdAt,
+      unreadCount: 1,
+    });
+    renderWithClient(
+      <NotificationInboxPage
+        onNavigate={vi.fn()}
+        organizationId="org-1"
+        userId="user-1"
+        userRole="member"
+      />,
+    );
+    expect(await screen.findByText(sampleNotice.body)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "View record →" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark as read" })).toBeVisible();
   });
 
   it("allows marking all as read", async () => {

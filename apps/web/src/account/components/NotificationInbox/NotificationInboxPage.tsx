@@ -1,12 +1,12 @@
 import { useState } from "react";
 import type { NotificationFilter, OrganizationNotification } from "@choir/contracts";
 
-import { OrganizationFeatureIcon } from "../../organizationFeatures/OrganizationFeatureIcon";
-import { canAccessDestination, formatRelativeTime, iconIdForKind } from "./types";
+import { NotificationInboxRow } from "./NotificationInboxRow";
+import { canAccessDestination } from "./types";
 import { useNotifications } from "./useNotifications";
 
-const FILTER_TABS: readonly { readonly id: NotificationFilter; readonly label: string }[] = [
-  { id: "all", label: "All" },
+const FILTER_OPTIONS: readonly { readonly id: NotificationFilter; readonly label: string }[] = [
+  { id: "all", label: "All notifications" },
   { id: "unread", label: "Unread" },
   { id: "audition", label: "Auditions" },
   { id: "ticket_sale", label: "Ticket sales" },
@@ -91,10 +91,7 @@ export function NotificationInboxPage({
       <header className="page-header flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="page-header__title">Notifications</h1>
-          <p className="page-header__description">
-            Personal alerts for audition inquiries, ticket sales, donations, RSVP declines, and
-            compliance.
-          </p>
+          <p className="page-header__description">Your recent activity.</p>
         </div>
         {unreadCount > 0 ? (
           <button
@@ -110,24 +107,27 @@ export function NotificationInboxPage({
         ) : null}
       </header>
 
-      <div aria-label="Notification categories" className="tab-bar mb-4" role="tablist">
-        {FILTER_TABS.map((tab) => (
-          <button
-            aria-selected={selectedFilter === tab.id}
-            className={`tab-bar__tab ${selectedFilter === tab.id ? "tab-bar__tab--active" : ""}`}
-            key={tab.id}
-            onClick={() => {
-              handleFilterChange(tab.id);
-            }}
-            role="tab"
-            type="button"
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="notification-inbox-filter">
+        <label className="sr-only" htmlFor="notification-filter">
+          Show notifications
+        </label>
+        <select
+          id="notification-filter"
+          value={selectedFilter}
+          onChange={(event) => {
+            const filter = FILTER_OPTIONS.find((candidate) => candidate.id === event.target.value);
+            if (filter) handleFilterChange(filter.id);
+          }}
+        >
+          {FILTER_OPTIONS.map((filter) => (
+            <option key={filter.id} value={filter.id}>
+              {filter.label}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <main className="notification-inbox-content">
+      <section aria-label="Notification inbox" className="notification-inbox-content">
         {isLoading && notifications.length === 0 ? (
           <div className="surface-card p-6 text-center text-muted">Loading notifications…</div>
         ) : isError ? (
@@ -150,86 +150,28 @@ export function NotificationInboxPage({
               : "No notifications found in this view."}
           </div>
         ) : (
-          <div className="surface-card overflow-hidden">
-            <ul className="notification-page-list divide-y divide-border" role="list">
-              {notifications.map((notification) => {
-                const isUnread = !notification.readAt;
-                const hasAuthorizedDestination = canAccessDestination(
-                  notification.destinationPath,
-                  userRole,
-                );
-
-                return (
-                  <li
-                    className={`notification-page-item p-4 flex items-start gap-4 transition-colors ${
-                      isUnread ? "notification-page-item--unread bg-surface-selected/30" : ""
-                    }`}
-                    key={notification.id}
-                  >
-                    <div className="pt-1 flex-shrink-0 flex items-center gap-2">
-                      {isUnread ? (
-                        <span
-                          aria-label="Unread"
-                          className="notification-item__dot"
-                          title="Unread"
-                        />
-                      ) : (
-                        <span className="w-2" />
-                      )}
-                      <OrganizationFeatureIcon
-                        className="notification-item__icon w-5 h-5 text-muted"
-                        iconId={iconIdForKind(notification.kind)}
-                      />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline justify-between gap-2 mb-1">
-                        <h2 className="text-base font-semibold text-text truncate">
-                          {notification.title}
-                        </h2>
-                        <time
-                          className="text-xs text-muted flex-shrink-0"
-                          dateTime={notification.createdAt}
-                          title={new Date(notification.createdAt).toLocaleString()}
-                        >
-                          {formatRelativeTime(notification.createdAt)}
-                        </time>
-                      </div>
-                      <p className="text-sm text-muted mb-2 line-clamp-2">{notification.body}</p>
-                      <div className="flex items-center gap-3">
-                        {hasAuthorizedDestination ? (
-                          <button
-                            className="button button--ghost button--small text-primary font-medium"
-                            onClick={() => {
-                              handleNotificationClick(notification);
-                            }}
-                            type="button"
-                          >
-                            View record →
-                          </button>
-                        ) : null}
-                        {isUnread ? (
-                          <button
-                            className="button button--ghost button--small text-muted hover:text-text"
-                            onClick={() => {
-                              void markRead(notification.id);
-                            }}
-                            type="button"
-                          >
-                            Mark as read
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
+          <>
+            <ul className="notification-page-list" aria-label="Notifications">
+              {notifications.map((notification, index) => (
+                <NotificationInboxRow
+                  initiallyExpanded={index === 0}
+                  key={`${organizationId ?? ""}:${userId ?? ""}:${selectedFilter}:${cursor ?? "first"}:${notification.id}`}
+                  notification={notification}
+                  onMarkRead={() => {
+                    void markRead(notification.id);
+                  }}
+                  onViewRecord={() => {
+                    handleNotificationClick(notification);
+                  }}
+                  userRole={userRole}
+                />
+              ))}
             </ul>
-
-            <nav
-              aria-label="Pagination"
-              className="p-4 border-t border-border flex items-center justify-between"
-            >
+            <p className="notification-inbox-count" role="status">
+              {notifications.length} {notifications.length === 1 ? "notification" : "notifications"}{" "}
+              on this page
+            </p>
+            <nav aria-label="Pagination" className="notification-inbox-pagination">
               <button
                 className="button button--secondary button--small"
                 disabled={cursorStack.length === 0}
@@ -247,9 +189,9 @@ export function NotificationInboxPage({
                 Next →
               </button>
             </nav>
-          </div>
+          </>
         )}
-      </main>
+      </section>
     </div>
   );
 }
