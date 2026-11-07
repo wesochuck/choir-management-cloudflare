@@ -463,10 +463,6 @@ function Directory({
           className="admin-return-bar notice notice--info"
         >
           <span className="admin-return-bar__text">Viewing member Directory</span>
-          <span aria-hidden="true" className="admin-return-bar__separator">
-            {" "}
-            ·{" "}
-          </span>
           <AppLink
             className="button button--secondary button--small admin-return-bar__action"
             href={adminReturnTo}
