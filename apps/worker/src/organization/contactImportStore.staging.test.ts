@@ -141,6 +141,36 @@ describe("contact import staging", () => {
     expect(summary.sampleRows).toHaveLength(2);
   });
 
+  it("stages the maximum supported rows without exceeding SQL binding limits", () => {
+    const { db, storage } = createFreshContactContext(ORG_ID);
+    const csv = [
+      "First Name,Email",
+      ...Array.from(
+        { length: CONTACT_IMPORT_ROWS_MAX },
+        (_, index) => `Contact ${String(index)},contact-${String(index)}@example.test`,
+      ),
+    ].join("\n");
+    const { importId } = stageImport(storage, csv);
+    const summary = getContactImportFromStore(storage, ORG_ID, importId);
+    expect(summary.rowCount).toBe(CONTACT_IMPORT_ROWS_MAX);
+    expect(summary.invalidRows).toBe(0);
+    expect(summary.status).toBe("staged");
+    const lastRow = storage.sql
+      .exec<{ readonly rowIndex: number; readonly rowNumber: number; readonly cellsJson: string }>(
+        `SELECT row_index AS rowIndex, row_number AS rowNumber, cells_json AS cellsJson
+         FROM contact_import_rows WHERE import_id = ? ORDER BY row_index DESC LIMIT 1`,
+        importId,
+      )
+      .toArray()[0];
+    expect(lastRow).toMatchObject({ rowIndex: 9999, rowNumber: 10001 });
+    expect(JSON.parse(lastRow?.cellsJson ?? "null")).toEqual([
+      "Contact 9999",
+      "contact-9999@example.test",
+    ]);
+    expect(contactCount(storage)).toBe(0);
+    db.close();
+  });
+
   it("rejects oversized staging and unknown imports", () => {
     const { storage } = createFreshContactContext(ORG_ID);
     expectImportError(

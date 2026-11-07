@@ -99,6 +99,12 @@ export function createContactTestAdapter(db: DatabaseSync): ContactTestContext {
     query: string,
     ...bindings: readonly unknown[]
   ): { readonly one: () => T; readonly toArray: () => T[] } & Iterable<T> => {
+    // Node SQLite allows more bindings than the deployed Durable Object runtime.
+    if (bindings.length > 100) {
+      throw new Error(
+        `Durable Object SQL permits at most 100 bindings; got ${String(bindings.length)}.`,
+      );
+    }
     count += 1;
     const statement = db.prepare(query);
     const params = bindings.map(toSupportedValue);

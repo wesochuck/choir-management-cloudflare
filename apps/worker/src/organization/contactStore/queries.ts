@@ -249,31 +249,45 @@ function readMembershipsForContacts(
   storage: ContactStoreStorage,
   contactIds: readonly string[],
 ): ContactListMembership[] {
-  if (contactIds.length === 0) return [];
-  return storage.sql
-    .exec<MembershipRow>(
-      `SELECT contact_id AS contactId, list_id AS listId, created_at AS createdAt
-        FROM contact_list_memberships WHERE contact_id IN (${placeholders(contactIds.length)})`,
-      ...contactIds,
-    )
-    .toArray()
-    .map((row) => ({ contactId: row.contactId, createdAt: row.createdAt, listId: row.listId }));
+  const memberships: ContactListMembership[] = [];
+  for (let offset = 0; offset < contactIds.length; offset += 100) {
+    const chunk = contactIds.slice(offset, offset + 100);
+    const rows = storage.sql
+      .exec<MembershipRow>(
+        `SELECT contact_id AS contactId, list_id AS listId, created_at AS createdAt
+          FROM contact_list_memberships WHERE contact_id IN (${placeholders(chunk.length)})`,
+        ...chunk,
+      )
+      .toArray();
+    memberships.push(
+      ...rows.map((row) => ({
+        contactId: row.contactId,
+        createdAt: row.createdAt,
+        listId: row.listId,
+      })),
+    );
+  }
+  return memberships;
 }
 
 function readPreferencesForContacts(
   storage: ContactStoreStorage,
   contactIds: readonly string[],
 ): ContactCommunicationPreference[] {
-  if (contactIds.length === 0) return [];
-  const rows = storage.sql
-    .exec<PreferenceRow>(
-      `SELECT contact_id AS contactId, channel, status, source,
-        observed_at AS observedAt, updated_at AS updatedAt
-       FROM contact_communication_preferences WHERE contact_id IN (${placeholders(contactIds.length)})`,
-      ...contactIds,
-    )
-    .toArray();
-  return rows.map(parsePreferenceRow);
+  const preferences: ContactCommunicationPreference[] = [];
+  for (let offset = 0; offset < contactIds.length; offset += 100) {
+    const chunk = contactIds.slice(offset, offset + 100);
+    const rows = storage.sql
+      .exec<PreferenceRow>(
+        `SELECT contact_id AS contactId, channel, status, source,
+          observed_at AS observedAt, updated_at AS updatedAt
+         FROM contact_communication_preferences WHERE contact_id IN (${placeholders(chunk.length)})`,
+        ...chunk,
+      )
+      .toArray();
+    preferences.push(...rows.map(parsePreferenceRow));
+  }
+  return preferences;
 }
 
 export function listContactsFromStore(

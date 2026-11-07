@@ -144,6 +144,89 @@ afterEach(async () => {
 });
 
 describe("Organization contact import API", () => {
+  it("imports and reimports 398 contacts across SQL and processing batches", async () => {
+    const cookie = await signInManager();
+    const listId = await createList(cookie, "Bulk import");
+    for (const pass of ["Imported", "Updated"]) {
+      const rows = Array.from({ length: 398 }, (_, index) =>
+        [
+          `${pass} ${String(index)}`,
+          index % 2 === 0 ? `bulk-${String(index)}@example.test` : "",
+          `202555${String(index).padStart(4, "0")}`,
+        ].join(","),
+      );
+      const upload = await csvRequest(
+        "alpha.localhost",
+        "/api/organization/contact-imports?filename=bulk.csv",
+        cookie,
+        ["First Name,Email,Phone", ...rows, rows[0], rows[1]].join("\r\n"),
+      );
+      expect(upload.status).toBe(201);
+      const { importId, rowCount } = contactImportUploadResponseSchema.parse(await upload.json());
+      expect(rowCount).toBe(400);
+      const mapping = await jsonRequest(
+        "alpha.localhost",
+        `/api/organization/contact-imports/${importId}/mapping`,
+        cookie,
+        { listIds: [listId], mapping: ["firstName", "email", "phone"] },
+        "PUT",
+      );
+      expect(mapping.status).toBe(200);
+      const preview = await exports.default.fetch(
+        apiRequest(
+          "alpha.localhost",
+          `/api/organization/contact-imports/${importId}/preview`,
+          cookie,
+        ),
+      );
+      expect(preview.status).toBe(200);
+      expect(contactImportPreviewResponseSchema.parse(await preview.json()).rowsRead).toBe(400);
+      const confirmed = await exports.default.fetch(
+        apiRequest(
+          "alpha.localhost",
+          `/api/organization/contact-imports/${importId}/confirm`,
+          cookie,
+          {
+            method: "POST",
+          },
+        ),
+      );
+      expect(confirmed.status).toBe(200);
+      await processViaStub(importId);
+      // A replay after completion must not create contacts or memberships again.
+      await processViaStub(importId);
+      const status = await exports.default.fetch(
+        apiRequest("alpha.localhost", `/api/organization/contact-imports/${importId}`, cookie),
+      );
+      expect(status.status).toBe(200);
+      expect(contactImportJobStatusResponseSchema.parse(await status.json())).toMatchObject({
+        contactsCreated: pass === "Imported" ? 398 : 0,
+        contactsUpdated: pass === "Updated" ? 398 : 0,
+        inFileDuplicates: 2,
+        invalidRows: 0,
+        membershipsAdded: pass === "Imported" ? 398 : 0,
+        status: "completed",
+      });
+    }
+    const response = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/contacts?limit=500", cookie),
+    );
+    expect(response.status).toBe(200);
+    const { contacts } = contactsResponseSchema.parse(await response.json());
+    expect(contacts).toHaveLength(398);
+    // Reimports fill blanks and preserve existing nonblank contact fields.
+    expect(contacts.every((contact) => contact.firstName?.startsWith("Imported "))).toBe(true);
+    const removed = await jsonRequest(
+      "alpha.localhost",
+      `/api/organization/contact-lists/${listId}/members`,
+      cookie,
+      { contactIds: contacts.map((contact) => contact.id) },
+      "DELETE",
+    );
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toMatchObject({ removed: 398 });
+  });
+
   it("runs upload, mapping, preview, confirm, and async processing end to end", async () => {
     const cookie = await signInManager();
     const listId = await createList(cookie, "Newsletter");

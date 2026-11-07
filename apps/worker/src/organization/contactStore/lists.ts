@@ -225,6 +225,28 @@ function validateBulkMembershipInput(input: BulkMembershipInput): string[] {
   return [...new Set(input.contactIds)];
 }
 
+function readListMemberships(
+  storage: ContactStoreStorage,
+  listId: string,
+  contactIds: readonly string[],
+): Set<string> {
+  const members = new Set<string>();
+  // Reserve one of the 100 SQL bindings for listId.
+  for (let offset = 0; offset < contactIds.length; offset += 99) {
+    const chunk = contactIds.slice(offset, offset + 99);
+    for (const row of storage.sql
+      .exec<{ readonly contactId: string }>(
+        `SELECT contact_id AS contactId FROM contact_list_memberships WHERE list_id = ? AND contact_id IN (${placeholders(chunk.length)})`,
+        listId,
+        ...chunk,
+      )
+      .toArray()) {
+      members.add(row.contactId);
+    }
+  }
+  return members;
+}
+
 export function addContactsToListInStore(
   storage: ContactStoreStorage,
   input: BulkMembershipInput,
@@ -236,42 +258,37 @@ export function addContactsToListInStore(
       .length > 0;
   if (!listExists) throw new ContactStoreError("contact_list_not_found", "Contact list not found.");
 
-  const found = new Set(
-    storage.sql
+  const found = new Set<string>();
+  for (let offset = 0; offset < contactIds.length; offset += 100) {
+    const chunk = contactIds.slice(offset, offset + 100);
+    for (const row of storage.sql
       .exec<{ readonly id: string }>(
-        `SELECT id FROM contacts WHERE id IN (${placeholders(contactIds.length)})`,
-        ...contactIds,
+        `SELECT id FROM contacts WHERE id IN (${placeholders(chunk.length)})`,
+        ...chunk,
       )
-      .toArray()
-      .map((row) => row.id),
-  );
+      .toArray()) {
+      found.add(row.id);
+    }
+  }
   if (found.size !== contactIds.length) {
     throw new ContactStoreError("contact_not_found", "One or more contacts were not found.");
   }
-  const alreadyMember = new Set(
-    storage.sql
-      .exec<{ readonly contactId: string }>(
-        `SELECT contact_id AS contactId FROM contact_list_memberships WHERE list_id = ? AND contact_id IN (${placeholders(contactIds.length)})`,
-        input.listId,
-        ...contactIds,
-      )
-      .toArray()
-      .map((row) => row.contactId),
-  );
+  const alreadyMember = readListMemberships(storage, input.listId, contactIds);
   const toInsert = contactIds.filter((contactId) => !alreadyMember.has(contactId));
   if (toInsert.length === 0) return { added: 0, listId: input.listId };
 
   const now = new Date().toISOString();
   storage.transactionSync(() => {
-    const valuesSql = toInsert.map(() => "(?, ?, ?)").join(", ");
-    const bindings: unknown[] = [];
-    for (const contactId of toInsert) {
-      bindings.push(contactId, input.listId, now);
+    // Three bindings per membership fit at most 33 rows per statement.
+    for (let offset = 0; offset < toInsert.length; offset += 33) {
+      const chunk = toInsert.slice(offset, offset + 33);
+      const valuesSql = chunk.map(() => "(?, ?, ?)").join(", ");
+      const bindings = chunk.flatMap((contactId) => [contactId, input.listId, now]);
+      storage.sql.exec(
+        `INSERT OR IGNORE INTO contact_list_memberships (contact_id, list_id, created_at) VALUES ${valuesSql}`,
+        ...bindings,
+      );
     }
-    storage.sql.exec(
-      `INSERT OR IGNORE INTO contact_list_memberships (contact_id, list_id, created_at) VALUES ${valuesSql}`,
-      ...bindings,
-    );
     writeAudit(storage, {
       action: "contact_list.membership_added",
       actorUserId: input.actorUserId,
@@ -296,26 +313,20 @@ export function removeContactsFromListInStore(
       .length > 0;
   if (!listExists) throw new ContactStoreError("contact_list_not_found", "Contact list not found.");
 
-  const existing = new Set(
-    storage.sql
-      .exec<{ readonly contactId: string }>(
-        `SELECT contact_id AS contactId FROM contact_list_memberships WHERE list_id = ? AND contact_id IN (${placeholders(contactIds.length)})`,
-        input.listId,
-        ...contactIds,
-      )
-      .toArray()
-      .map((row) => row.contactId),
-  );
+  const existing = readListMemberships(storage, input.listId, contactIds);
   const toRemove = contactIds.filter((contactId) => existing.has(contactId));
   if (toRemove.length === 0) return { listId: input.listId, removed: 0 };
 
   const now = new Date().toISOString();
   storage.transactionSync(() => {
-    storage.sql.exec(
-      `DELETE FROM contact_list_memberships WHERE list_id = ? AND contact_id IN (${placeholders(toRemove.length)})`,
-      input.listId,
-      ...toRemove,
-    );
+    for (let offset = 0; offset < toRemove.length; offset += 99) {
+      const chunk = toRemove.slice(offset, offset + 99);
+      storage.sql.exec(
+        `DELETE FROM contact_list_memberships WHERE list_id = ? AND contact_id IN (${placeholders(chunk.length)})`,
+        input.listId,
+        ...chunk,
+      );
+    }
     writeAudit(storage, {
       action: "contact_list.membership_removed",
       actorUserId: input.actorUserId,

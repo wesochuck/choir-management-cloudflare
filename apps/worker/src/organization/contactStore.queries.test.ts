@@ -243,7 +243,10 @@ describe("contact persistence performance with real SQLite", () => {
       requestId: uuidFor(7997),
     });
     expect(result.added).toBe(400);
-    expect(queryCount()).toBeLessThanOrEqual(12);
+    // Identity/list checks, bounded contact/member lookups, 33-row inserts, and audit.
+    expect(queryCount()).toBe(
+      2 + Math.ceil(400 / 100) + Math.ceil(400 / 99) + Math.ceil(400 / 33) + 1,
+    );
 
     resetQueryCount();
     const retry = addContactsToListInStore(storage, {
@@ -254,7 +257,7 @@ describe("contact persistence performance with real SQLite", () => {
       requestId: uuidFor(7996),
     });
     expect(retry.added).toBe(0);
-    expect(queryCount()).toBeLessThanOrEqual(6);
+    expect(queryCount()).toBe(2 + Math.ceil(400 / 100) + Math.ceil(400 / 99));
   });
 });
 

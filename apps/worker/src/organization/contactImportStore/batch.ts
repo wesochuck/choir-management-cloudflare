@@ -77,17 +77,21 @@ function readSeenDedupeKeys(
 ): Set<string> {
   const distinct = [...new Set(batchKeys)];
   if (distinct.length === 0) return new Set();
-  const placeholdersSql = distinct.map(() => "?").join(", ");
-  return new Set(
-    storage.sql
+  const seen = new Set<string>();
+  // Reserve one of the 100 SQL bindings for importId.
+  for (let offset = 0; offset < distinct.length; offset += 99) {
+    const chunk = distinct.slice(offset, offset + 99);
+    for (const row of storage.sql
       .exec<{ readonly dedupeKey: string }>(
-        `SELECT dedupe_key AS dedupeKey FROM contact_import_rows WHERE import_id = ? AND dedupe_key IN (${placeholdersSql})`,
+        `SELECT dedupe_key AS dedupeKey FROM contact_import_rows WHERE import_id = ? AND dedupe_key IN (${placeholders(chunk.length)})`,
         importId,
-        ...distinct,
+        ...chunk,
       )
-      .toArray()
-      .map((row) => row.dedupeKey),
-  );
+      .toArray()) {
+      seen.add(row.dedupeKey);
+    }
+  }
+  return seen;
 }
 
 function markRow(
@@ -550,8 +554,8 @@ function readContactsByNormalizedEmail(
   const result = new Map<string, string>();
   if (emails.length === 0) return result;
   const unique = [...new Set(emails)];
-  for (let offset = 0; offset < unique.length; offset += 500) {
-    const chunk = unique.slice(offset, offset + 500);
+  for (let offset = 0; offset < unique.length; offset += 100) {
+    const chunk = unique.slice(offset, offset + 100);
     for (const row of storage.sql
       .exec<{ readonly id: string; readonly normalizedEmail: string }>(
         `SELECT id, normalized_email AS normalizedEmail FROM contacts WHERE normalized_email IN (${placeholders(chunk.length)})`,
@@ -572,8 +576,8 @@ function readContactsByNormalizedPhone(
   if (phones.length === 0) return result;
   const claimedContactIds = new Set<string>();
   const unique = [...new Set(phones)];
-  for (let offset = 0; offset < unique.length; offset += 500) {
-    const chunk = unique.slice(offset, offset + 500);
+  for (let offset = 0; offset < unique.length; offset += 100) {
+    const chunk = unique.slice(offset, offset + 100);
     for (const row of storage.sql
       .exec<{ readonly id: string; readonly normalizedPhone: string }>(
         `SELECT id, normalized_phone AS normalizedPhone FROM contacts WHERE normalized_phone IN (${placeholders(chunk.length)})`,
@@ -596,8 +600,8 @@ function readContactSnapshots(
   const result = new Map<string, MatchedContactSnapshot>();
   const unique = [...new Set(contactIds)];
   if (unique.length === 0) return result;
-  for (let offset = 0; offset < unique.length; offset += 500) {
-    const chunk = unique.slice(offset, offset + 500);
+  for (let offset = 0; offset < unique.length; offset += 100) {
+    const chunk = unique.slice(offset, offset + 100);
     for (const row of storage.sql
       .exec<ContactSnapshotRow>(
         `SELECT id, first_name AS firstName, last_name AS lastName, display_name AS displayName,
@@ -626,8 +630,8 @@ function readPreferenceStatuses(
   const result = new Map<string, { emailStatus: string; smsStatus: string }>();
   const unique = [...new Set(contactIds)];
   if (unique.length === 0) return result;
-  for (let offset = 0; offset < unique.length; offset += 500) {
-    const chunk = unique.slice(offset, offset + 500);
+  for (let offset = 0; offset < unique.length; offset += 100) {
+    const chunk = unique.slice(offset, offset + 100);
     for (const row of storage.sql
       .exec<PreferenceStatusRow>(
         `SELECT contact_id AS contactId, channel, status FROM contact_communication_preferences

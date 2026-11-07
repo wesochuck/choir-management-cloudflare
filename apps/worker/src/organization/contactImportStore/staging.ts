@@ -127,8 +127,10 @@ export function createContactImportInStore(
       })),
     ];
     staged.sort((left, right) => left.rowNumber - right.rowNumber);
-    for (let offset = 0; offset < staged.length; offset += 500) {
-      const chunk = staged.slice(offset, offset + 500);
+    // Six bindings per row must fit the Durable Object SQL limit of 100.
+    const insertBatchSize = Math.floor(100 / 6);
+    for (let offset = 0; offset < staged.length; offset += insertBatchSize) {
+      const chunk = staged.slice(offset, offset + insertBatchSize);
       const valuesSql = chunk.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
       const bindings: unknown[] = [];
       chunk.forEach((entry, chunkIndex) => {
