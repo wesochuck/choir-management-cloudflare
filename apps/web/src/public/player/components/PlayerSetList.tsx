@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { displayTrackName, sortVoiceParts } from "../../playerVoiceParts";
 import { formatTrackKey, resolveEffectiveTrack } from "../format";
@@ -36,11 +36,11 @@ function PlayerSetListActions({
         download
         href={source.mediaUrl(track.fileId)}
       >
-        Download
+        {mobilePicker ? "Download file" : "Download"}
       </a>
       {offlineIds.has(track.fileId) ? (
         <span className="public-player__offline-row">
-          <span className="public-player__offline-pill">Saved offline</span>
+          {mobilePicker ? null : <span className="public-player__offline-pill">Saved offline</span>}
           <button
             className="text-button"
             onClick={() => {
@@ -48,7 +48,7 @@ function PlayerSetListActions({
             }}
             type="button"
           >
-            Remove
+            {mobilePicker ? "Remove offline copy" : "Remove"}
           </button>
         </span>
       ) : pendingOfflineIds.has(track.fileId) ? (
@@ -203,11 +203,13 @@ function PlayerSetListItemStatus({
 function PlayerSetListRowStatus({
   active,
   item,
+  savedOffline = false,
   showTrackLabel,
   track,
 }: {
   readonly active: boolean;
   readonly item: PlayerPlaylistItem;
+  readonly savedOffline?: boolean;
   readonly showTrackLabel: boolean;
   readonly track: ResolvedTrack | null;
 }) {
@@ -215,6 +217,9 @@ function PlayerSetListRowStatus({
     <span className="public-player__set-list-item-status">
       {active ? <span className="public-player__now-playing-pill">Now Playing</span> : null}
       <PlayerSetListItemStatus item={item} showTrackLabel={showTrackLabel} track={track} />
+      {savedOffline ? (
+        <span className="public-player__song-offline-status">Saved offline</span>
+      ) : null}
     </span>
   );
 }
@@ -248,6 +253,36 @@ function PlayerSetListTrackStatus({
     );
   }
   return null;
+}
+
+function PlayerTrackOptions({
+  active,
+  children,
+  hasPartPicker,
+  mobilePicker,
+  title,
+  track,
+}: {
+  readonly active: boolean;
+  readonly children: ReactNode;
+  readonly hasPartPicker: boolean;
+  readonly mobilePicker: boolean;
+  readonly title: string;
+  readonly track: ResolvedTrack | null;
+}) {
+  if (!mobilePicker) return children;
+  if (!track) return null;
+  return (
+    <details className="public-player__track-options" open={active}>
+      <summary aria-label={`Track options for ${title}`}>Track options</summary>
+      <div className="public-player__track-options-body">
+        {hasPartPicker ? (
+          <span className="public-player__song-part-label">Part for this song</span>
+        ) : null}
+        {children}
+      </div>
+    </details>
+  );
 }
 
 function PlayerSetListRow({
@@ -298,29 +333,8 @@ function PlayerSetListRow({
   const itemIndex = playableItemIndices.get(item) ?? -1;
   const active = itemIndex === currentIndex && currentIndex !== -1;
   const hasPieceTrackPicker = Boolean(item.pieceId && availableKeys.length > 1 && onPinPieceTrack);
-
-  return (
-    <li className={active ? "is-active" : undefined} ref={active ? activeRowRef : undefined}>
-      <button
-        aria-current={active ? "true" : undefined}
-        className={`public-player__set-list-item${mobilePicker ? " public-player__set-list-item--mobile-picker" : ""}`}
-        disabled={track === null}
-        onClick={() => {
-          onSelectItem(itemIndex);
-        }}
-        type="button"
-      >
-        <span className="public-player__set-list-item-main">
-          <strong>{item.title}</strong>
-          {item.composer ? <small>{item.composer}</small> : null}
-        </span>
-        <PlayerSetListRowStatus
-          active={active}
-          item={item}
-          showTrackLabel={!hasPieceTrackPicker}
-          track={track}
-        />
-      </button>
+  const controls = (
+    <>
       <PlayerSetListTrackStatus
         activeTrackKey={activeTrackKey}
         availableKeys={availableKeys}
@@ -342,6 +356,41 @@ function PlayerSetListRow({
           track={track}
         />
       ) : null}
+    </>
+  );
+
+  return (
+    <li className={active ? "is-active" : undefined} ref={active ? activeRowRef : undefined}>
+      <button
+        aria-current={active ? "true" : undefined}
+        className={`public-player__set-list-item${mobilePicker ? " public-player__set-list-item--mobile-picker" : ""}`}
+        disabled={track === null}
+        onClick={() => {
+          onSelectItem(itemIndex);
+        }}
+        type="button"
+      >
+        <span className="public-player__set-list-item-main">
+          <strong>{item.title}</strong>
+          {item.composer ? <small>{item.composer}</small> : null}
+        </span>
+        <PlayerSetListRowStatus
+          active={active}
+          item={item}
+          savedOffline={mobilePicker && track !== null && offlineIds.has(track.fileId)}
+          showTrackLabel={mobilePicker || !hasPieceTrackPicker}
+          track={track}
+        />
+      </button>
+      <PlayerTrackOptions
+        active={active}
+        hasPartPicker={hasPieceTrackPicker}
+        mobilePicker={mobilePicker}
+        title={item.title}
+        track={track}
+      >
+        {controls}
+      </PlayerTrackOptions>
     </li>
   );
 }

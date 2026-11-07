@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { futureIsoDate } from "@choir/testkit";
 import type { PlayerPlaylistItem } from "../src/public/player/types";
@@ -520,7 +521,7 @@ test("opens and interacts with rehearsal settings drawer", async ({ page }) => {
   await expect(sheet.getByLabel("Gap between tracks")).toBeVisible();
 });
 
-test("mobile Set List is a full-screen picker with a revealed active track", async ({
+test("mobile Set List is a compact bottom picker with a revealed active track", async ({
   page,
 }, testInfo) => {
   test.skip(!testInfo.project.name.includes("mobile"), "This flow covers the mobile picker.");
@@ -602,9 +603,9 @@ test("mobile Set List is a full-screen picker with a revealed active track", asy
     const sheetBox = await sheet.boundingBox();
     expect(sheetBox).not.toBeNull();
     expect(sheetBox?.x).toBe(0);
-    expect(sheetBox?.y).toBe(0);
+    expect(sheetBox?.y).toBeGreaterThan(0);
     expect(sheetBox?.width).toBeGreaterThanOrEqual(width - 1);
-    expect(sheetBox?.height).toBeGreaterThanOrEqual(843);
+    expect(sheetBox?.height).toBeLessThanOrEqual(844 * 0.85 + 1);
     const overflow = await page.evaluate(() => ({
       documentWidth: document.documentElement.scrollWidth,
       sheetClientWidth: document.querySelector<HTMLElement>(".sheet")?.clientWidth ?? 0,
@@ -631,6 +632,110 @@ test("mobile Set List is a full-screen picker with a revealed active track", asy
   expect(activeGeometry.rowBottom).toBeLessThanOrEqual(activeGeometry.listBottom);
   const primaryBounds = await activeButton.boundingBox();
   expect(primaryBounds?.height).toBeGreaterThanOrEqual(44);
+});
+
+test("mobile track options pin one song independently and can follow default again", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("**/api/public/player-details", async (route) => {
+    await route.fulfill({
+      json: {
+        eventId: "event-pins",
+        eventStartsAt: futureIsoDate({ days: 60 }),
+        eventTitle: "2026 Holiday Parade",
+        requestId,
+        items: [
+          {
+            pieceId: "medley",
+            title: "Men's Chorus Christmas Medley",
+            trackFileIds: { t1: "medley-t1", t2: "medley-t2", tutti: "medley-tutti" },
+          },
+          {
+            pieceId: "reindeer",
+            title: "Reindeer On The Roof",
+            trackFileIds: { t1: "reindeer-t1", t2: "reindeer-t2", tutti: "reindeer-tutti" },
+          },
+          {
+            pieceId: "jingle",
+            title: "Jingle Bells",
+            trackFileIds: { t1: "jingle-t1", t2: "jingle-t2", tutti: "jingle-tutti" },
+          },
+        ],
+      },
+    });
+  });
+  await page.goto("/player?token=mobile-song-pins");
+  await page.getByRole("button", { name: "Set list (3 tracks)" }).click();
+  const sheet = page.getByRole("dialog", { name: "Set List", exact: true });
+  const rows = sheet.locator("ol > li");
+  const first = rows.nth(0);
+  const second = rows.nth(1);
+  await expect(second.locator("details")).not.toHaveAttribute("open");
+  await second.getByText("Track options", { exact: true }).click();
+  await expect(first.locator("button[aria-current=true]")).toBeVisible();
+  await second.getByRole("button", { name: /Choose track for this song/ }).click();
+  await second.getByRole("button", { name: "Tenor 2", exact: true }).click();
+  await expect(second.getByRole("button", { name: /Pinned to Tenor 2/ })).toBeVisible();
+  await expect(first.getByRole("button", { name: /Following default/ })).toBeVisible();
+  await expect(second.getByRole("link", { name: "Download Reindeer On The Roof" })).toHaveAttribute(
+    "href",
+    /reindeer-t2/,
+  );
+  await expect(first.locator("button[aria-current=true]")).toBeVisible();
+  await second.getByRole("button", { name: /Pinned to Tenor 2/ }).click();
+  await second.getByRole("button", { name: /Follow default/ }).click();
+  await expect(second.getByRole("button", { name: /Following default/ })).toBeVisible();
+  await second.getByText("Track options", { exact: true }).click();
+  // Enable an audio response only for the explicit save; the shared artwork fixture is a PNG.
+  await page.route("**/api/public/player/media/medley-tutti?*", async (route) => {
+    const wave = Buffer.alloc(46);
+    wave.write("RIFF", 0);
+    wave.writeUInt32LE(38, 4);
+    wave.write("WAVEfmt ", 8);
+    wave.writeUInt32LE(16, 16);
+    wave.writeUInt16LE(1, 20);
+    wave.writeUInt16LE(1, 22);
+    wave.writeUInt32LE(8000, 24);
+    wave.writeUInt32LE(16000, 28);
+    wave.writeUInt16LE(2, 32);
+    wave.writeUInt16LE(16, 34);
+    wave.write("data", 36);
+    wave.writeUInt32LE(2, 40);
+    await route.fulfill({ body: wave, contentType: "audio/wav" });
+  });
+  await first.getByRole("button", { name: "Save offline", exact: true }).click();
+  await expect(first.getByText("Saved offline", { exact: true })).toBeVisible();
+  await expect(first.getByRole("button", { name: "Remove offline copy" })).toBeVisible();
+  for (const theme of ["dark", "light"]) {
+    await page.evaluate((value) => {
+      document.documentElement.setAttribute("data-theme", value);
+    }, theme);
+    await page.evaluate(async () => {
+      await Promise.all(
+        document.getAnimations().map(async (animation) => {
+          await animation.finished.catch(() => undefined);
+        }),
+      );
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      390,
+    );
+    expect((await rows.nth(2).boundingBox())?.height).toBeLessThan(155);
+    const audit = await new AxeBuilder({ page }).include(".sheet").analyze();
+    expect(
+      audit.violations.filter((issue) => issue.impact === "serious" || issue.impact === "critical"),
+    ).toEqual([]);
+    await page.screenshot({
+      path: `/private/tmp/choir-set-list-${theme}.png`,
+      animations: "disabled",
+      scale: "css",
+    });
+  }
+  await page.keyboard.press("Escape");
+  await expect(sheet).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Set list (3 tracks)" })).toBeFocused();
 });
 
 test("shows each event's own artwork in set-list mode without stale carryover", async ({

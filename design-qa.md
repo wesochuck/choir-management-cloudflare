@@ -1,3 +1,47 @@
+# Mobile Set List option 3 design QA — November 7, 2026
+
+final result: passed
+
+Selected source:
+`/Users/wesosborn/.codex/generated_images/01a1b77a-51d7-7bf2-b74d-1c13d2dbbd93/exec-34021187-cec7-4ab3-be1f-9390887edb74.png`.
+Implementation captures: `/private/tmp/choir-set-list-dark.png` and
+`/private/tmp/choir-set-list-light.png`. Side-by-side visual review:
+`/private/tmp/choir-set-list-comparison.png`. Both reference and implementation were opened and
+compared at 390 pixels wide. The implementation viewport is 390 × 844 CSS pixels; the reference is a
+cropped concept, with no specified device viewport. State: three songs, first song active, its
+options expanded and its recording saved offline. The other recordings remain streamable in the
+fixture.
+
+The content-height bottom sheet, orange active-row edge, full-width titles, compact metadata,
+separate playback and disclosure controls, and explicit offline removal label follow option 3. The
+requested per-song part picker is included inside the expanded options. It retains the existing
+persistent pin and Follow default behavior. Existing typography, surface tokens and picker are
+reused; there are no new raster assets. The expanded row is taller than the concept to accommodate
+this requested picker and accessible control sizes. The real player behind the sheet also retains
+its existing artwork and layout.
+
+Findings resolved:
+
+- Grid tracks previously stretched the rows to fill the screen. Rows now size to their content, and
+  the sheet has a bounded scrolling region for longer lists.
+- Track badges crowded song titles. Part and offline metadata now sit below the title; disclosure
+  actions remain separate from playback.
+- The original selected-row colors failed light-theme contrast checks. Active-row secondary text now
+  uses the main text token. Both themes have zero serious or critical axe findings in the sheet.
+- Remove now reads Remove offline copy, preserving its existing callback.
+- Theme-transition animations are allowed to finish before accessibility scans and screenshots,
+  avoiding captures of transitional foreground/background colors.
+
+Validation: 21 player browser tests passed; one desktop-only project skip is intentional for the
+mobile geometry test. The long-list case covers widths 320, 375, 390 and 430, active-track
+auto-reveal, no horizontal overflow and playback selection. The new flow checks independent song
+pins, returning to Follow default, unchanged active playback, the correct download URL, saving valid
+fixture audio, offline removal availability, both themes, Escape and trigger focus restoration. 32
+player/Sheet component tests passed. Web typecheck, focused ESLint, spacing, control alignment and
+no-eyebrows checks passed. No remaining actionable P0/P1/P2 findings. P3: optional download icon
+treatment can be considered separately; the existing labeled button remains usable. This is local
+verification, not a release qualification or deployment.
+
 # Mobile workspace chooser design QA — November 7, 2026
 
 final result: passed

@@ -5,7 +5,7 @@ interface SheetProps {
   readonly children: ReactNode;
   readonly onClose: () => void;
   readonly open: boolean;
-  readonly presentation?: "side" | "mobile-fullscreen";
+  readonly presentation?: "side" | "mobile-fullscreen" | "mobile-bottom";
   readonly restoreFocusRef?: { readonly current: HTMLElement | null };
   readonly title: string;
 }
@@ -23,7 +23,7 @@ export function Sheet({
       <DialogPrimitive.Overlay className="dialog__overlay" />
       <DialogPrimitive.Content
         aria-modal="true"
-        className={`sheet${presentation === "mobile-fullscreen" ? " sheet--mobile-fullscreen" : ""}`}
+        className={`sheet${presentation === "side" ? "" : ` sheet--${presentation}`}`}
         onCloseAutoFocus={(event) => {
           if (!restoreFocusRef?.current) return;
           event.preventDefault();

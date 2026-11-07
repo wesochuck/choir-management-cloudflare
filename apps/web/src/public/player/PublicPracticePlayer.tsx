@@ -377,7 +377,7 @@ export function PublicPracticePlayer({
           setQueueOpen(false);
         }}
         open={queueOpen}
-        presentation="mobile-fullscreen"
+        presentation="mobile-bottom"
         restoreFocusRef={queueButtonRef}
         title="Set List"
       >
