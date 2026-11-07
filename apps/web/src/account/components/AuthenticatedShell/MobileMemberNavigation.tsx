@@ -1,5 +1,6 @@
 import { Dialog } from "@choir/ui";
 import { useRef, useState, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import { OrganizationFeatureIcon } from "../../organizationFeatures/OrganizationFeatureIcon";
 import { activeHref } from "../../organizationFeatures/navigationUtils";
 import { AppLink } from "./navigation";
@@ -23,6 +24,7 @@ function MemberBottomControls({
   schedule,
   practice,
   more,
+  hasWorkspaceSwitcher,
   current,
   moreOpen,
   go,
@@ -33,6 +35,7 @@ function MemberBottomControls({
   readonly schedule: NavigationItem | undefined;
   readonly practice: NavigationItem | undefined;
   readonly more: readonly NavigationItem[];
+  readonly hasWorkspaceSwitcher: boolean;
   readonly current: string | undefined;
   readonly moreOpen: boolean;
   readonly go: (href: string) => void;
@@ -60,7 +63,7 @@ function MemberBottomControls({
       {direct(home, "Home")}
       {direct(schedule, "Schedule")}
       {direct(practice, "Practice")}
-      {more.length ? (
+      {more.length > 0 || hasWorkspaceSwitcher ? (
         <button
           type="button"
           className="mobile-bottom-nav__item"
@@ -111,14 +114,17 @@ export function MobileMemberNavigation({
   groups,
   navigate,
   path,
+  workspaceSwitcher,
 }: {
   readonly groups: readonly NavigationGroup[];
   readonly path: string;
   readonly navigate: (href: string) => Promise<boolean>;
+  readonly workspaceSwitcher?: ReactNode;
 }) {
   const phone = useSyncExternalStore(subscribePhone, isPhone);
   const [menuOpen, setMenuOpen] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
+  const openingScroll = useRef({ x: 0, y: 0, path });
   const [previousContext, setPreviousContext] = useState({ path, phone });
   if (previousContext.path !== path || previousContext.phone !== phone) {
     setPreviousContext({ path, phone });
@@ -126,7 +132,7 @@ export function MobileMemberNavigation({
   }
   const { home, schedule, practice, more } = projectMemberNavigation(groups);
   const current = activeHref(groups, path.replace(/^\/calendar(?=[/?]|$)/, "/schedule"));
-  const moreOpen = menuOpen && more.length > 0;
+  const moreOpen = menuOpen && (more.length > 0 || Boolean(workspaceSwitcher));
   // Drop unavailable menu state immediately, including during reactive module refreshes.
   if (menuOpen !== moreOpen) setMenuOpen(moreOpen);
   if (!phone) return null;
@@ -144,11 +150,13 @@ export function MobileMemberNavigation({
       schedule={schedule}
       practice={practice}
       more={more}
+      hasWorkspaceSwitcher={Boolean(workspaceSwitcher)}
       current={current}
       moreOpen={moreOpen}
       go={go}
       onOpen={(element) => {
         opener.current = element;
+        openingScroll.current = { x: window.scrollX, y: window.scrollY, path };
       }}
       onMoreToggle={() => {
         setMenuOpen(!moreOpen);
@@ -170,6 +178,19 @@ export function MobileMemberNavigation({
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           if (opener.current?.isConnected) opener.current.focus({ preventScroll: true });
+          if (
+            opener.current?.isConnected &&
+            path === openingScroll.current.path &&
+            isPhone() &&
+            (window.scrollX !== openingScroll.current.x ||
+              window.scrollY !== openingScroll.current.y)
+          ) {
+            window.scrollTo({
+              left: openingScroll.current.x,
+              top: openingScroll.current.y,
+              behavior: "instant",
+            });
+          }
         }}
         footer={
           <nav
@@ -180,6 +201,7 @@ export function MobileMemberNavigation({
           </nav>
         }
       >
+        {workspaceSwitcher}
         <div className="mobile-bottom-sheet__links">
           {more.map((item) => (
             <MobileNavItem

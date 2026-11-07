@@ -1,4 +1,5 @@
 import { MobileMemberNavigation } from "./MobileMemberNavigation";
+import { MobileWorkspaceChooser, MobileWorkspaceMore } from "./MobileWorkspaceChooser";
 import { OrganizationAdminNavigation } from "../../organizationFeatures/OrganizationAdminNavigation";
 import { MobileOrganizationAdminNavigation } from "../../organizationFeatures/MobileOrganizationAdminNavigation";
 import { organizationModuleContext } from "../../organizationFeatures/moduleStateContext";
@@ -139,6 +140,13 @@ function AuthenticatedOrganizationShell({
   });
 
   const workspace = workspaceForPath(route.pathname);
+  const mobileWorkspaceChooser = (
+    <MobileWorkspaceChooser
+      options={workspaceOptions}
+      selected={selectedWorkspace}
+      onSwitch={switchWorkspace}
+    />
+  );
 
   return (
     <SaveCoordinatorProvider>
@@ -240,6 +248,14 @@ function AuthenticatedOrganizationShell({
                 ))}
               </select>
             </label>
+            {selectedWorkspace !== "organization" && selectedWorkspace !== "member" ? (
+              <MobileWorkspaceMore
+                key={`${selectedWorkspace}:${route.pathname}`}
+                options={workspaceOptions}
+                selected={selectedWorkspace}
+                onSwitch={switchWorkspace}
+              />
+            ) : null}
             <button
               aria-label={
                 themePreference === "dark" ? "Switch to light theme" : "Switch to dark theme"
@@ -474,6 +490,7 @@ function AuthenticatedOrganizationShell({
             path={`${route.pathname}${route.search}`}
             navigate={navigate}
             onSearch={openPaletteFromSidebar}
+            workspaceSwitcher={mobileWorkspaceChooser}
           />
         ) : null}
         {selectedWorkspace === "member" && isNarrowViewport ? (
@@ -482,6 +499,7 @@ function AuthenticatedOrganizationShell({
             groups={visibleMemberGroups}
             path={`${route.pathname}${route.search}`}
             navigate={navigate}
+            workspaceSwitcher={mobileWorkspaceChooser}
           />
         ) : null}
         <Sheet

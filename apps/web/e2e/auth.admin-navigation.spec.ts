@@ -418,18 +418,34 @@ for (const role of ["member", "administrator"] as const) {
   test(`hides quick search in the Member workspace for ${role}`, async ({ page }) => {
     await installOrganizationApi(page, { role });
     await page.goto(role === "administrator" ? "/admin" : "/dashboard");
-    const workspace = page.getByRole("combobox", { name: "Workspace", exact: true });
+    const workspace = page.locator(".workspace-switcher select");
     const search = page.getByRole("button", { name: "Quick search (⌘K)", exact: true });
+    const changeWorkspace = async (value: "member" | "organization") => {
+      if (await workspace.isVisible()) {
+        await workspace.selectOption(value);
+        return;
+      }
+      await page
+        .locator(".mobile-bottom-nav:not(.mobile-bottom-nav--in-sheet)")
+        .getByRole("button", { name: "More", exact: true })
+        .click();
+      await page
+        .getByRole("dialog", { name: "More", exact: true })
+        .getByRole("button", {
+          name: value === "member" ? /Member workspace/ : /Organization Admin/,
+        })
+        .click();
+    };
     if (role === "administrator") {
       await expect(search).toBeVisible();
-      await workspace.selectOption("member");
+      await changeWorkspace("member");
     }
     await expect(workspace).toHaveValue("member");
     await expect(search).toHaveCount(0);
     await page.keyboard.press("Control+k");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     if (role === "administrator") {
-      await workspace.selectOption("organization");
+      await changeWorkspace("organization");
       await expect(search).toBeVisible();
     }
   });

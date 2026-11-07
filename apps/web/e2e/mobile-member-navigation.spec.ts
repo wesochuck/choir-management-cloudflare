@@ -63,7 +63,9 @@ for (const theme of ["light", "dark"] as const) {
     const more = dialog;
     await expect(more).toBeVisible();
     await expect(more.getByRole("link", { name: "Resources" })).toBeVisible();
-    expect((await dialog.boundingBox())?.height).toBeLessThan(450);
+    // More also contains full workspace names; its body scrolls above persistent controls.
+    expect((await dialog.boundingBox())?.height).toBeLessThanOrEqual(844 * 0.85 + 1);
+    await expect(more.getByRole("region", { name: "Switch workspace" })).toBeVisible();
     await expect(more.getByRole("link", { name: "My Profile" })).toBeVisible();
     await expect(more.getByRole("link", { name: "Directory" })).toBeVisible();
     await expect(more.getByRole("link", { name: "Season dues" })).toBeVisible();
@@ -167,6 +169,19 @@ test("Member dirty Profile guards Home, Schedule and sheet destinations", async 
     await expect(page).toHaveURL(/\/profile$/);
     await page.keyboard.press("Escape");
   }
+  await bar.getByRole("button", { name: "More" }).click();
+  const more = page.getByRole("dialog", { name: "More", exact: true });
+  await more.getByRole("button", { name: /^Account/ }).click();
+  const confirm = page.getByRole("dialog", { name: "Leave with unsaved changes?" });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(more).toBeVisible();
+  await expect(more.getByRole("button", { name: /Member workspace/ })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await expect(name).toHaveValue("Draft member name");
+  await expect(page).toHaveURL(/\/profile$/);
 });
 
 for (const theme of ["light", "dark"] as const) {
@@ -194,6 +209,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(dialog.locator('a[href^="/admin"]')).toHaveCount(0);
     await page.screenshot({ path: info.outputPath(`resources-only-${theme}.png`) });
     await page.setViewportSize({ width: 667, height: 320 });
+    await dialog.getByRole("link", { name: "Resources" }).scrollIntoViewIfNeeded();
     await expect(dialog.getByRole("link", { name: "Resources" })).toBeInViewport();
     await expect(dialog.getByRole("button", { name: "Close" })).toBeInViewport();
   });

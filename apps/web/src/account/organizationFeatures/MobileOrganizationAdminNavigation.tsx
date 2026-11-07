@@ -1,5 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { ChevronRightIcon, MobileNavItem } from "../components/AuthenticatedShell/mobileNavigation";
 import type { NavigationGroup, NavigationItem } from "../components/AuthenticatedShell/types";
 import { activeHref } from "./navigationUtils";
@@ -11,6 +12,7 @@ export interface MobileOrganizationAdminNavigationProps {
   readonly path: string;
   readonly navigate: (href: string) => Promise<boolean>;
   readonly onSearch: () => void;
+  readonly workspaceSwitcher?: ReactNode;
 }
 
 type ActiveMenu = "people" | "events" | "more" | null;
@@ -192,6 +194,7 @@ function MoreCategoriesList({
 }
 
 interface MobileAdminSheetContentProps {
+  readonly workspaceSwitcher?: ReactNode;
   readonly activeMenu: ActiveMenu;
   readonly current: string | undefined;
   readonly handleClose: () => void;
@@ -209,6 +212,7 @@ interface MobileAdminSheetContentProps {
   readonly setMoreCategory: (category: OrganizationGroupId | null) => void;
   readonly sheetId: string;
   readonly sheetTitle: string;
+  readonly onCloseAutoFocus: (event: Event) => void;
 }
 
 function MobileAdminSheetContent({
@@ -229,6 +233,8 @@ function MobileAdminSheetContent({
   setMoreCategory,
   sheetId,
   sheetTitle,
+  workspaceSwitcher,
+  onCloseAutoFocus,
 }: MobileAdminSheetContentProps) {
   const [dragOffset, setDragOffset] = useState(0);
   const gesture = useRef<{
@@ -239,6 +245,7 @@ function MobileAdminSheetContent({
   } | null>(null);
   return (
     <DialogPrimitive.Content
+      onCloseAutoFocus={onCloseAutoFocus}
       aria-modal="true"
       className="mobile-bottom-sheet"
       id={sheetId}
@@ -326,11 +333,14 @@ function MobileAdminSheetContent({
 
       <div className="mobile-bottom-sheet__body">
         {activeMenu === "more" && !selectedMoreGroup ? (
-          <MoreCategoriesList
-            categories={moreGroups}
-            onOpenCategory={setMoreCategory}
-            onSearch={handleSearchClick}
-          />
+          <>
+            {workspaceSwitcher}
+            <MoreCategoriesList
+              categories={moreGroups}
+              onOpenCategory={setMoreCategory}
+              onSearch={handleSearchClick}
+            />
+          </>
         ) : (
           <div className="mobile-bottom-sheet__links" role="group" aria-label={sheetTitle}>
             {itemsToRender.map((item) => (
@@ -394,10 +404,26 @@ export function MobileOrganizationAdminNavigation({
   navigate,
   onSearch,
   path,
+  workspaceSwitcher,
 }: MobileOrganizationAdminNavigationProps) {
   const sheetId = useId();
+  const navRef = useRef<HTMLElement | null>(null);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>(null);
   const [moreCategory, setMoreCategory] = useState<OrganizationGroupId | null>(null);
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 48.01rem)");
+    const closeOnDesktop = () => {
+      if (desktop.matches) {
+        setActiveMenu(null);
+        setMoreCategory(null);
+      }
+    };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => {
+      desktop.removeEventListener("change", closeOnDesktop);
+    };
+  }, []);
 
   const [prevPath, setPrevPath] = useState(path);
 
@@ -436,6 +462,9 @@ export function MobileOrganizationAdminNavigation({
       setActiveMenu(null);
       setMoreCategory(null);
     } else {
+      const label = { people: "People", events: "Events", more: "More" }[menu];
+      openerRef.current =
+        navRef.current?.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`) ?? null;
       setActiveMenu(menu);
       setMoreCategory(null);
     }
@@ -470,7 +499,7 @@ export function MobileOrganizationAdminNavigation({
 
   return (
     <>
-      <nav aria-label="Mobile workspace navigation" className="mobile-bottom-nav">
+      <nav aria-label="Mobile workspace navigation" className="mobile-bottom-nav" ref={navRef}>
         <BottomNavButtons
           activeMenu={activeMenu}
           isEventsActive={isEventsActive}
@@ -509,6 +538,11 @@ export function MobileOrganizationAdminNavigation({
             setMoreCategory={setMoreCategory}
             sheetId={sheetId}
             sheetTitle={sheetTitle}
+            workspaceSwitcher={workspaceSwitcher}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              if (openerRef.current?.isConnected) openerRef.current.focus({ preventScroll: true });
+            }}
           />
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>

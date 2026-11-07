@@ -1,3 +1,56 @@
+# Mobile workspace chooser design QA — November 7, 2026
+
+final result: passed
+
+Source visual:
+`/Users/wesosborn/.codex/generated_images/01a1b77a-51d7-7bf2-b74d-1c13d2dbbd93/exec-3f881811-96f2-4bfe-b90a-a55632180bee.png`.
+Implementation: `/private/tmp/choir-mobile-workspace-more-dark.png` and
+`/private/tmp/choir-mobile-workspace-more-light.png`. Full-view comparison:
+`/private/tmp/choir-workspace-comparison.png`.
+
+The source is 852 × 1846 pixels, normalized to 390 pixels wide. Implementation screenshots are 390 ×
+844 pixels at a 390 × 844 CSS viewport with deviceScaleFactor 1. State: Organization Admin selected,
+More open, all three authorized workspace choices visible. The fixture brand and background page
+differ from the mock; the comparison targets the menu and header controls.
+
+Findings and fixes:
+
+- Initial light-theme selected-row description had insufficient contrast. The selected row now uses
+  the existing main text color; both light and dark axe scans have zero serious/critical findings in
+  the new menu.
+- Initial longer Member menu exceeded its usable height at CSS zoom. Percentage height limits, a
+  nonshrinking header/footer and a scrollable body keep Close and bottom controls reachable.
+  Existing landscape, small-screen and 200% zoom checks pass. Resources remain reachable by
+  scrolling.
+- Escape now explicitly restores focus to the originating Admin bottom-navigation control. Member
+  dismissal also restores the prior page scroll, limited to the same page so navigation is not
+  scrolled back to an earlier destination's position.
+- Initial chooser heading inherited a serif face. It now explicitly uses the app's sans-serif token.
+  The final combined comparison confirms the corrected heading, full labels and selected marker.
+- No remaining actionable P0/P1/P2 menu findings. The real menu retains its existing Finance,
+  Insights & settings and Quick search entries rather than removing destinations to match the mock's
+  shorter illustrative list. Consequently, the real sheet is taller and its body scrolls.
+
+Fidelity surfaces: existing sans-serif fonts, weight/size tokens, readable wrapping descriptions,
+full-width rows, muted separators, light/dark palette and selection tint match the chosen direction.
+Existing Organization feature icons and current-selection check are reused; no raster assets or
+dependencies were added. The app's actual workspace names and destination labels remain intact. The
+full-width comparison makes labels, spacing and contrast legible; no additional crops were needed.
+Remaining polish: the mock's generic person icon is represented by the existing Member icon.
+
+Behavior checked: Admin → Member → Account → Admin; current-selection no-op; unavailable Admin
+choices absent; Account fallback More entry; desktop native selector; resizing out of a modal;
+Escape/focus, scroll preservation and unsaved-change cancellation. Only the existing authorized
+workspace list and guarded switch handler are used. No authorization, backend, schema or provider
+behavior changed.
+
+Validation: full UI suite (1,201 tests), 34 related desktop/mobile browser tests, web typecheck,
+changed-file lint and web builds passed. New browser checks reject external requests, page errors,
+unexpected API calls, broken images and normal-size horizontal overflow. Full release qualification
+and manual screen-reader testing remain outside this local implementation.
+
+## Earlier design QA
+
 # Notification inbox design QA — November 7, 2026
 
 final result: passed
