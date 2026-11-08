@@ -1127,7 +1127,7 @@ test("saves no-account contact email and phone without an invitation", async ({ 
   await importDialog.getByRole("button", { name: "Proceed with import", exact: true }).click();
   await expect(importDialog).not.toBeVisible();
   await expect(page.getByRole("link", { name: "imported@example.test" })).toBeVisible();
-  await page.locator('[aria-label="Edit profile Imported Person"]:visible').click();
+  await page.locator('button[title="Edit profile Imported Person"]:visible').click();
   const dialog = page.getByRole("dialog", { name: /Profile/ });
   await expect(dialog.getByLabel("Contact email", { exact: true })).toHaveValue(
     "imported@example.test",
@@ -1136,7 +1136,7 @@ test("saves no-account contact email and phone without an invitation", async ({ 
   await dialog.getByLabel("Contact email", { exact: true }).fill("edited@example.test");
   await dialog.getByRole("button", { name: "Save Profile", exact: true }).click();
   await expect(page.getByRole("link", { name: "edited@example.test" })).toBeVisible();
-  await page.locator('[aria-label="Edit profile Imported Person"]:visible').click();
+  await page.locator('button[title="Edit profile Imported Person"]:visible').click();
   await expect(dialog.getByLabel("Contact email", { exact: true })).toHaveValue(
     "edited@example.test",
   );

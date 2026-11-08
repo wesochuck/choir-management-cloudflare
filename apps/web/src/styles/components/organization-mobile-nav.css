@@ -242,6 +242,70 @@
   gap: var(--spacing-xs);
 }
 
+.mobile-bottom-sheet__tools {
+  flex-shrink: 0;
+}
+
+.mobile-bottom-sheet__tools-heading {
+  padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+}
+
+.mobile-bottom-sheet__tools-heading h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+}
+
+.mobile-bottom-sheet__tools-heading p {
+  margin: var(--spacing-3xs) 0 0;
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+}
+
+.mobile-bottom-sheet__scroll-hint {
+  flex-shrink: 0;
+  margin: 0;
+  padding: var(--spacing-xs) var(--spacing-md);
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  text-align: center;
+  font-size: var(--font-size-sm);
+}
+
+.mobile-bottom-sheet__scroll-hint[data-visible="false"] {
+  visibility: hidden;
+}
+
+/* Keep the workspace choices compact above the Organization tools section. */
+.mobile-bottom-sheet .mobile-workspace-chooser {
+  flex-shrink: 0;
+  padding-bottom: var(--spacing-xs);
+  margin-bottom: var(--spacing-xs);
+  border-bottom: 0;
+}
+
+.mobile-bottom-sheet .mobile-workspace-chooser__option {
+  min-height: 4rem;
+  padding-block: var(--spacing-sm);
+}
+
+.mobile-bottom-sheet .mobile-workspace-chooser h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 .mobile-bottom-sheet__link,
 .mobile-bottom-sheet__category-button {
   display: flex;

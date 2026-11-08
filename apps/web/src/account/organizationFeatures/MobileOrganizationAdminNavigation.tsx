@@ -149,47 +149,54 @@ function MoreCategoriesList({
   readonly onOpenCategory: (id: OrganizationGroupId) => void;
   readonly onSearch: () => void;
 }) {
+  const headingId = useId();
   return (
-    <div className="mobile-bottom-sheet__links" role="group" aria-label="More sections">
-      {categories.map((group) => {
-        if (!isOrganizationGroupId(group.id)) return null;
-        const groupId = group.id;
-        return (
-          <button
-            className="mobile-bottom-sheet__category-button"
-            data-tone={group.tone}
-            key={group.id}
-            onClick={() => {
-              onOpenCategory(groupId);
-            }}
-            type="button"
-          >
-            <span className="mobile-bottom-sheet__category-chip">
-              {group.iconId ? <OrganizationFeatureIcon iconId={group.iconId} /> : null}
-            </span>
-            <span className="mobile-bottom-sheet__link-label">{group.label}</span>
-            <ChevronRightIcon />
-          </button>
-        );
-      })}
-      <button className="mobile-bottom-sheet__category-button" onClick={onSearch} type="button">
-        <span className="mobile-bottom-sheet__category-chip">
-          <svg
-            aria-hidden="true"
-            fill="none"
-            focusable="false"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            viewBox="0 0 24 24"
-          >
-            <circle cx="10" cy="10" r="7" />
-            <path d="m15 15 6 6" />
-          </svg>
-        </span>
-        <span className="mobile-bottom-sheet__link-label">Quick search</span>
-        <ChevronRightIcon />
-      </button>
-    </div>
+    <section className="mobile-bottom-sheet__tools" aria-labelledby={headingId}>
+      <div className="mobile-bottom-sheet__tools-heading">
+        <h3 id={headingId}>Organization tools</h3>
+        <p>Music, communications, finance, and more</p>
+      </div>
+      <div className="mobile-bottom-sheet__links" role="group" aria-label="More sections">
+        {categories.map((group) => {
+          if (!isOrganizationGroupId(group.id)) return null;
+          const groupId = group.id;
+          return (
+            <button
+              className="mobile-bottom-sheet__category-button"
+              data-tone={group.tone}
+              key={group.id}
+              onClick={() => {
+                onOpenCategory(groupId);
+              }}
+              type="button"
+            >
+              <span className="mobile-bottom-sheet__category-chip">
+                {group.iconId ? <OrganizationFeatureIcon iconId={group.iconId} /> : null}
+              </span>
+              <span className="mobile-bottom-sheet__link-label">{group.label}</span>
+              <ChevronRightIcon />
+            </button>
+          );
+        })}
+        <button className="mobile-bottom-sheet__category-button" onClick={onSearch} type="button">
+          <span className="mobile-bottom-sheet__category-chip">
+            <svg
+              aria-hidden="true"
+              fill="none"
+              focusable="false"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              viewBox="0 0 24 24"
+            >
+              <circle cx="10" cy="10" r="7" />
+              <path d="m15 15 6 6" />
+            </svg>
+          </span>
+          <span className="mobile-bottom-sheet__link-label">Quick search</span>
+          <ChevronRightIcon />
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -237,6 +244,25 @@ function MobileAdminSheetContent({
   onCloseAutoFocus,
 }: MobileAdminSheetContentProps) {
   const [dragOffset, setDragOffset] = useState(0);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [moreBelow, setMoreBelow] = useState(false);
+  const isMoreRoot = activeMenu === "more" && !selectedMoreGroup;
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body || !isMoreRoot) return;
+    const update = () => {
+      setMoreBelow(body.scrollHeight - body.clientHeight - body.scrollTop > 2);
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(body);
+    for (const child of body.children) observer?.observe(child);
+    body.addEventListener("scroll", update, { passive: true });
+    update();
+    return () => {
+      observer?.disconnect();
+      body.removeEventListener("scroll", update);
+    };
+  }, [isMoreRoot, workspaceSwitcher]);
   const gesture = useRef<{
     pointerId: number;
     startY: number;
@@ -331,7 +357,7 @@ function MobileAdminSheetContent({
         </DialogPrimitive.Close>
       </div>
 
-      <div className="mobile-bottom-sheet__body">
+      <div className="mobile-bottom-sheet__body" ref={bodyRef}>
         {activeMenu === "more" && !selectedMoreGroup ? (
           <>
             {workspaceSwitcher}
@@ -355,6 +381,16 @@ function MobileAdminSheetContent({
           </div>
         )}
       </div>
+
+      {isMoreRoot ? (
+        <p
+          className="mobile-bottom-sheet__scroll-hint"
+          data-visible={moreBelow ? "true" : "false"}
+          aria-hidden={!moreBelow}
+        >
+          Scroll for more <span aria-hidden="true">↓</span>
+        </p>
+      ) : null}
 
       <div className="mobile-bottom-nav mobile-bottom-nav--in-sheet">
         <BottomNavButtons

@@ -2,6 +2,183 @@
  * Split from print.css to isolate screen styles from print media rules.
  */
 @layer components {
+  @media (max-width: 40rem) {
+    .roster-directory-panel .data-table-card {
+      display: grid;
+      grid-template-columns: 2.75rem minmax(0, 1fr);
+      column-gap: var(--spacing-xs);
+      padding: var(--spacing-sm);
+    }
+
+    .roster-directory-panel .data-table-card .data-table-card__label,
+    .roster-directory-panel .data-table-card .roster-table__secondary,
+    .roster-directory-panel .data-table-card .roster-table__part,
+    .roster-directory-panel .data-table-card .roster-table__status {
+      display: none;
+    }
+
+    .roster-directory-panel .data-table-card .data-table-card__field {
+      padding: 0;
+      border: 0;
+      min-width: 0;
+      align-items: flex-start;
+    }
+
+    .roster-directory-panel .data-table-card .data-table-card__value {
+      width: 100%;
+      text-align: start;
+    }
+
+    .roster-directory-panel .roster-profile-select {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      margin: 0;
+    }
+
+    .roster-directory-panel .roster-profile-select input {
+      margin: 0;
+    }
+
+    .roster-directory-panel .data-table-card .roster-profile-name {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--spacing-sm);
+    }
+
+    .roster-directory-panel .data-table-card .roster-profile-name > :first-child {
+      flex-shrink: 0;
+    }
+
+    .roster-directory-panel .data-table-card .roster-profile-identity {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--spacing-3xs);
+    }
+
+    .roster-directory-panel .data-table-card .roster-profile-identity__email {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .roster-card-metadata {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--spacing-xs);
+      color: var(--color-text-muted);
+      font-size: var(--font-size-sm);
+    }
+
+    .roster-directory-panel .data-table-card .status-pill {
+      color: var(--color-text);
+      font-size: var(--font-size-sm);
+      white-space: normal;
+    }
+
+    .roster-directory-panel .data-table-card .status-pill--warning {
+      background: color-mix(in srgb, var(--color-accent) 20%, var(--color-surface));
+    }
+
+    .roster-directory-panel .data-table-card .status-pill--suppressed {
+      background: var(--color-danger-surface);
+    }
+
+    .roster-directory-panel .data-table-card .data-table-card__field--actions {
+      grid-column: 1 / -1;
+      margin-top: var(--spacing-sm);
+      padding-top: var(--spacing-xs);
+      border-top: 1px solid var(--color-border);
+    }
+
+    .roster-directory-panel .data-table-card .roster-row-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      width: 100%;
+      gap: var(--spacing-xs);
+      white-space: normal;
+    }
+
+    .roster-card-details {
+      grid-area: 1 / 1 / auto / -1;
+      min-width: 0;
+    }
+
+    .roster-card-details summary {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      width: fit-content;
+      min-height: 2.75rem;
+      padding-inline: var(--spacing-xs);
+      font-weight: var(--font-weight-semibold);
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .roster-card-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .roster-card-details summary::after {
+      content: "⌃";
+      transform: rotate(180deg);
+    }
+
+    .roster-card-details[open] summary::after {
+      transform: rotate(0);
+    }
+
+    .roster-card-details summary:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+      border-radius: var(--radius-control);
+    }
+
+    .roster-card-details dl {
+      margin: var(--spacing-xs) 0 0;
+      border-top: 1px solid var(--color-border);
+    }
+
+    .roster-card-details dl > div {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: var(--spacing-sm);
+      padding-block: var(--spacing-xs);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .roster-card-details dl > div:last-child {
+      border-bottom: 0;
+    }
+
+    .roster-card-details dt {
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-muted);
+    }
+
+    .roster-card-details dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .roster-directory-panel .data-table-card .roster-row-actions > .button,
+    .roster-directory-panel .data-table-card .roster-row-actions > button {
+      grid-row: 1;
+      grid-column: 3;
+      align-self: start;
+      min-height: 2.75rem;
+      min-width: 2.75rem;
+    }
+
+    .roster-directory-panel .data-table-card .roster-row-actions > .roster-row-actions__edit {
+      grid-column: 2;
+    }
+  }
+
   .status-pill-group {
     display: inline-flex;
     flex-wrap: wrap;

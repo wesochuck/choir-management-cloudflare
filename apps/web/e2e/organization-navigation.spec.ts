@@ -2,12 +2,19 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { moduleIdSchema } from "@choir/contracts";
 import { installOrganizationApi } from "./fixtures/apiMocks";
-import { buildSingerDashboardResponse } from "./fixtures/builders";
+import { buildPlatformMfaStatusResponse, buildSingerDashboardResponse } from "./fixtures/builders";
 import { fulfillJson } from "./fixtures/session";
 
 // These mocked API journeys reload the shell. Block SW interception so WebKit
 // continues through Playwright's route fixtures instead of the unrelated local Worker.
 test.use({ serviceWorkers: "block" });
+
+async function expectMusicCategoryInView(sheet: Locator) {
+  const musicBounds = await sheet.getByRole("button", { name: /Music & content/ }).boundingBox();
+  const bodyBounds = await sheet.locator(".mobile-bottom-sheet__body").boundingBox();
+  if (!musicBounds || !bodyBounds) throw new Error("Missing More menu bounds");
+  expect(musicBounds.y + musicBounds.height).toBeLessThanOrEqual(bodyBounds.y + bodyBounds.height);
+}
 
 async function expectReadableMenuIcons(sheet: Locator) {
   // Registry icons need explicit SVG dimensions; intrinsic sizes hid them on phones.
@@ -65,6 +72,12 @@ for (const theme of ["dark", "light"] as const) {
     page,
   }, info) => {
     await installOrganizationApi(page, { role: "owner", modules: moduleIdSchema.options });
+    await page.route("**/api/platform/mfa/status", async (route) => {
+      await fulfillJson(
+        route,
+        buildPlatformMfaStatusResponse({ activePlatformAdministrator: true }),
+      );
+    });
     await page.route("**/api/organization/dashboard-summary", async (route) => {
       await fulfillJson(route, {
         activeProfileCount: 88,
@@ -233,7 +246,38 @@ for (const theme of ["dark", "light"] as const) {
     await eventsSheet.locator('.mobile-bottom-nav--in-sheet button[aria-label="More"]').click();
     const moreSheet = page.getByRole("dialog");
     await expect(moreSheet.getByRole("heading", { name: "More" })).toBeVisible();
+    await expect(moreSheet.getByRole("heading", { name: "Organization tools" })).toBeVisible();
+    await expect(moreSheet.locator(".mobile-workspace-chooser__option")).toHaveCount(4);
+    const body = moreSheet.locator(".mobile-bottom-sheet__body");
+    const hint = moreSheet.getByText("Scroll for more");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectMusicCategoryInView(moreSheet);
     await shot(`more-sheet-${theme}`);
+    // Short phones must reveal that tools continue below the workspace choices.
+    await page.setViewportSize({ width: 375, height: 667 });
+    await body.evaluate((node) => {
+      node.scrollTo(0, 0);
+    });
+    await expect(hint).toBeVisible();
+    await shot(`more-sheet-short-${theme}`);
+    await page.setViewportSize({ width: 320, height: 568 });
+    await expect(hint).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await shot(`more-sheet-small-${theme}`);
+    await body.evaluate((node) => {
+      node.scrollTo(0, node.scrollHeight);
+    });
+    await expect(hint).toBeHidden();
+    await moreSheet.getByRole("button", { name: /Quick search/ }).focus();
+    await expect(moreSheet.getByRole("button", { name: /Quick search/ })).toBeFocused();
+    await shot(`more-sheet-scrolled-${theme}`);
+    const moreAudit = await new AxeBuilder({ page })
+      .include(".mobile-bottom-sheet")
+      .withTags(["wcag2a", "wcag2aa"])
+      .analyze();
+    expect(moreAudit.violations).toEqual([]);
 
     // Drill into Music & content category
     await moreSheet.getByRole("button", { name: /Music & content/ }).click();

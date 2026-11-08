@@ -12,6 +12,7 @@ import {
 } from "@choir/ui";
 import { VoicePartBalance } from "./shared";
 import { parseRosterStatusFilter, statusLabel } from "./utils";
+import { RosterCardDetails, RosterCardMetadata, RosterDeliveryStatus } from "./RosterCardDetails";
 import { ProfileEditorDialog } from "../ProfileEditor";
 import { ProfileAvatarButton } from "../ProfileAvatarButton";
 import { ProfilePhotoViewerDialog } from "../ProfilePhotoViewerDialog";
@@ -108,6 +109,14 @@ export function RosterPageView({
     if (roster.status !== "ready" || !editingId) return undefined;
     return roster.memberships.find((membership) => membership.profileId === editingId);
   }, [editingId, roster]);
+  const adminProfileIds = useMemo(() => {
+    if (roster.status !== "ready") return new Set<string>();
+    return new Set(
+      roster.memberships
+        .filter((membership) => membership.role === "administrator" || membership.role === "owner")
+        .map((membership) => membership.profileId),
+    );
+  }, [roster]);
   const isEditingAdmin = useMemo(() => {
     if (roster.status !== "ready" || !editingId) return false;
     return roster.memberships.some(
@@ -445,22 +454,29 @@ export function RosterPageView({
                     id: "selection",
                     mobileLabel: "Select",
                     render: (candidate) => (
-                      <input
-                        aria-label={`Select ${candidate.displayName}`}
-                        checked={selectedProfileIds.includes(candidate.id)}
-                        disabled={bulkBusy}
-                        onChange={(event) => {
-                          toggleProfileSelection(candidate.id, event.target.checked);
+                      <label
+                        className="roster-profile-select"
+                        onClick={(event) => {
+                          event.stopPropagation();
                         }}
-                        type="checkbox"
-                      />
+                      >
+                        <input
+                          aria-label={`Select ${candidate.displayName}`}
+                          checked={selectedProfileIds.includes(candidate.id)}
+                          disabled={bulkBusy}
+                          onChange={(event) => {
+                            toggleProfileSelection(candidate.id, event.target.checked);
+                          }}
+                          type="checkbox"
+                        />
+                      </label>
                     ),
                   },
                   {
                     header: "Name",
                     className: "roster-table__identity",
                     id: "name",
-                    render: (candidate) => (
+                    render: (candidate, { presentation }) => (
                       <span className="roster-profile-name">
                         <ProfileAvatarButton
                           displayName={candidate.displayName}
@@ -468,10 +484,13 @@ export function RosterPageView({
                             setViewerPhoto({ displayName: candidate.displayName, src });
                           }}
                           photoFileId={candidate.photoFileId}
-                          size={32}
+                          size={presentation === "card" ? 40 : 32}
                         />
                         <span className="roster-profile-identity">
                           <strong>{candidate.displayName}</strong>
+                          {presentation === "card" ? (
+                            <RosterCardMetadata profile={candidate} partLabel={partLabel} />
+                          ) : null}
                           <span className="roster-profile-identity__email">
                             {profileContactEmail(candidate) ? (
                               <a href={`mailto:${profileContactEmail(candidate)}`}>
@@ -481,7 +500,11 @@ export function RosterPageView({
                               "No email"
                             )}
                           </span>
-                          {membershipByProfileId.has(candidate.id) ? (
+                          {presentation === "card" &&
+                          (candidate.providerEmailSuppressed || candidate.doNotEmail) ? (
+                            <RosterDeliveryStatus profile={candidate} />
+                          ) : null}
+                          {presentation === "table" && membershipByProfileId.has(candidate.id) ? (
                             <span className="roster-profile-identity__account">
                               Linked login account
                             </span>
@@ -602,12 +625,8 @@ export function RosterPageView({
                     header: "Actions",
                     id: "actions",
                     mobileLabel: "Manage",
-                    render: (candidate) => {
-                      const isCandidateAdmin = roster.memberships.some(
-                        (membership) =>
-                          membership.profileId === candidate.id &&
-                          (membership.role === "administrator" || membership.role === "owner"),
-                      );
+                    render: (candidate, { presentation }) => {
+                      const isCandidateAdmin = adminProfileIds.has(candidate.id);
                       return (
                         <div
                           className="table-actions roster-row-actions"
@@ -615,7 +634,14 @@ export function RosterPageView({
                             event.stopPropagation();
                           }}
                         >
+                          {presentation === "card" ? (
+                            <RosterCardDetails
+                              profile={candidate}
+                              linked={membershipByProfileId.has(candidate.id)}
+                            />
+                          ) : null}
                           <button
+                            title={`Edit profile ${candidate.displayName}`}
                             className="button button--secondary button--small roster-row-actions__edit"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -700,6 +726,7 @@ export function RosterPageView({
                 ]}
                 emptyMessage={query ? "No profiles match your search" : "No profiles yet"}
                 initialSort={{ columnId: "name", direction: "asc" }}
+                isRowInteractive={(_candidate, { presentation }) => presentation === "table"}
                 keySelector={(candidate) => candidate.id}
                 onRowClick={openEdit}
                 pagination={{
