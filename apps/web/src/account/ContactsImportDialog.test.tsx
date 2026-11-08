@@ -90,8 +90,6 @@ describe("contact import mapping fields", () => {
         invalidRowCount={upload.invalidRowCount}
         listIds={[LIST_NEWSLETTER]}
         lists={[newsletter]}
-        onBack={() => undefined}
-        onContinue={() => undefined}
         onListIdsChange={() => undefined}
         onTargetsChange={() => undefined}
         probableDuplicateCount={upload.probableDuplicateCount}
@@ -109,26 +107,17 @@ describe("contact import mapping fields", () => {
     expect(html).toContain("SMS Marketing Status");
     expect(html).toContain("Ignore");
     expect(html).toContain("Newsletter");
-    expect(html).toContain("Preview import");
   });
 });
 
 describe("contact import preview fields", () => {
   it("announces counts and the unsubscribe guarantee", () => {
-    const html = renderToString(
-      <ContactImportPreviewFields
-        busy={false}
-        onBack={() => undefined}
-        onConfirm={() => undefined}
-        preview={preview}
-      />,
-    );
+    const html = renderToString(<ContactImportPreviewFields preview={preview} />);
     expect(html).toContain("New contacts");
     expect(html).toContain("Existing contacts to update");
     expect(html).toContain("Duplicates within file");
     expect(html).toContain("Unsubscribes preserved");
     expect(html).toMatch(/stay unsubscribed/i);
-    expect(html).toContain("Confirm import");
   });
 });
 
@@ -152,17 +141,11 @@ describe("contact import result fields", () => {
       suppressedPreserved: 0,
     });
     const html = renderToString(
-      <ContactImportResultFields
-        busy={false}
-        onDone={() => undefined}
-        onDownloadErrors={() => undefined}
-        status={status}
-      />,
+      <ContactImportResultFields busy={false} onDownloadErrors={() => undefined} status={status} />,
     );
     expect(html).toContain("2 contacts");
     expect(html).toContain("3 list memberships");
     expect(html).toContain("Download error CSV");
-    expect(html).toContain("Done");
     expect(vi.fn()).toBeDefined();
   });
 });

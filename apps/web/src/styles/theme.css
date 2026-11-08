@@ -71,6 +71,7 @@
 
 /* Account management & scheduling */
 @import "./components/account-managers.css";
+@import "./components/contacts-import.css";
 @import "./components/account-roster.css";
 @import "./components/account-schedule.css";
 @import "./components/calendar-attendance.css";

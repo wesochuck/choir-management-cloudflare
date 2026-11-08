@@ -102,8 +102,6 @@ export function ContactImportMappingFields({
   invalidRowCount,
   listIds,
   lists,
-  onBack,
-  onContinue,
   onListIdsChange,
   onTargetsChange,
   probableDuplicateCount,
@@ -116,8 +114,6 @@ export function ContactImportMappingFields({
   readonly invalidRowCount: number;
   readonly listIds: readonly string[];
   readonly lists: readonly ContactList[];
-  readonly onBack: () => void;
-  readonly onContinue: () => void;
   readonly onListIdsChange: (listIds: readonly string[]) => void;
   readonly onTargetsChange: (targets: readonly ContactImportTarget[]) => void;
   readonly probableDuplicateCount: number;
@@ -141,33 +137,42 @@ export function ContactImportMappingFields({
           detected within this file. Later duplicates are skipped.
         </p>
       ) : null}
-      <section aria-labelledby="contact-import-sample-heading">
-        <h3 id="contact-import-sample-heading">Sample rows</h3>
-        <DataTable
-          columns={upload.headers.map((header, columnIndex) => ({
-            header,
-            id: `sample-column-${String(columnIndex)}`,
-            render: (row: { readonly cells: readonly string[]; readonly index: number }) =>
-              row.cells[columnIndex] === "" || row.cells[columnIndex] === undefined
-                ? "No value"
-                : (row.cells[columnIndex] ?? "No value"),
-            sortValue: (row: { readonly cells: readonly string[]; readonly index: number }) =>
-              row.cells[columnIndex] ?? "",
-          }))}
-          emptyMessage="No sample rows"
-          initialSort={{ columnId: "sample-column-0", direction: "asc" }}
-          keySelector={(row) => `sample-row-${String(row.index)}`}
-          rows={sampleTableRows}
-        />
-      </section>
-      <fieldset className="field">
+      <details className="contacts-import-samples">
+        <summary id="contact-import-sample-heading">Sample rows</summary>
+        <div className="contacts-import-samples__table">
+          <DataTable
+            columns={upload.headers.map((header, columnIndex) => ({
+              header,
+              id: `sample-column-${String(columnIndex)}`,
+              render: (row: { readonly cells: readonly string[]; readonly index: number }) =>
+                row.cells[columnIndex] === "" || row.cells[columnIndex] === undefined
+                  ? "No value"
+                  : (row.cells[columnIndex] ?? "No value"),
+              sortValue: (row: { readonly cells: readonly string[]; readonly index: number }) =>
+                row.cells[columnIndex] ?? "",
+            }))}
+            emptyMessage="No sample rows"
+            initialSort={{ columnId: "sample-column-0", direction: "asc" }}
+            keySelector={(row) => `sample-row-${String(row.index)}`}
+            rows={sampleTableRows}
+          />
+        </div>
+      </details>
+      <fieldset className="contacts-import-mapping">
         <legend>Map columns to contact fields</legend>
+        <p className="field-help">
+          Choose a contact field for each CSV column, or Ignore to leave it out.
+        </p>
         {upload.headers.map((header, index) => (
-          <div className="field" key={`${header}-${String(index)}`}>
+          <div className="contacts-import-mapping__row" key={`${header}-${String(index)}`}>
             <label htmlFor={`contact-import-mapping-${String(index)}`}>
-              Column “{header}”{sampleRow[index] ? ` (for example: ${sampleRow[index] ?? ""})` : ""}
+              <span>{header || `Column ${String(index + 1)}`}</span>
+              <small className="field-help" id={`contact-import-example-${String(index)}`}>
+                Sample: {sampleRow[index] === "" ? "No value" : (sampleRow[index] ?? "No value")}
+              </small>
             </label>
             <select
+              aria-describedby={`contact-import-example-${String(index)}`}
               disabled={busy}
               id={`contact-import-mapping-${String(index)}`}
               onChange={(event) => {
@@ -190,6 +195,7 @@ export function ContactImportMappingFields({
       </fieldset>
       <fieldset className="field">
         <legend>Add imported contacts to lists</legend>
+        <p className="field-help">Select at least one list to continue.</p>
         {lists.length === 0 ? (
           <p className="field-help">
             No contact lists exist yet. Create one from Contact lists before importing.
@@ -220,33 +226,14 @@ export function ContactImportMappingFields({
           </div>
         )}
       </fieldset>
-      <div className="dialog__actions">
-        <button className="button button--secondary" disabled={busy} onClick={onBack} type="button">
-          Back
-        </button>
-        <button
-          className="button button--primary"
-          disabled={busy || lists.length === 0}
-          onClick={onContinue}
-          type="button"
-        >
-          {busy ? "Checking…" : "Preview import"}
-        </button>
-      </div>
     </div>
   );
 }
 
 /** Pure preview fields (no Dialog wrapper) so counts stay covered by SSR tests. */
 export function ContactImportPreviewFields({
-  busy,
-  onBack,
-  onConfirm,
   preview,
 }: {
-  readonly busy: boolean;
-  readonly onBack: () => void;
-  readonly onConfirm: () => void;
   readonly preview: ContactImportPreviewResponse;
 }) {
   return (
@@ -286,20 +273,6 @@ export function ContactImportPreviewFields({
         Confirming starts the import as background work. Existing list memberships are kept, blank
         values never erase stored details, and the same import can never run twice.
       </p>
-      <div className="dialog__actions">
-        <button className="button button--secondary" disabled={busy} onClick={onBack} type="button">
-          Back
-        </button>
-        <button
-          aria-busy={busy}
-          className="button button--primary"
-          disabled={busy}
-          onClick={onConfirm}
-          type="button"
-        >
-          {busy ? "Confirming…" : "Confirm import"}
-        </button>
-      </div>
     </div>
   );
 }
@@ -307,12 +280,10 @@ export function ContactImportPreviewFields({
 /** Pure result fields (no Dialog wrapper) so counts stay covered by SSR tests. */
 export function ContactImportResultFields({
   busy,
-  onDone,
   onDownloadErrors,
   status,
 }: {
   readonly busy: boolean;
-  readonly onDone: () => void;
   readonly onDownloadErrors: () => void;
   readonly status: ContactImportJobStatusResponse;
 }) {
@@ -355,12 +326,77 @@ export function ContactImportResultFields({
           {busy ? "Preparing…" : "Download error CSV"}
         </button>
       ) : null}
-      <div className="dialog__actions">
-        <button className="button button--primary" onClick={onDone} type="button">
+    </div>
+  );
+}
+
+function ContactImportActions({
+  busy,
+  hasLists,
+  onBack,
+  onContinue,
+  onDone,
+  step,
+}: {
+  readonly busy: boolean;
+  readonly hasLists: boolean;
+  readonly onBack: () => void;
+  readonly onContinue: () => void;
+  readonly onDone: () => void;
+  readonly step: ImportStep;
+}) {
+  return (
+    <>
+      {step !== "result" ? (
+        <DialogClose asChild>
+          <button className="button button--secondary" disabled={busy} type="button">
+            Cancel
+          </button>
+        </DialogClose>
+      ) : null}
+      {step === "map" || step === "preview" ? (
+        <>
+          <button
+            className="button button--secondary"
+            disabled={busy}
+            onClick={() => {
+              onBack();
+            }}
+            type="button"
+          >
+            Back
+          </button>
+          <button
+            aria-busy={busy}
+            className="button button--primary"
+            disabled={busy || (step === "map" && !hasLists)}
+            onClick={() => {
+              onContinue();
+            }}
+            type="button"
+          >
+            {step === "map"
+              ? busy
+                ? "Checking…"
+                : "Preview import"
+              : busy
+                ? "Confirming…"
+                : "Confirm import"}
+          </button>
+        </>
+      ) : null}
+      {step === "result" ? (
+        <button
+          className="button button--primary"
+          onClick={() => {
+            onDone();
+          }}
+          type="button"
+        >
           Done
         </button>
-      </div>
-    </div>
+      ) : null}
+    </>
   );
 }
 
@@ -547,7 +583,27 @@ export function ContactImportDialog({
 
   return (
     <Dialog
-      description="Upload a CSV, map its columns, preview the outcome, then confirm. Only confirmation starts the import."
+      className="dialog--contact-import"
+      description="Map your CSV columns, then preview and confirm the import."
+      footer={
+        <ContactImportActions
+          busy={busy}
+          hasLists={listIds.length > 0}
+          step={step}
+          onBack={() => {
+            if (step === "map") void backToUpload();
+            else setStep("map");
+          }}
+          onContinue={() => {
+            if (step === "map") void continueToPreview();
+            else void confirm();
+          }}
+          onDone={() => {
+            reset();
+            onClose();
+          }}
+        />
+      }
       dirty={upload !== null && !finished}
       onClose={() => {
         close(true);
@@ -560,22 +616,6 @@ export function ContactImportDialog({
         error={error}
         listIds={listIds}
         lists={lists}
-        onBackToMap={() => {
-          setStep("map");
-        }}
-        onBackToUpload={() => {
-          void backToUpload();
-        }}
-        onConfirm={() => {
-          void confirm();
-        }}
-        onContinueToPreview={() => {
-          void continueToPreview();
-        }}
-        onDone={() => {
-          reset();
-          onClose();
-        }}
         onDownloadErrors={() => {
           void downloadErrors();
         }}
@@ -593,18 +633,6 @@ export function ContactImportDialog({
     </Dialog>
   );
 }
-function ContactImportCancelActions({ busy }: { readonly busy: boolean }) {
-  return (
-    <div className="dialog__actions">
-      <DialogClose asChild>
-        <button className="button button--secondary" disabled={busy} type="button">
-          Cancel
-        </button>
-      </DialogClose>
-    </div>
-  );
-}
-
 function ContactImportProcessingNotice({
   status,
 }: {
@@ -624,11 +652,6 @@ function ContactImportDialogBody({
   error,
   listIds,
   lists,
-  onBackToMap,
-  onBackToUpload,
-  onConfirm,
-  onContinueToPreview,
-  onDone,
   onDownloadErrors,
   onFile,
   onListIdsChange,
@@ -643,11 +666,6 @@ function ContactImportDialogBody({
   readonly error: string | null;
   readonly listIds: readonly string[];
   readonly lists: readonly ContactList[];
-  readonly onBackToMap: () => void;
-  readonly onBackToUpload: () => void;
-  readonly onConfirm: () => void;
-  readonly onContinueToPreview: () => void;
-  readonly onDone: () => void;
   readonly onDownloadErrors: () => void;
   readonly onFile: (file: File | undefined) => void;
   readonly onListIdsChange: (listIds: readonly string[]) => void;
@@ -675,8 +693,6 @@ function ContactImportDialogBody({
           invalidRowCount={upload.invalidRowCount}
           listIds={listIds}
           lists={lists}
-          onBack={onBackToUpload}
-          onContinue={onContinueToPreview}
           onListIdsChange={onListIdsChange}
           onTargetsChange={onTargetsChange}
           probableDuplicateCount={upload.probableDuplicateCount}
@@ -687,28 +703,16 @@ function ContactImportDialogBody({
         />
       ) : null}
 
-      {step === "preview" && preview ? (
-        <ContactImportPreviewFields
-          busy={busy}
-          onBack={onBackToMap}
-          onConfirm={onConfirm}
-          preview={preview}
-        />
-      ) : null}
+      {step === "preview" && preview ? <ContactImportPreviewFields preview={preview} /> : null}
 
       {step === "processing" ? <ContactImportProcessingNotice status={status} /> : null}
 
       {step === "result" && status ? (
         <ContactImportResultFields
           busy={busy}
-          onDone={onDone}
           onDownloadErrors={onDownloadErrors}
           status={status}
         />
-      ) : null}
-
-      {step === "upload" || step === "processing" || (step === "result" && !status) ? (
-        <ContactImportCancelActions busy={busy} />
       ) : null}
     </>
   );

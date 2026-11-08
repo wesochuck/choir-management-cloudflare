@@ -1,0 +1,111 @@
+@layer components {
+  .dialog--responsive.dialog--contact-import {
+    width: min(58rem, calc(100% - 2rem));
+    max-width: min(58rem, calc(100% - 2rem));
+  }
+
+  .contacts-import-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs) var(--spacing-md);
+    padding: 0;
+    margin: 0 0 var(--spacing-lg);
+    list-style-position: inside;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .contacts-import-steps__current {
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .dialog--contact-import fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .dialog--contact-import legend {
+    margin-bottom: var(--spacing-xs);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .contacts-import-mapping__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--spacing-sm) var(--spacing-lg);
+    padding-block: var(--spacing-sm);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .contacts-import-mapping__row label,
+  .contacts-import-mapping__row select {
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+  }
+
+  .contacts-import-mapping__row label {
+    overflow-wrap: anywhere;
+  }
+
+  .contacts-import-mapping__row small {
+    display: block;
+    font-weight: var(--font-weight-regular);
+  }
+
+  .contacts-import-samples {
+    min-width: 0;
+  }
+
+  .contacts-import-samples summary {
+    cursor: pointer;
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .contacts-import-samples__table {
+    overflow-x: auto;
+    margin-top: var(--spacing-sm);
+  }
+
+  .contacts-import-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: var(--spacing-md);
+    margin: 0;
+  }
+
+  .contacts-import-summary dt {
+    color: var(--color-text-muted);
+  }
+
+  .contacts-import-summary dd {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  @media (max-width: 40rem) {
+    .dialog--responsive.dialog--contact-import {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    .dialog--contact-import .dialog__footer {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dialog--contact-import .dialog__footer .button--primary,
+    .dialog--contact-import .dialog__footer > :only-child {
+      grid-column: 1 / -1;
+    }
+
+    .contacts-import-mapping__row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
