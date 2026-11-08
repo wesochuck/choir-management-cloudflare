@@ -2,7 +2,7 @@ import { OrganizationFeatureIcon } from "./organizationFeatures/OrganizationFeat
 import type { SingerEvent, SingerEventsResponse } from "@choir/contracts";
 import { normalizeSetListDuration } from "@choir/domain";
 import { Dialog, DialogClose } from "@choir/ui";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AuthApiError, getMySchedule, getMemberPracticeLink, setMyEventRsvp } from "../auth/api";
 import { MemberEventCard } from "./MemberEventCard";
@@ -307,15 +307,46 @@ function ScheduleCardBadges({
 function SchedulePracticeButton({ event }: { readonly event: SingerEvent }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    function resetBusy(): void {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      setBusy(false);
+    }
+    window.addEventListener("pageshow", resetBusy);
+    window.addEventListener("pagehide", resetBusy);
+    window.addEventListener("focus", resetBusy);
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+      window.removeEventListener("pageshow", resetBusy);
+      window.removeEventListener("pagehide", resetBusy);
+      window.removeEventListener("focus", resetBusy);
+    };
+  }, []);
+
   if (event.practice.status !== "available" || !event.practice.sourceEventId) return null;
   async function open() {
     const sourceId = event.practice.sourceEventId;
     if (!sourceId) return;
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
     setBusy(true);
     setError(false);
     try {
       const href = await getMemberPracticeLink(sourceId);
       window.location.assign(href);
+      timeoutRef.current = window.setTimeout(() => {
+        setBusy(false);
+        timeoutRef.current = null;
+      }, 3000);
     } catch {
       setError(true);
       setBusy(false);
@@ -613,6 +644,25 @@ export function MySchedule({
       controller.abort();
     };
   }, [enabled, showPastEvents]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    function resetBusyAndRefresh(): void {
+      setBusyEventId(null);
+      void loadSchedule(showPastEvents);
+    }
+    function handlePageHide(): void {
+      setBusyEventId(null);
+    }
+    window.addEventListener("focus", resetBusyAndRefresh);
+    window.addEventListener("pageshow", resetBusyAndRefresh);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      window.removeEventListener("focus", resetBusyAndRefresh);
+      window.removeEventListener("pageshow", resetBusyAndRefresh);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [enabled, loadSchedule, showPastEvents]);
 
   function togglePastEvents(includePast: boolean): void {
     setShowPastEvents(includePast);

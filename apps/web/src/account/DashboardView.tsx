@@ -1,7 +1,7 @@
 import { OrganizationFeatureIcon } from "./organizationFeatures/OrganizationFeatureIcon";
 import type { MemberDashboardResponse } from "@choir/contracts";
 import { Dialog, DialogClose } from "@choir/ui";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AuthApiError,
@@ -695,6 +695,15 @@ export function DashboardView({
   const [declineNote, setDeclineNote] = useState("");
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [selectedBulletinId, setSelectedBulletinId] = useState<string | null>(null);
+  const practiceTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (practiceTimeoutRef.current !== null) {
+        window.clearTimeout(practiceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const loadDashboard = useCallback(
     async (showLoading = false): Promise<void> => {
@@ -729,13 +738,34 @@ export function DashboardView({
         setLoading(false);
       },
     );
+    function resetBusy(): void {
+      if (practiceTimeoutRef.current !== null) {
+        window.clearTimeout(practiceTimeoutRef.current);
+        practiceTimeoutRef.current = null;
+      }
+      setBusyEventId(null);
+    }
     function refreshOnFocus(): void {
+      resetBusy();
       void loadDashboard();
     }
+    function handlePageShow(event: PageTransitionEvent): void {
+      resetBusy();
+      if (event.persisted) {
+        void loadDashboard();
+      }
+    }
+    function handlePageHide(): void {
+      resetBusy();
+    }
     window.addEventListener("focus", refreshOnFocus);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("pagehide", handlePageHide);
     return () => {
       active = false;
       window.removeEventListener("focus", refreshOnFocus);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("pagehide", handlePageHide);
     };
   }, [enabled, loadDashboard]);
 
@@ -766,12 +796,20 @@ export function DashboardView({
 
   async function openPractice(event: DashboardEvent): Promise<void> {
     if (!event.practice.sourceEventId) return;
+    if (practiceTimeoutRef.current !== null) {
+      window.clearTimeout(practiceTimeoutRef.current);
+      practiceTimeoutRef.current = null;
+    }
     setBusyEventId(event.id);
     setActionError(null);
     setActionMessage(null);
     try {
       const href = await getMemberPracticeLink(event.practice.sourceEventId);
       window.location.assign(href);
+      practiceTimeoutRef.current = window.setTimeout(() => {
+        setBusyEventId((current) => (current === event.id ? null : current));
+        practiceTimeoutRef.current = null;
+      }, 3000);
     } catch {
       setActionError("The practice player could not be opened.");
       setBusyEventId(null);

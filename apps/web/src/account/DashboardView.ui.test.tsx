@@ -1,5 +1,5 @@
 import { seasonSchema, type MemberDashboardResponse } from "@choir/contracts";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as authApi from "../auth/api";
@@ -832,7 +832,7 @@ describe("DashboardView", () => {
       ],
     };
 
-    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValueOnce(dashboardWithConcert);
+    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValue(dashboardWithConcert);
     vi.spyOn(authApi, "getMemberPracticeLink").mockResolvedValueOnce(
       "https://test.chorus.app/practice/concert-1",
     );
@@ -857,11 +857,113 @@ describe("DashboardView", () => {
       ).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Practice Player for Holiday Gala" }));
+    const heroButton = screen.getByRole("button", {
+      name: "Open Practice Player for Holiday Gala",
+    });
+    fireEvent.click(heroButton);
 
     await waitFor(() => {
       expect(authApi.getMemberPracticeLink).toHaveBeenCalledWith("concert-1");
       expect(assignSpy).toHaveBeenCalledWith("https://test.chorus.app/practice/concert-1");
     });
+
+    expect(heroButton).toBeDisabled();
+    expect(heroButton).toHaveTextContent("Opening…");
+
+    // Returning to the dashboard after closing player on mobile restores page via pageshow (bfcache)
+    act(() => {
+      fireEvent(window, new PageTransitionEvent("pageshow", { persisted: true }));
+    });
+
+    await waitFor(() => {
+      expect(heroButton).toBeEnabled();
+    });
+    expect(heroButton).toHaveTextContent("Open Practice Player");
+  });
+
+  it("resets concert hero practice button to ready state when fallback timeout fires", async () => {
+    vi.useFakeTimers();
+    try {
+      const dashboardWithConcert: MemberDashboardResponse = {
+        ...mockDashboard,
+        events: [
+          {
+            attendanceWarning: null,
+            callTime: "",
+            details: "",
+            directRsvp: "Yes",
+            durationMinutes: 120,
+            featuredAssignments: [],
+            id: "concert-2",
+            inheritedFromParent: false,
+            location: "Hall",
+            practice: {
+              sourceEventId: "concert-2",
+              status: "available",
+              trackCount: 3,
+            },
+            publicGraphicFileId: null,
+            resolvedRsvp: "Yes",
+            rsvpDeadlineAt: null,
+            rsvpDeadlineDate: null,
+            rsvpDeadlinePassed: false,
+            rsvpNote: "",
+            rsvpSelfServiceOpen: true,
+            seating: { status: "not_published" },
+            setList: [],
+            startsAt: "2026-12-10T19:00:00Z",
+            title: "Winter Festival",
+            type: "Performance",
+            venueAddress: "",
+            venueName: "Hall",
+          },
+        ],
+      };
+
+      vi.spyOn(authApi, "getMemberDashboard").mockResolvedValue(dashboardWithConcert);
+      vi.spyOn(authApi, "getMemberPracticeLink").mockResolvedValue(
+        "https://test.chorus.app/practice/concert-2",
+      );
+
+      const assignSpy = vi.fn();
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: {
+          assign: assignSpy,
+          hash: "",
+          href: "http://localhost:3000/account",
+          origin: "http://localhost:3000",
+          search: "",
+        },
+      });
+
+      render(<DashboardView accessStatus="ready" enabled={true} navigate={vi.fn()} />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const heroButton = screen.getByRole("button", {
+        name: "Open Practice Player for Winter Festival",
+      });
+
+      await act(async () => {
+        fireEvent.click(heroButton);
+        await Promise.resolve();
+      });
+
+      expect(heroButton).toBeDisabled();
+      expect(heroButton).toHaveTextContent("Opening…");
+
+      // Advance past timeout fallback
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      expect(heroButton).toBeEnabled();
+      expect(heroButton).toHaveTextContent("Open Practice Player");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

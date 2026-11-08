@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -196,6 +196,47 @@ describe("MySchedule RSVP pending state (#196)", () => {
     );
     expect(practice).toBeEnabled();
     expect(screen.getByRole("button", { name: "Yes" })).toBeEnabled();
+  });
+
+  it("resets practice player button ready state when returning to schedule via pageshow", async () => {
+    const event = createSampleEvent({
+      practice: { status: "available", sourceEventId: "source-performance", trackCount: 2 },
+    });
+    vi.mocked(getMySchedule).mockResolvedValue({
+      events: [event],
+      profileId: "profile",
+      requestId: "request",
+      timezone: "America/New_York",
+    });
+    vi.mocked(getMemberPracticeLink).mockResolvedValueOnce("/player?token=test");
+
+    const assignSpy = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        assign: assignSpy,
+        hash: "",
+        href: "http://localhost:3000/account",
+        origin: "http://localhost:3000",
+        search: "",
+      },
+    });
+
+    render(<MySchedule enabled />);
+    const practice = await screen.findByRole("button", { name: "Open practice player" });
+    await userEvent.click(practice);
+
+    expect(getMemberPracticeLink).toHaveBeenCalledWith("source-performance");
+    expect(assignSpy).toHaveBeenCalledWith("/player?token=test");
+    expect(practice).toBeDisabled();
+    expect(practice).toHaveTextContent("Opening…");
+
+    fireEvent(window, new PageTransitionEvent("pageshow", { persisted: true }));
+
+    await waitFor(() => {
+      expect(practice).toBeEnabled();
+    });
+    expect(practice).toHaveTextContent("Practice");
   });
 
   it("renders event type and date with accessible spacing (#177)", async () => {

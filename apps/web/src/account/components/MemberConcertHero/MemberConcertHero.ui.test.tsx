@@ -207,6 +207,43 @@ describe("MemberConcertHero", () => {
     expect(button).toHaveTextContent("Opening…");
   });
 
+  it("resets button to enabled Open Practice Player when busyEventId resets to null", () => {
+    const concert = createConcert();
+    const onOpenPractice = vi.fn();
+
+    const { rerender } = render(
+      <MemberConcertHero
+        busyEventId={concert.id}
+        concert={concert}
+        onOpenPractice={onOpenPractice}
+        rehearsalsRemainingCount={4}
+        timezone="America/New_York"
+      />,
+    );
+
+    const button = screen.getByRole("button", {
+      name: `Open Practice Player for ${concert.title}`,
+    });
+    expect(button).toBeDisabled();
+    expect(button).toHaveTextContent("Opening…");
+
+    rerender(
+      <MemberConcertHero
+        busyEventId={null}
+        concert={concert}
+        onOpenPractice={onOpenPractice}
+        rehearsalsRemainingCount={4}
+        timezone="America/New_York"
+      />,
+    );
+
+    expect(button).toBeEnabled();
+    expect(button).toHaveTextContent("Open Practice Player");
+
+    fireEvent.click(button);
+    expect(onOpenPractice).toHaveBeenCalledWith(concert);
+  });
+
   it("renders progress bar with 6 segments and highlights remaining rehearsals", () => {
     const concert = createConcert({
       attendanceWarning: {
