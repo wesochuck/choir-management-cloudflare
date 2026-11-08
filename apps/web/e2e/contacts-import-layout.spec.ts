@@ -172,6 +172,22 @@ for (const theme of ["light", "dark"] as const) {
     await page.keyboard.press("Enter");
     const confirm = dialog.getByRole("button", { name: "Confirm import", exact: true });
     await expect(confirm).toBeInViewport();
+    const metrics = await dialog.locator(".contacts-import-summary dd").evaluateAll((elements) =>
+      elements.map((element) => {
+        const bounds = element.getBoundingClientRect();
+        return { top: bounds.top, left: bounds.left };
+      }),
+    );
+    const columnCount = testInfo.project.name === "mobile-chromium" ? 2 : 3;
+    expect(metrics).toHaveLength(6);
+    for (let start = 0; start < metrics.length; start += columnCount) {
+      const row = metrics.slice(start, start + columnCount);
+      expect(
+        Math.max(...row.map((metric) => metric.top)) - Math.min(...row.map((metric) => metric.top)),
+      ).toBeLessThan(1);
+    }
+    expect(new Set(metrics.map((metric) => metric.left)).size).toBe(columnCount);
+    await dialog.screenshot({ path: testInfo.outputPath(`preview-${theme}.png`) });
     await dialog.getByRole("button", { name: "Back", exact: true }).click();
     await expect(dialog.getByRole("checkbox", { name: "Newsletter", exact: true })).toBeChecked();
     await preview.click();
