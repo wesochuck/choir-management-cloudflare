@@ -29,7 +29,13 @@ function invalidReasonText(reason: "not_found" | "not_paid" | "wrong_event"): st
   return "This ticket is for a different performance.";
 }
 
-function ScanResult({ result }: { readonly result: TicketScanResult }) {
+function ScanResult({
+  result,
+  timezone,
+}: {
+  readonly result: TicketScanResult;
+  readonly timezone?: string | undefined;
+}) {
   if (result.valid) {
     return (
       <section className="ticket-scan-result ticket-scan-result--valid" aria-live="polite">
@@ -51,7 +57,12 @@ function ScanResult({ result }: { readonly result: TicketScanResult }) {
           </div>
           <div>
             <dt>Performance</dt>
-            <dd>{new Date(result.eventStartsAt).toLocaleString()}</dd>
+            <dd>
+              {new Date(result.eventStartsAt).toLocaleString(
+                undefined,
+                timezone ? { timeZone: timezone } : undefined,
+              )}
+            </dd>
           </div>
         </dl>
       </section>
@@ -81,7 +92,13 @@ function HistoryRow({ item }: { readonly item: HistoryItem }) {
 
 // This coordinator intentionally owns camera, manual entry, result history, and event selection.
 // eslint-disable-next-line complexity
-export function TicketScanner({ events }: { readonly events: readonly OrganizationEvent[] }) {
+export function TicketScanner({
+  events,
+  timezone,
+}: {
+  readonly events: readonly OrganizationEvent[];
+  readonly timezone?: string | undefined;
+}) {
   const [eventId, setEventId] = useState("");
   const [manualToken, setManualToken] = useState("");
   const [validating, setValidating] = useState(false);
@@ -324,7 +341,11 @@ export function TicketScanner({ events }: { readonly events: readonly Organizati
             <option value="">Select a performance</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>
-                {event.title} — {new Date(event.startsAt).toLocaleDateString()}
+                {event.title} —{" "}
+                {new Date(event.startsAt).toLocaleDateString(
+                  undefined,
+                  timezone ? { timeZone: timezone } : undefined,
+                )}
               </option>
             ))}
           </select>
@@ -386,7 +407,7 @@ export function TicketScanner({ events }: { readonly events: readonly Organizati
                 Validating ticket…
               </p>
             ) : null}
-            {scanResult ? <ScanResult result={scanResult} /> : null}
+            {scanResult ? <ScanResult result={scanResult} timezone={timezone} /> : null}
           </div>
           <div className="ticket-scanner__side-panel">
             {history.length > 0 ? (

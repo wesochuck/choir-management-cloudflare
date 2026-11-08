@@ -1,3 +1,4 @@
+import { futureIsoDate } from "@choir/testkit";
 import {
   communicationMessageResponseSchema,
   communicationMessagesResponseSchema,
@@ -477,6 +478,49 @@ describe("Organization communications delivery, idempotency, and cancellation", 
     expect(z.object({ code: z.string() }).parse(await startedResponse.json()).code).toBe(
       "communication_delivery_started",
     );
+  });
+
+  it("returns a retryable error instead of sending a test email when timezone settings are unavailable", async () => {
+    const cookie = await signIn();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const eventId = crypto.randomUUID();
+    const startsAt = futureIsoDate();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      const now = new Date().toISOString();
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, call_time, location, details, created_at, updated_at)
+         VALUES (?, 'Timezone test concert', 'Performance', ?, '', '', '', ?, ?)`,
+        eventId,
+        startsAt,
+        now,
+        now,
+      );
+      // Real migrated storage with malformed settings exercises the failed-read boundary.
+      state.storage.sql.exec("UPDATE organization_metadata SET timezone = ''");
+      return undefined;
+    });
+    const sendTest = () =>
+      write("alpha.localhost", "/api/organization/communications/test-email", cookie, {
+        contentMarkdown: "Join us on {eventDate}.",
+        eventId,
+        email: "test-recipient@example.test",
+        subject: "Timezone failure",
+      });
+    const failed = await sendTest();
+    expect(failed.status).toBe(503);
+    expect(await failed.json()).toMatchObject({
+      code: "organization_timezone_unavailable",
+      message: expect.stringContaining("No test email was sent"),
+    });
+    const restored = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/calendar-settings", cookie, {
+        body: JSON.stringify({ timezone: "America/New_York" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(restored.status).toBe(200);
+    expect((await sendTest()).status).toBe(202);
   });
 
   it("delivers a test email using the organization's custom sender name and reply-to", async () => {

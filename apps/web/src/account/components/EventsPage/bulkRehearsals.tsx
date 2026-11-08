@@ -24,6 +24,7 @@ export function BulkRehearsalDialog({
   setPerformanceId,
   setRehearsalTime,
   setVenueId,
+  timezone,
   venueId,
   venues,
 }: {
@@ -43,6 +44,7 @@ export function BulkRehearsalDialog({
   readonly setPerformanceId: (value: string) => void;
   readonly setRehearsalTime: (value: string) => void;
   readonly setVenueId: (value: string) => void;
+  readonly timezone?: string | undefined;
   readonly venueId: string;
   readonly venues: readonly OrganizationVenue[];
 }) {
@@ -104,7 +106,11 @@ export function BulkRehearsalDialog({
             <option value="">Select performance…</option>
             {performances.map((performance) => (
               <option key={performance.id} value={performance.id}>
-                {performance.title} · {new Date(performance.startsAt).toLocaleDateString()}
+                {performance.title} ·{" "}
+                {new Date(performance.startsAt).toLocaleDateString(
+                  undefined,
+                  timezone ? { timeZone: timezone } : undefined,
+                )}
               </option>
             ))}
           </select>

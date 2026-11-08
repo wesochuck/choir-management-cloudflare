@@ -119,6 +119,7 @@ export function SetListPreview({
   items,
   music,
   showNotes = false,
+  timezone,
   venues,
 }: {
   readonly defaultTransitionSeconds?: number | undefined;
@@ -126,6 +127,7 @@ export function SetListPreview({
   readonly items: readonly SetListItem[];
   readonly music: readonly OrganizationMusicPiece[];
   readonly showNotes?: boolean;
+  readonly timezone?: string | undefined;
   readonly venues?: readonly OrganizationVenue[] | string | undefined;
 }) {
   const transitionSeconds = defaultTransitionSeconds ?? event.setListDefaultTransitionSeconds;
@@ -137,7 +139,7 @@ export function SetListPreview({
       <header className="set-list-preview__header">
         <h1>{event.title}</h1>
         <p>
-          {printDateOnly(event.startsAt)} at {printTimeOnly(event.startsAt)}
+          {printDateOnly(event.startsAt, timezone)} at {printTimeOnly(event.startsAt, timezone)}
           {venue ? ` | ${venue}` : ""}
         </p>
         <div className="set-list-preview__timing">
@@ -160,6 +162,7 @@ export function SetListPrintView({
   items,
   music,
   showNotes = false,
+  timezone,
   venues,
 }: {
   readonly defaultTransitionSeconds?: number | undefined;
@@ -167,6 +170,7 @@ export function SetListPrintView({
   readonly items: readonly SetListItem[];
   readonly music: readonly OrganizationMusicPiece[];
   readonly showNotes?: boolean;
+  readonly timezone?: string | undefined;
   readonly venues?: readonly OrganizationVenue[] | string | undefined;
 }) {
   return (
@@ -177,6 +181,7 @@ export function SetListPrintView({
         items={items}
         music={music}
         showNotes={showNotes}
+        timezone={timezone}
         venues={venues}
       />
     </div>

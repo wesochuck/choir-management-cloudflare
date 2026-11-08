@@ -15,6 +15,7 @@ export function PrintPreviewDialog({
   onClose,
   open,
   showNotes = false,
+  timezone,
   venues,
 }: {
   readonly copyListText: () => Promise<boolean>;
@@ -25,6 +26,7 @@ export function PrintPreviewDialog({
   readonly onClose: () => void;
   readonly open: boolean;
   readonly showNotes?: boolean;
+  readonly timezone?: string | undefined;
   readonly venues?: SetListManagerModel["resources"]["venues"] | undefined;
 }) {
   const [copied, setCopied] = useState(false);
@@ -69,6 +71,7 @@ export function PrintPreviewDialog({
           items={items}
           music={music}
           showNotes={showNotes}
+          timezone={timezone}
           venues={venues}
         />
         <div className="dialog__actions">

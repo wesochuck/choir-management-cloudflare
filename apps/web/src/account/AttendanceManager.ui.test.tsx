@@ -142,6 +142,29 @@ describe("AttendanceManager section grouping and sorting UI", () => {
     );
   }
 
+  it("hides event times and attendance controls until the timezone loads, then retries a failed load", async () => {
+    let rejectSettings: ((reason: Error) => void) | undefined;
+    vi.mocked(api.getOrganizationCalendarSettings).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectSettings = reject;
+        }),
+    );
+    renderComponent();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading Organization timezone");
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    await act(async () => {
+      rejectSettings?.(new Error("unavailable"));
+      await Promise.resolve();
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("timezone could not be loaded");
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alice Walker")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("combobox")).toBeInTheDocument();
+    expect(await screen.findByText("Alice Walker")).toBeInTheDocument();
+  });
+
   it("renders section headings rather than voice-part headings and sorts singers by surname", async () => {
     renderComponent();
 

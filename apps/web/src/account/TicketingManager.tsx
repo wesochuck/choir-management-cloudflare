@@ -1,3 +1,5 @@
+import { useOrganizationTimezone } from "./useOrganizationTimezone";
+import { OrganizationTimezoneBoundary } from "./components/OrganizationTimezoneStatus";
 import type {
   DiscountCode,
   DiscountCodeRequest,
@@ -22,7 +24,6 @@ import {
   deleteTicketBundle,
   deactivateOrganizationDiscountCode,
   reactivateOrganizationDiscountCode,
-  getOrganizationCalendarSettings,
   getOrganizationTicketConfirmationSettings,
   listOrganizationEvents,
   listOrganizationTicketOrders,
@@ -87,6 +88,9 @@ export function TicketingManager({
   const [willCallShowRefunded, setWillCallShowRefunded] = useState(false);
   const [lastOrderRefreshAt, setLastOrderRefreshAt] = useState<Date | null>(null);
   const [ticketEvents, setTicketEvents] = useState<readonly OrganizationEvent[]>([]);
+  const timezoneQuery = useOrganizationTimezone(enabled);
+  const timezone = timezoneQuery.timezone;
+  const { loadTimezone } = timezoneQuery;
   const [bundles, setBundles] = useState<readonly TicketBundle[]>([]);
   const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
   const [editingBundleId, setEditingBundleId] = useState<string | null>(null);
@@ -146,19 +150,13 @@ export function TicketingManager({
           ? findClosestEvent(ticketedEvents, new Date(), calendarResult.value.timezone)
           : undefined;
       setSelectedPerformanceId(closestTicketedEvent?.id ?? "all");
-      if (calendarResult.status === "rejected") {
-        showNotice(
-          "The Organization timezone could not be loaded. Choose a performance below.",
-          "info",
-        );
-      }
     }
     void Promise.allSettled([
       ordersRequest,
       listOrganizationEvents(controller.signal),
       bundlesRequest,
       confirmationRequest,
-      getOrganizationCalendarSettings(controller.signal),
+      loadTimezone(),
     ]).then(([ordersResult, eventsResult, bundlesResult, confirmationResult, calendarResult]) => {
       if (controller.signal.aborted) return;
       if (ordersResult.status === "fulfilled") {
@@ -210,7 +208,7 @@ export function TicketingManager({
     return () => {
       controller.abort();
     };
-  }, [enabled, initialEventId, scanOnly, showNotice]);
+  }, [enabled, initialEventId, scanOnly, showNotice, loadTimezone]);
 
   useEffect(() => {
     if (!enabled || scanOnly || activeTab !== "discounts") return;
@@ -596,177 +594,197 @@ export function TicketingManager({
   if (!enabled) return null;
   if (scanOnly) {
     return (
-      <section className="panel" aria-label="Ticket scanner">
-        <p className="section-description">
-          Scan a ticket QR code at the door or validate a ticket credential manually.
-        </p>
-        <TicketScanner events={ticketEvents} />
-      </section>
+      <OrganizationTimezoneBoundary
+        timezone={timezone}
+        failed={timezoneQuery.isError}
+        onRetry={() => {
+          void timezoneQuery.refetch();
+        }}
+      >
+        <section className="panel" aria-label="Ticket scanner">
+          <p className="section-description">
+            Scan a ticket QR code at the door or validate a ticket credential manually.
+          </p>
+          <TicketScanner events={ticketEvents} timezone={timezone} />
+        </section>
+      </OrganizationTimezoneBoundary>
     );
   }
   return (
-    <section className="panel" aria-label="Ticket sales and check-in management">
-      <TicketingSetupGuide navigate={navigate} />
-      <Tabs onValueChange={selectTicketingTab} value={activeTab}>
-        <TabsList aria-label="Ticketing sections" as="nav" className="ticketing-tabs">
-          {(
-            [
-              ["willcall", "Concert Will Call"],
-              ["bundles", "Season Bundles"],
-              ["orders", "Bundle Orders"],
-              ["discounts", "Discount Codes"],
-              ["share", "Share & QR Codes"],
-              ["confirmation", "Confirmations"],
-            ] as const
-          ).map(([value, label]) => (
-            <TabsTrigger
-              aria-controls={"ticketing-" + value + "-panel"}
-              id={"ticketing-" + value + "-tab"}
-              key={value}
-              value={value}
+    <OrganizationTimezoneBoundary
+      timezone={timezone}
+      failed={timezoneQuery.isError}
+      onRetry={() => {
+        void timezoneQuery.refetch();
+      }}
+    >
+      <section className="panel" aria-label="Ticket sales and check-in management">
+        <TicketingSetupGuide navigate={navigate} />
+        <Tabs onValueChange={selectTicketingTab} value={activeTab}>
+          <TabsList aria-label="Ticketing sections" as="nav" className="ticketing-tabs">
+            {(
+              [
+                ["willcall", "Concert Will Call"],
+                ["bundles", "Season Bundles"],
+                ["orders", "Bundle Orders"],
+                ["discounts", "Discount Codes"],
+                ["share", "Share & QR Codes"],
+                ["confirmation", "Confirmations"],
+              ] as const
+            ).map(([value, label]) => (
+              <TabsTrigger
+                aria-controls={"ticketing-" + value + "-panel"}
+                id={"ticketing-" + value + "-tab"}
+                key={value}
+                value={value}
+              >
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {visibleNotice && !bundleDialogOpen && !discountDialogOpen ? (
+            <p
+              className={`notice notice--${visibleNotice.kind}`}
+              role={visibleNotice.kind === "error" ? "alert" : "status"}
             >
-              {label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        {visibleNotice && !bundleDialogOpen && !discountDialogOpen ? (
-          <p
-            className={`notice notice--${visibleNotice.kind}`}
-            role={visibleNotice.kind === "error" ? "alert" : "status"}
+              {visibleNotice.message}
+            </p>
+          ) : null}
+          <TabsContent
+            aria-labelledby="ticketing-share-tab"
+            id="ticketing-share-panel"
+            value="share"
           >
-            {visibleNotice.message}
-          </p>
-        ) : null}
-        <TabsContent aria-labelledby="ticketing-share-tab" id="ticketing-share-panel" value="share">
-          <SharePanel bundles={bundles} ticketEvents={ticketEvents} />
-        </TabsContent>
-        <TabsContent
-          aria-labelledby="ticketing-confirmation-tab"
-          id="ticketing-confirmation-panel"
-          value="confirmation"
-        >
-          <ConfirmationPanel
-            confirmationDraft={confirmationDraft}
-            confirmationLoadError={confirmationLoadError}
-            confirmationLoaded={confirmationLoaded}
-            confirmationSaving={confirmationSaving}
-            onSubmit={(event) => {
-              void saveConfirmationSettings(event);
-            }}
-            setConfirmationDraft={setConfirmationDraft}
-          />
-        </TabsContent>
-        <TabsContent
-          aria-labelledby="ticketing-discounts-tab"
-          id="ticketing-discounts-panel"
-          value="discounts"
-        >
-          <DiscountCodesPanel
-            bundles={bundles}
-            busy={busy}
-            closeDiscountDialog={closeDiscountDialog}
-            deactivateDiscountCode={deactivateDiscountCode}
-            deactivateDiscountCodeId={deactivateDiscountCodeId}
-            discountCodes={discountCodes}
-            discountCodesLoadError={discountCodesLoadError}
-            discountCodesLoading={discountCodesLoading}
-            discountDialogOpen={discountDialogOpen}
-            discountDraft={discountDraft}
-            discountError={discountError}
-            editDiscountCode={editDiscountCode}
-            editingDiscountCodeId={editingDiscountCodeId}
-            openNewDiscountCode={openNewDiscountCode}
-            reactivateDiscountCode={reactivateDiscountCode}
-            saveDiscountCode={saveDiscountCode}
-            setDeactivateDiscountCodeId={setDeactivateDiscountCodeId}
-            setDiscountDraft={setDiscountDraft}
-            ticketEvents={ticketEvents}
-            onViewRedemptions={viewDiscountCodeRedemptions}
-          />
-        </TabsContent>
-        <TabsContent
-          aria-labelledby="ticketing-willcall-tab"
-          id="ticketing-willcall-panel"
-          value="willcall"
-        >
-          <WillCallPanel
-            activeTab={activeTab}
-            busy={busy}
-            clearDiscountCodeFilter={clearWillCallDiscountCode}
-            discountCodeFilter={willCallDiscountCode}
-            financialSummary={financialSummary}
-            lastOrderRefreshAt={lastOrderRefreshAt}
-            navigate={navigate}
-            performanceOrders={performanceOrders}
-            refreshOrders={refreshOrders}
-            refreshingOrders={refreshingOrders}
-            refund={refund}
-            resendConfirmation={resendConfirmation}
-            selectedPerformance={selectedPerformance}
-            selectedPerformanceId={selectedPerformanceId}
-            setSelectedPerformanceId={handleSelectPerformanceId}
-            setShowRefunded={setWillCallShowRefunded}
-            setWillCallSearch={setWillCallSearch}
-            showRefunded={willCallShowRefunded}
-            state={state}
-            ticketEvents={ticketEvents}
-            ticketSoldLabel={ticketSoldLabel}
-            visibleOrders={visibleOrders}
-            willCallSearch={willCallSearch}
-          />
-        </TabsContent>
-        <TabsContent
-          aria-labelledby="ticketing-bundles-tab"
-          id="ticketing-bundles-panel"
-          value="bundles"
-        >
-          <BundlePanel
-            bundleCapacity={bundleCapacity}
-            bundleDialogOpen={bundleDialogOpen}
-            bundleError={bundleError}
-            bundleEventIds={bundleEventIds}
-            bundleGraphicFile={bundleGraphicFile}
-            bundleGraphicFileId={bundleGraphicFileId}
-            bundleIsActive={bundleIsActive}
-            bundlePrice={bundlePrice}
-            bundleSaleEnd={bundleSaleEnd}
-            bundleTitle={bundleTitle}
-            bundles={bundles}
-            busy={busy}
-            closeBundleDialog={closeBundleDialog}
-            editBundle={editBundle}
-            editingBundleId={editingBundleId}
-            openNewBundle={openNewBundle}
-            removeBundle={removeBundle}
-            saveBundle={saveBundle}
-            setBundleCapacity={setBundleCapacity}
-            setBundleEventIds={setBundleEventIds}
-            setBundleGraphicFile={setBundleGraphicFile}
-            setBundleGraphicFileId={setBundleGraphicFileId}
-            setBundleIsActive={setBundleIsActive}
-            setBundlePrice={setBundlePrice}
-            setBundleSaleEnd={setBundleSaleEnd}
-            setBundleTitle={setBundleTitle}
-            ticketEvents={ticketEvents}
-          />
-        </TabsContent>
-        <TabsContent
-          aria-labelledby="ticketing-orders-tab"
-          id="ticketing-orders-panel"
-          value="orders"
-        >
-          <BundleOrdersPanel
-            bundleOrders={bundleOrders}
-            bundles={bundles}
-            busy={busy}
-            refreshOrders={refreshOrders}
-            refreshingOrders={refreshingOrders}
-            refund={refund}
-            resendConfirmation={resendConfirmation}
-            state={state}
-          />
-        </TabsContent>
-      </Tabs>
-    </section>
+            <SharePanel bundles={bundles} ticketEvents={ticketEvents} />
+          </TabsContent>
+          <TabsContent
+            aria-labelledby="ticketing-confirmation-tab"
+            id="ticketing-confirmation-panel"
+            value="confirmation"
+          >
+            <ConfirmationPanel
+              confirmationDraft={confirmationDraft}
+              confirmationLoadError={confirmationLoadError}
+              confirmationLoaded={confirmationLoaded}
+              confirmationSaving={confirmationSaving}
+              onSubmit={(event) => {
+                void saveConfirmationSettings(event);
+              }}
+              setConfirmationDraft={setConfirmationDraft}
+            />
+          </TabsContent>
+          <TabsContent
+            aria-labelledby="ticketing-discounts-tab"
+            id="ticketing-discounts-panel"
+            value="discounts"
+          >
+            <DiscountCodesPanel
+              bundles={bundles}
+              busy={busy}
+              closeDiscountDialog={closeDiscountDialog}
+              deactivateDiscountCode={deactivateDiscountCode}
+              deactivateDiscountCodeId={deactivateDiscountCodeId}
+              discountCodes={discountCodes}
+              discountCodesLoadError={discountCodesLoadError}
+              discountCodesLoading={discountCodesLoading}
+              discountDialogOpen={discountDialogOpen}
+              discountDraft={discountDraft}
+              discountError={discountError}
+              editDiscountCode={editDiscountCode}
+              editingDiscountCodeId={editingDiscountCodeId}
+              openNewDiscountCode={openNewDiscountCode}
+              reactivateDiscountCode={reactivateDiscountCode}
+              saveDiscountCode={saveDiscountCode}
+              setDeactivateDiscountCodeId={setDeactivateDiscountCodeId}
+              setDiscountDraft={setDiscountDraft}
+              ticketEvents={ticketEvents}
+              onViewRedemptions={viewDiscountCodeRedemptions}
+            />
+          </TabsContent>
+          <TabsContent
+            aria-labelledby="ticketing-willcall-tab"
+            id="ticketing-willcall-panel"
+            value="willcall"
+          >
+            <WillCallPanel
+              activeTab={activeTab}
+              busy={busy}
+              clearDiscountCodeFilter={clearWillCallDiscountCode}
+              discountCodeFilter={willCallDiscountCode}
+              financialSummary={financialSummary}
+              lastOrderRefreshAt={lastOrderRefreshAt}
+              navigate={navigate}
+              performanceOrders={performanceOrders}
+              refreshOrders={refreshOrders}
+              refreshingOrders={refreshingOrders}
+              refund={refund}
+              resendConfirmation={resendConfirmation}
+              selectedPerformance={selectedPerformance}
+              selectedPerformanceId={selectedPerformanceId}
+              setSelectedPerformanceId={handleSelectPerformanceId}
+              setShowRefunded={setWillCallShowRefunded}
+              setWillCallSearch={setWillCallSearch}
+              showRefunded={willCallShowRefunded}
+              state={state}
+              ticketEvents={ticketEvents}
+              ticketSoldLabel={ticketSoldLabel}
+              visibleOrders={visibleOrders}
+              willCallSearch={willCallSearch}
+            />
+          </TabsContent>
+          <TabsContent
+            aria-labelledby="ticketing-bundles-tab"
+            id="ticketing-bundles-panel"
+            value="bundles"
+          >
+            <BundlePanel
+              bundleCapacity={bundleCapacity}
+              bundleDialogOpen={bundleDialogOpen}
+              bundleError={bundleError}
+              bundleEventIds={bundleEventIds}
+              bundleGraphicFile={bundleGraphicFile}
+              bundleGraphicFileId={bundleGraphicFileId}
+              bundleIsActive={bundleIsActive}
+              bundlePrice={bundlePrice}
+              bundleSaleEnd={bundleSaleEnd}
+              bundleTitle={bundleTitle}
+              bundles={bundles}
+              busy={busy}
+              closeBundleDialog={closeBundleDialog}
+              editBundle={editBundle}
+              editingBundleId={editingBundleId}
+              openNewBundle={openNewBundle}
+              removeBundle={removeBundle}
+              saveBundle={saveBundle}
+              setBundleCapacity={setBundleCapacity}
+              setBundleEventIds={setBundleEventIds}
+              setBundleGraphicFile={setBundleGraphicFile}
+              setBundleGraphicFileId={setBundleGraphicFileId}
+              setBundleIsActive={setBundleIsActive}
+              setBundlePrice={setBundlePrice}
+              setBundleSaleEnd={setBundleSaleEnd}
+              setBundleTitle={setBundleTitle}
+              ticketEvents={ticketEvents}
+            />
+          </TabsContent>
+          <TabsContent
+            aria-labelledby="ticketing-orders-tab"
+            id="ticketing-orders-panel"
+            value="orders"
+          >
+            <BundleOrdersPanel
+              bundleOrders={bundleOrders}
+              bundles={bundles}
+              busy={busy}
+              refreshOrders={refreshOrders}
+              refreshingOrders={refreshingOrders}
+              refund={refund}
+              resendConfirmation={resendConfirmation}
+              state={state}
+            />
+          </TabsContent>
+        </Tabs>
+      </section>
+    </OrganizationTimezoneBoundary>
   );
 }

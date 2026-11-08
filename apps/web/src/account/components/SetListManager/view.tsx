@@ -1,3 +1,4 @@
+import { OrganizationTimezoneStatus } from "../OrganizationTimezoneStatus";
 import { NumberInput } from "@choir/ui";
 import { canInsertSetListCustomEntryAt } from "@choir/domain";
 import { useMemo, useState } from "react";
@@ -120,6 +121,7 @@ export function SetListManagerView({
     setShowNotes,
     showNotes,
     songsDuration,
+    timezone,
     updateDefaultTransitionSeconds,
     updateDraftItems,
   } = model;
@@ -157,6 +159,15 @@ export function SetListManagerView({
       ? items.findIndex((item) => item.id === musicInsertTarget.afterId)
       : -1;
   if (!enabled) return null;
+  if (!timezone) {
+    return (
+      <OrganizationTimezoneStatus
+        failed={Boolean(error)}
+        onRetry={model.retryResources}
+        errorMessage={error ?? undefined}
+      />
+    );
+  }
   const practicePlayerUnavailableReason = !approved
     ? "Approve this set list before opening the Practice Player."
     : !setListHasLearningTrack(items, resources.music)
@@ -414,10 +425,10 @@ export function SetListManagerView({
                 {performances.map((performance) => (
                   <option
                     key={performance.id}
-                    title={displayEvent(performance)}
+                    title={displayEvent(performance, timezone)}
                     value={performance.id}
                   >
-                    {displayEvent(performance)}
+                    {displayEvent(performance, timezone)}
                   </option>
                 ))}
               </select>
@@ -439,10 +450,10 @@ export function SetListManagerView({
                         .map((performance) => (
                           <option
                             key={performance.id}
-                            title={displayEvent(performance)}
+                            title={displayEvent(performance, timezone)}
                             value={performance.id}
                           >
-                            {displayEvent(performance)}
+                            {displayEvent(performance, timezone)}
                           </option>
                         ))}
                     </select>
@@ -649,6 +660,7 @@ export function SetListManagerView({
                 quickCueCount={quickCueCount}
                 selectedEvent={selectedEvent}
                 songsDuration={songsDuration}
+                timezone={timezone}
               />
 
               {items.length === 0 ? (
@@ -807,6 +819,7 @@ export function SetListManagerView({
                 }}
                 open={printDialogOpen}
                 showNotes={showNotes}
+                timezone={timezone}
                 venues={resources.venues}
               />
 
@@ -870,6 +883,7 @@ export function SetListManagerView({
           items={items}
           music={resources.music}
           showNotes={showNotes}
+          timezone={timezone}
           venues={resources.venues}
         />
       ) : null}

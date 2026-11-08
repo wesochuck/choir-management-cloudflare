@@ -1,16 +1,26 @@
 import { sortVoiceParts } from "../playerVoiceParts";
 import type { PlayerPlaylistItem, ResolvedTrack } from "./types";
 
-export function formatDate(iso: string): string {
+export function formatDate(iso: string, timezone = "UTC"): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-    weekday: "long",
-    year: "numeric",
-  });
+  try {
+    return date.toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "long",
+      timeZone: timezone,
+      weekday: "long",
+      year: "numeric",
+    });
+  } catch {
+    return date.toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "long",
+      timeZone: "UTC",
+      weekday: "long",
+      year: "numeric",
+    });
+  }
 }
 
 export function formatTime(seconds: number): string {

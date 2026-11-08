@@ -306,7 +306,7 @@ export function SettingsForm({
                   .filter((event) => event.type === "Performance")
                   .map((event) => (
                     <option key={event.id} value={event.id}>
-                      {event.title} — {formatDate(event.startsAt)}
+                      {event.title} — {formatDate(event.startsAt, timezone)}
                     </option>
                   ))}
               </select>

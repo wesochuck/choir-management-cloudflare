@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { OrganizationProfile } from "@choir/contracts";
+import { readOrganizationCalendarSettings } from "../calendar/organizationCalendar";
 import type { Env } from "../env";
 import {
   queueAutomatedOrganizationCommunication,
@@ -127,19 +128,15 @@ async function fetchPurchaseFromStore(
   organizationId: string,
   purchaseId: string,
 ): Promise<z.infer<typeof purchaseResponseSchema> | null> {
-  try {
-    const response = await readOrganizationStore(
-      env,
-      organizationId,
-      "/internal/ticketing/purchase",
-      { purchaseId },
-    );
-    if (!response.ok) return null;
-    const parsed = purchaseResponseSchema.safeParse(await response.json());
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/ticketing/purchase",
+    { purchaseId },
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Ticket purchase details could not be loaded.");
+  return purchaseResponseSchema.parse(await response.json());
 }
 
 function extractPurchaseTitle(purchase: z.infer<typeof purchaseResponseSchema> | null): string {
@@ -159,19 +156,26 @@ async function resolvePurchaseDetails(
   readonly eventStartsAt: string | null;
   readonly timezone: string;
 }> {
-  if (input.eventTitle) {
+  const directTimezone = input.timezone;
+  if (input.eventTitle && directTimezone) {
     return {
       effectiveTitle: input.eventTitle,
       eventStartsAt: input.eventStartsAt ?? null,
-      timezone: input.timezone ?? "UTC",
+      timezone: directTimezone,
     };
   }
 
   const purchase = await fetchPurchaseFromStore(env, input.organizationId, input.purchaseId);
+  // UTC is a valid snapshot, not evidence that the timezone is missing.
+  const timezone =
+    input.timezone ??
+    purchase?.timezone ??
+    (await readOrganizationCalendarSettings(env, input.organizationId)).timezone;
+
   return {
-    effectiveTitle: extractPurchaseTitle(purchase),
-    eventStartsAt: input.eventStartsAt ?? (purchase ? (purchase.eventStartsAt ?? null) : null),
-    timezone: input.timezone ?? (purchase ? (purchase.timezone ?? "UTC") : "UTC"),
+    effectiveTitle: input.eventTitle?.trim() ? input.eventTitle : extractPurchaseTitle(purchase),
+    eventStartsAt: input.eventStartsAt ?? purchase?.eventStartsAt ?? null,
+    timezone,
   };
 }
 

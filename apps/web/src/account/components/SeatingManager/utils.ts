@@ -86,11 +86,12 @@ export function chartRequest(chart: OrganizationSeatingChart): OrganizationSeati
   };
 }
 
-export function formatEventDate(startsAt: string): string {
+export function formatEventDate(startsAt: string, timezone?: string): string {
   try {
     return new Intl.DateTimeFormat(undefined, {
       dateStyle: "medium",
       timeStyle: "short",
+      ...(timezone ? { timeZone: timezone } : {}),
     }).format(new Date(startsAt));
   } catch {
     return startsAt;

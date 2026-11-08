@@ -37,7 +37,10 @@ import {
 import { z } from "zod";
 
 import type { Env } from "../env";
-import { listOrganizationEvents } from "../calendar/organizationCalendar";
+import {
+  listOrganizationEvents,
+  readOrganizationCalendarSettings,
+} from "../calendar/organizationCalendar";
 import { assertEmailProviderRecipientAvailable } from "../communications/emailFeedback";
 import { deliverOrganizationCommunication } from "../communications/provider";
 import {
@@ -120,8 +123,9 @@ export class CommunicationRepositoryError extends Error {
   constructor(
     readonly code: string,
     readonly status: 400 | 404 | 409 | 500 | 503,
+    options?: ErrorOptions,
   ) {
-    super(code);
+    super(code, options);
     this.name = "CommunicationRepositoryError";
   }
 }
@@ -899,9 +903,10 @@ interface TestEmailTemplateOptions {
   readonly event: OrganizationEvent | null;
   readonly fromName: string | null;
   readonly subject: string;
+  readonly timezone: string;
 }
 
-function renderTestEmailPayload(options: TestEmailTemplateOptions): {
+export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
   fromName: string | undefined;
   templatedContent: string;
   templatedSubject: string;
@@ -925,7 +930,7 @@ function renderTestEmailPayload(options: TestEmailTemplateOptions): {
         eventDate: new Intl.DateTimeFormat("en-US", {
           dateStyle: "long",
           timeStyle: "short",
-          timeZone: "UTC",
+          timeZone: options.timezone,
         }).format(new Date(options.event.startsAt)),
         eventDetails: options.event.details,
         eventId: options.event.id,
@@ -971,10 +976,11 @@ export async function handleTestEmailDelivery(
 ): Promise<void> {
   await assertEmailProviderRecipientAvailable(env.CONTROL_DB, data.email);
   const eventId = data.eventId ?? data.audience?.eventId ?? null;
-  const [senderConfig, branding, selectedEvent] = await Promise.all([
+  const [senderConfig, branding, selectedEvent, timezone] = await Promise.all([
     readOrganizationEmailSenderConfig(env, organizationId),
     readOrganizationBrandingConfig(env, organizationId),
     loadTestEmailEvent(env, organizationId, eventId),
+    loadTestEmailTimezone(env, organizationId),
   ]);
 
   const { fromName, templatedContent, templatedSubject } = renderTestEmailPayload({
@@ -984,6 +990,7 @@ export async function handleTestEmailDelivery(
     event: selectedEvent,
     fromName: senderConfig.fromName,
     subject: data.subject,
+    timezone,
   });
   const contentWithEventTicketLink = renderEventTicketLink(
     templatedContent,
@@ -1030,4 +1037,13 @@ async function loadTestEmailEvent(env: Env, organizationId: string, eventId: str
   if (!eventId) return null;
   const events = await listOrganizationEvents(env, organizationId).catch(() => []);
   return events.find((event) => event.id === eventId) ?? null;
+}
+
+async function loadTestEmailTimezone(env: Env, organizationId: string): Promise<string> {
+  try {
+    const settings = await readOrganizationCalendarSettings(env, organizationId);
+    return settings.timezone;
+  } catch (cause) {
+    throw new CommunicationRepositoryError("organization_timezone_unavailable", 503, { cause });
+  }
 }

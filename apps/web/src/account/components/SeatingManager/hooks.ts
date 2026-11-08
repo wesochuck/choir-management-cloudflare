@@ -171,6 +171,7 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     enabled,
     enterFocus,
     error: res.error,
+    retryResources: res.retryResources,
     eventId: res.eventId,
     exitFocus,
     fallbackFocus,

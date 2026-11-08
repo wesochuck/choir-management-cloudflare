@@ -1,3 +1,4 @@
+import { OrganizationTimezoneBoundary } from "../OrganizationTimezoneStatus";
 import { CommunicationReviewDialog } from "./CommunicationReviewDialog";
 import { CommunicationTestDialog } from "./CommunicationTestDialog";
 import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
@@ -113,199 +114,206 @@ export function CommunicationCenterView({
   ];
 
   return (
-    <div className="communication-center">
-      {/* Top Level Section Navigation (Buttons with aria-current) */}
-      <nav aria-label="Communications navigation" className="communication-nav">
-        {navItems.map((item) => (
-          <button
-            aria-current={activeSection === item.id ? "page" : undefined}
-            className={`communication-nav__item ${activeSection === item.id ? "is-active" : ""}`}
-            key={item.id}
-            onClick={() => {
-              setActiveSection(item.id);
-              if (item.id === "messages" && messageMode === "compose") {
-                // Return to list when clicking Messages tab
-                setMessageMode("list");
-              }
-            }}
-            type="button"
+    <OrganizationTimezoneBoundary
+      timezone={timezone}
+      failed={Boolean(error)}
+      onRetry={model.retryResources}
+      errorMessage={error}
+    >
+      <div className="communication-center">
+        {/* Top Level Section Navigation (Buttons with aria-current) */}
+        <nav aria-label="Communications navigation" className="communication-nav">
+          {navItems.map((item) => (
+            <button
+              aria-current={activeSection === item.id ? "page" : undefined}
+              className={`communication-nav__item ${activeSection === item.id ? "is-active" : ""}`}
+              key={item.id}
+              onClick={() => {
+                setActiveSection(item.id);
+                if (item.id === "messages" && messageMode === "compose") {
+                  // Return to list when clicking Messages tab
+                  setMessageMode("list");
+                }
+              }}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Prominent Provider Warning / Delivery Mode Notice */}
+        {showProviderNotice ? (
+          <aside
+            aria-label="Delivery mode"
+            className="notice notice--info communication-provider-banner"
+            role="region"
           >
-            {item.label}
-          </button>
-        ))}
-      </nav>
+            <p>
+              <strong>
+                Delivery mode:{" "}
+                {deliveryModeLabel(providerStatus.environment, providerStatus.externalEffectsMode)}
+              </strong>
+            </p>
+            <p>
+              {deliveryModeDescription(
+                providerStatus.environment,
+                providerStatus.externalEffectsMode,
+              )}
+            </p>
+          </aside>
+        ) : null}
 
-      {/* Prominent Provider Warning / Delivery Mode Notice */}
-      {showProviderNotice ? (
-        <aside
-          aria-label="Delivery mode"
-          className="notice notice--info communication-provider-banner"
-          role="region"
-        >
-          <p>
-            <strong>
-              Delivery mode:{" "}
-              {deliveryModeLabel(providerStatus.environment, providerStatus.externalEffectsMode)}
-            </strong>
+        {/* Global Errors and Success Notices (outside compose mode) */}
+        {error && messageMode !== "compose" ? (
+          <p className="notice notice--error" role="alert">
+            {error}
           </p>
-          <p>
-            {deliveryModeDescription(
-              providerStatus.environment,
-              providerStatus.externalEffectsMode,
-            )}
+        ) : null}
+
+        {successNotice && messageMode !== "compose" ? (
+          <p className="notice notice--success" role="status">
+            {successNotice}
           </p>
-        </aside>
-      ) : null}
+        ) : null}
 
-      {/* Global Errors and Success Notices (outside compose mode) */}
-      {error && messageMode !== "compose" ? (
-        <p className="notice notice--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      {successNotice && messageMode !== "compose" ? (
-        <p className="notice notice--success" role="status">
-          {successNotice}
-        </p>
-      ) : null}
-
-      {/* Main Section Content */}
-      <div className="communication-main-content">
-        {activeSection === "messages" ? (
-          messageMode === "compose" ? (
-            <div className="communication-compose-container">
-              <div className="communication-compose-header">
-                <button
-                  className="text-button communication-back-button"
-                  onClick={() => {
-                    setMessageMode("list");
-                  }}
-                  type="button"
-                >
-                  ← Back to messages
-                </button>
-                <h2>New message</h2>
+        {/* Main Section Content */}
+        <div className="communication-main-content">
+          {activeSection === "messages" ? (
+            messageMode === "compose" ? (
+              <div className="communication-compose-container">
+                <div className="communication-compose-header">
+                  <button
+                    className="text-button communication-back-button"
+                    onClick={() => {
+                      setMessageMode("list");
+                    }}
+                    type="button"
+                  >
+                    ← Back to messages
+                  </button>
+                  <h2>New message</h2>
+                </div>
+                {error ? (
+                  <p className="notice notice--error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                {successNotice ? (
+                  <p className="notice notice--success" role="status">
+                    {successNotice}
+                  </p>
+                ) : null}
+                <MessageComposer
+                  audience={audience}
+                  audienceOptions={audienceOptions}
+                  busy={busy}
+                  channel={channel}
+                  contactLists={contactLists}
+                  contentMarkdown={contentMarkdown}
+                  contextIssues={contextIssues}
+                  eventPromotion={eventPromotion}
+                  events={events}
+                  onChannelChange={setChannel}
+                  onContentChange={setContentMarkdown}
+                  onOpenReview={() => void openReviewAndSend()}
+                  onOpenSaveTemplate={openSaveAsTemplate}
+                  onOpenTestEmail={openTestEmail}
+                  onRemoveConflictingPlaceholder={removeConflictingPlaceholder}
+                  onSaveDraft={() => void saveDraft()}
+                  onSubjectChange={setSubject}
+                  onToggleRecipientsExpanded={setRecipientsExpanded}
+                  onUpdateAudience={updateAudience}
+                  reachState={reachState}
+                  recipientsExpanded={recipientsExpanded}
+                  rosterConfiguration={rosterConfiguration}
+                  selectedEvent={selectedEvent}
+                  subject={subject}
+                  timezone={timezone}
+                  branding={branding}
+                  templates={templates}
+                />
               </div>
-              {error ? (
-                <p className="notice notice--error" role="alert">
-                  {error}
-                </p>
-              ) : null}
-              {successNotice ? (
-                <p className="notice notice--success" role="status">
-                  {successNotice}
-                </p>
-              ) : null}
-              <MessageComposer
-                audience={audience}
-                audienceOptions={audienceOptions}
+            ) : (
+              <MessagesPanel
                 busy={busy}
-                channel={channel}
-                contactLists={contactLists}
-                contentMarkdown={contentMarkdown}
-                contextIssues={contextIssues}
-                eventPromotion={eventPromotion}
-                events={events}
-                onChannelChange={setChannel}
-                onContentChange={setContentMarkdown}
-                onOpenReview={() => void openReviewAndSend()}
-                onOpenSaveTemplate={openSaveAsTemplate}
-                onOpenTestEmail={openTestEmail}
-                onRemoveConflictingPlaceholder={removeConflictingPlaceholder}
-                onSaveDraft={() => void saveDraft()}
-                onSubjectChange={setSubject}
-                onToggleRecipientsExpanded={setRecipientsExpanded}
-                onUpdateAudience={updateAudience}
-                reachState={reachState}
-                recipientsExpanded={recipientsExpanded}
-                rosterConfiguration={rosterConfiguration}
-                selectedEvent={selectedEvent}
-                subject={subject}
-                timezone={timezone}
-                branding={branding}
-                templates={templates}
+                currentOrigin={originFilter}
+                currentStatus={statusFilter}
+                deliveryDetailsMessage={deliveryDetailsMessage}
+                deliverySummary={deliverySummary}
+                hasNextPage={hasNextPage}
+                hasPreviousPage={hasPreviousPage}
+                loadingDeliveryId={loadingDeliveryId}
+                loadingHistory={loadingHistory}
+                onCancelQueued={cancelQueuedMessage}
+                onDeleteDraft={deleteDraft}
+                onNewMessage={openNewMessage}
+                onNextPage={() => void nextPage()}
+                onOpenDeliveryDetails={openDeliveryDetails}
+                onOriginFilterChange={setOriginFilter}
+                onPreviousPage={() => void previousPage()}
+                onResumeDraft={resumeDraft}
+                onRetryDeliveries={retryDeliveries}
+                onStatusFilterChange={setStatusFilter}
+                pageNumber={pageNumber}
+                unifiedMessages={unifiedMessages}
               />
-            </div>
-          ) : (
-            <MessagesPanel
-              busy={busy}
-              currentOrigin={originFilter}
-              currentStatus={statusFilter}
-              deliveryDetailsMessage={deliveryDetailsMessage}
-              deliverySummary={deliverySummary}
-              hasNextPage={hasNextPage}
-              hasPreviousPage={hasPreviousPage}
-              loadingDeliveryId={loadingDeliveryId}
-              loadingHistory={loadingHistory}
-              onCancelQueued={cancelQueuedMessage}
-              onDeleteDraft={deleteDraft}
-              onNewMessage={openNewMessage}
-              onNextPage={() => void nextPage()}
-              onOpenDeliveryDetails={openDeliveryDetails}
-              onOriginFilterChange={setOriginFilter}
-              onPreviousPage={() => void previousPage()}
-              onResumeDraft={resumeDraft}
-              onRetryDeliveries={retryDeliveries}
-              onStatusFilterChange={setStatusFilter}
-              pageNumber={pageNumber}
-              unifiedMessages={unifiedMessages}
+            )
+          ) : null}
+
+          {activeSection === "templates" ? <TemplatesPanel /> : null}
+
+          {activeSection === "settings" ? (
+            <CommunicationSettingsPanel
+              emailSettings={emailSettings}
+              providerStatus={providerStatus}
             />
-          )
-        ) : null}
+          ) : null}
+        </div>
 
-        {activeSection === "templates" ? <TemplatesPanel /> : null}
+        {/* Global Dialogs */}
+        <CommunicationReviewDialog
+          audience={audience}
+          busy={busy}
+          channel={channel}
+          contactLists={contactLists}
+          contentMarkdown={contentMarkdown}
+          error={error}
+          onClose={() => {
+            setIsReviewOpen(false);
+          }}
+          onSend={() => void sendCommunication()}
+          open={isReviewOpen}
+          reachState={reachState}
+          rosterConfiguration={rosterConfiguration}
+          selectedEvent={selectedEvent}
+          subject={subject}
+          timezone={timezone}
+          branding={branding}
+        />
 
-        {activeSection === "settings" ? (
-          <CommunicationSettingsPanel
-            emailSettings={emailSettings}
-            providerStatus={providerStatus}
-          />
-        ) : null}
+        <CommunicationTestDialog
+          busy={busy}
+          error={error}
+          onClose={() => {
+            setIsTestEmailOpen(false);
+          }}
+          onSend={sendTestEmail}
+          open={isTestEmailOpen}
+        />
+
+        <SaveAsTemplateDialog
+          busy={busy}
+          error={error}
+          onClose={() => {
+            setIsSaveTemplateOpen(false);
+          }}
+          onSave={saveTemplate}
+          open={isSaveTemplateOpen}
+        />
+
+        {confirmationDialog}
       </div>
-
-      {/* Global Dialogs */}
-      <CommunicationReviewDialog
-        audience={audience}
-        busy={busy}
-        channel={channel}
-        contactLists={contactLists}
-        contentMarkdown={contentMarkdown}
-        error={error}
-        onClose={() => {
-          setIsReviewOpen(false);
-        }}
-        onSend={() => void sendCommunication()}
-        open={isReviewOpen}
-        reachState={reachState}
-        rosterConfiguration={rosterConfiguration}
-        selectedEvent={selectedEvent}
-        subject={subject}
-        timezone={timezone}
-        branding={branding}
-      />
-
-      <CommunicationTestDialog
-        busy={busy}
-        error={error}
-        onClose={() => {
-          setIsTestEmailOpen(false);
-        }}
-        onSend={sendTestEmail}
-        open={isTestEmailOpen}
-      />
-
-      <SaveAsTemplateDialog
-        busy={busy}
-        error={error}
-        onClose={() => {
-          setIsSaveTemplateOpen(false);
-        }}
-        onSave={saveTemplate}
-        open={isSaveTemplateOpen}
-      />
-
-      {confirmationDialog}
-    </div>
+    </OrganizationTimezoneBoundary>
   );
 }

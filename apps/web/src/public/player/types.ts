@@ -32,6 +32,7 @@ export interface PlayerDetails {
   readonly organizationName?: string | undefined;
   readonly performerLabel?: string | undefined;
   readonly profileName?: string | undefined;
+  readonly timezone?: string | undefined;
   readonly trackLabels?: Record<string, string> | undefined;
   readonly activeRosterInvite?: ActiveRosterInviteSummary | null | undefined;
 }

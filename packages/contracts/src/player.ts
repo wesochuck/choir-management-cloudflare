@@ -33,6 +33,7 @@ export const publicPlayerDetailsResponseSchema = z.object({
   performerLabel: z.string().optional(),
   profileId: z.string(),
   profileName: z.string(),
+  timezone: z.string().min(1).max(100).optional(),
   trackLabels: z.record(z.string().min(1).max(100), z.string().min(1).max(100)).default({}),
 });
 
@@ -53,6 +54,7 @@ export const publicPlayerPlaylistResponseSchema = z.object({
   pieces: z.array(playerPlaylistItemSchema),
   requestId: z.string().optional(),
   setList: z.array(playerPlaylistItemSchema),
+  timezone: z.string().min(1).max(100).optional(),
   trackLabels: z.record(z.string().min(1).max(100), z.string().min(1).max(100)).default({}),
   voiceParts: z.array(z.unknown()),
 });

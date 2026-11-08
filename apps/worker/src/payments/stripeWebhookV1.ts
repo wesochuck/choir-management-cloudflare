@@ -209,6 +209,7 @@ async function queueStripeTicketSaleAlert(
       purchaseId: parsedPurchase.data.id,
       quantity: parsedPurchase.data.quantity,
       requestId: context.get("requestId"),
+      timezone: parsedPurchase.data.timezone,
     });
   } catch (error) {
     console.error(

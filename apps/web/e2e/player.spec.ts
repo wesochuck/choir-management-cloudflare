@@ -810,3 +810,61 @@ test("shows each event's own artwork in set-list mode without stale carryover", 
   );
   await expect(page.getByAltText("Event A artwork")).toHaveCount(0);
 });
+
+test.describe("Organization timezone display", () => {
+  test.use({ timezoneId: "Asia/Tokyo" });
+  for (const mode of ["recipient", "set-list"] as const) {
+    test(`keeps the Organization date for ${mode} links across reloads in another browser timezone`, async ({
+      page,
+    }) => {
+      const start = new Date(futureIsoDate({ days: 30 }));
+      start.setUTCHours(0, 30, 0, 0);
+      const dateOptions = {
+        day: "numeric",
+        month: "long",
+        weekday: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      } as const;
+      const expected = new Date(start.getTime() - 86_400_000).toLocaleDateString(
+        "en-US",
+        dateOptions,
+      );
+      const details = {
+        eventId: "timezone-event",
+        eventStartsAt: start.toISOString(),
+        eventTitle: "Evening concert",
+        items: [{ title: "Practice song", trackFileIds: { tutti: "timezone-track" } }],
+        organizationName: "Timezone Choir",
+        timezone: "America/New_York",
+      };
+      await page.route("**/api/public/player-details", async (route) =>
+        route.fulfill({ json: details }),
+      );
+      await page.route("**/api/public/player/playlist**", async (route) =>
+        route.fulfill({
+          json: {
+            event: {
+              id: details.eventId,
+              date: details.eventStartsAt,
+              title: details.eventTitle,
+              artworkFileId: null,
+            },
+            pieces: details.items,
+            organizationName: details.organizationName,
+            timezone: details.timezone,
+          },
+        }),
+      );
+      const token = "timezone-regression-token";
+      await page.goto(`/player?${mode === "set-list" ? "mode=set-list&" : ""}token=${token}`);
+      expect(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)).toBe(
+        "Asia/Tokyo",
+      );
+      await expect(page.locator(".public-player__header")).toContainText(expected);
+      await page.reload();
+      await expect(page.locator(".public-player__header")).toContainText(expected);
+      expect(new URL(page.url()).searchParams.get("token")).toBe(token);
+    });
+  }
+});

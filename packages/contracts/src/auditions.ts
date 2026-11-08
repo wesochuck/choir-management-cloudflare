@@ -96,6 +96,7 @@ export const publicAuditionDetailsResponseSchema = z.object({
   scheduledTimeSlot: z.iso.datetime().nullable().optional(),
   slots: z.array(auditionSlotSchema),
   status: auditionStatusSchema,
+  timezone: z.string().min(1).max(100).default("UTC"),
   voicePart: z.string().max(100).optional(),
 });
 

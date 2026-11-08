@@ -128,6 +128,7 @@ export interface CommunicationCenterControllerModel {
   readonly successNotice: string | null;
   readonly templates: readonly CommunicationTemplate[];
   readonly timezone: string | null;
+  readonly retryResources: () => void;
   readonly branding: OrganizationBranding | null;
   readonly unifiedMessages: readonly UnifiedCommunicationItem[];
   readonly updateAudience: (

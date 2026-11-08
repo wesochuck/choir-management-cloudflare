@@ -16,6 +16,7 @@ export function useSeatingResources({ enabled }: { readonly enabled: boolean }) 
   const [resources, setResources] = useState<SeatingResources | null>(null);
   const [eventId, setEventId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [resourceAttempt, setResourceAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const selectEventId: React.Dispatch<React.SetStateAction<string>> = useCallback((action) => {
@@ -106,7 +107,7 @@ export function useSeatingResources({ enabled }: { readonly enabled: boolean }) 
     return () => {
       controller.abort();
     };
-  }, [enabled]);
+  }, [enabled, resourceAttempt]);
 
   return {
     error,
@@ -115,6 +116,11 @@ export function useSeatingResources({ enabled }: { readonly enabled: boolean }) 
     loading,
     resources,
     resourcesRef,
+    retryResources: () => {
+      setError(null);
+      setLoading(true);
+      setResourceAttempt((attempt) => attempt + 1);
+    },
     setError,
     setEventId: selectEventId,
     setLoading,

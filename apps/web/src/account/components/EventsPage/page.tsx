@@ -742,6 +742,7 @@ export function EventsPage({
         setPerformanceId={setBulkRehearsalPerformanceId}
         setRehearsalTime={setBulkRehearsalTime}
         setVenueId={setBulkRehearsalVenueId}
+        timezone={readyState?.timezone}
         venueId={bulkRehearsalVenueId}
         venues={readyState?.venues ?? []}
       />

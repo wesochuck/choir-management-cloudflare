@@ -345,6 +345,13 @@ describe("SeatingManager default Performance selection", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("Calendar unavailable");
     expect(api.listOrganizationSeatingCharts).not.toHaveBeenCalled();
+    vi.mocked(api.getOrganizationCalendarSettings).mockResolvedValue({
+      timezone: "America/New_York",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await flushLoad();
+    expect(screen.getByLabelText("Seating Performance")).toBeInTheDocument();
+    expect(api.listOrganizationSeatingCharts).toHaveBeenCalled();
   });
 
   it("selects a nearest concert with no charts without auto-creating or saving", async () => {

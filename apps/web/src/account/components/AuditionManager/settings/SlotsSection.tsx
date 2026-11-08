@@ -110,7 +110,7 @@ export function AuditionSlotsSection({
         <ul className="account-list">
           {draft.slots.map((slot) => (
             <li className="flex items-center justify-between gap-2" key={slot.id ?? slot.startsAt}>
-              <span>{formatDate(slot.startsAt)}</span>
+              <span>{formatDate(slot.startsAt, timezone)}</span>
               <button
                 className="text-button text-button--danger"
                 onClick={() => {

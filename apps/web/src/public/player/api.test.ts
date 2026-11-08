@@ -1,3 +1,8 @@
+import {
+  publicPlayerDetailsResponseSchema,
+  publicPlayerPlaylistResponseSchema,
+} from "@choir/contracts";
+import { formatDate } from "./format";
 import { describe, expect, it } from "vitest";
 
 import { parsePlayerDetails, parsePublicPlaylistDetails } from "./api";
@@ -175,4 +180,38 @@ describe("versioned loudness metadata parsing", () => {
       expect(parsed.loudnessByFileId?.[fileId]).toBeUndefined();
     }
   });
+});
+
+describe("player timezone from shared contracts to date display", () => {
+  const eventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const startsAt = "2026-12-14T00:30:00.000Z";
+  it.each(["America/New_York", "UTC"])(
+    "preserves %s through both API response paths and cached metadata",
+    (timezone) => {
+      const recipient = publicPlayerDetailsResponseSchema.parse({
+        eventId,
+        eventStartsAt: startsAt,
+        eventTitle: "Evening concert",
+        items: [],
+        profileId: "profile",
+        profileName: "Singer",
+        timezone,
+      });
+      const playlist = publicPlayerPlaylistResponseSchema.parse({
+        allPieces: [],
+        event: { artworkFileId: null, date: startsAt, id: eventId, title: "Evening concert" },
+        organizationName: "Choir",
+        pieces: [],
+        setList: [],
+        voiceParts: [],
+        timezone,
+      });
+      const expectedDay = timezone === "UTC" ? "December 14, 2026" : "December 13, 2026";
+      for (const details of [parsePlayerDetails(recipient), parsePublicPlaylistDetails(playlist)]) {
+        const restored = parsePlayerDetails(JSON.parse(JSON.stringify(details)));
+        expect(restored.timezone).toBe(timezone);
+        expect(formatDate(restored.eventStartsAt, restored.timezone)).toContain(expectedDay);
+      }
+    },
+  );
 });

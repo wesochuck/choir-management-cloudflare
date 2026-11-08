@@ -50,8 +50,8 @@ export function displayDate(value: string): string {
   );
 }
 
-export function eventLabel(event: OrganizationEvent): string {
-  return `${event.title} · ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.startsAt))}`;
+export function eventLabel(event: OrganizationEvent, timezone?: string | null): string {
+  return `${event.title} · ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", ...(timezone ? { timeZone: timezone } : {}) }).format(new Date(event.startsAt))}`;
 }
 
 export function channelFromValue(value: string): CommunicationChannel {

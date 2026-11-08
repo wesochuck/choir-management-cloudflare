@@ -15,6 +15,7 @@ export function SetListSummaryPanel({
   quickCueCount,
   selectedEvent,
   songsDuration,
+  timezone,
 }: {
   readonly coverage: ReturnType<typeof setListRecordingCoverage>;
   readonly defaultTransitionCount: number;
@@ -27,6 +28,7 @@ export function SetListSummaryPanel({
   readonly quickCueCount: number;
   readonly selectedEvent: OrganizationEvent;
   readonly songsDuration: number;
+  readonly timezone?: string | undefined;
 }) {
   return (
     <>
@@ -108,6 +110,7 @@ export function SetListSummaryPanel({
                     new Date(
                       new Date(selectedEvent.startsAt).getTime() + estimatedRuntime * 1000,
                     ).toISOString(),
+                    timezone,
                   )}
                 </dd>
               </div>

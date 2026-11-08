@@ -195,6 +195,36 @@ afterEach(async () => {
 });
 
 describe("public player signed flow", () => {
+  it("returns the owning Organization timezone in recipient and public playlist responses", async () => {
+    for (const [organizationId, host, eventId, profileId, timezone] of [
+      ["organization-alpha", "alpha.localhost", ALPHA_EVENT, ALPHA_PROFILE, "America/New_York"],
+      ["organization-bravo", "bravo.localhost", BRAVO_EVENT, BRAVO_PROFILE, "UTC"],
+    ] as const) {
+      const stub = stores.get(stores.idFromName(organizationId));
+      await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+        state.storage.sql.exec("UPDATE organization_metadata SET timezone = ?", timezone);
+        return null;
+      });
+      const memberToken = await issuePlayerToken(organizationId, eventId, profileId);
+      const details = await exports.default.fetch(
+        api(host, "/api/public/player-details", {
+          body: JSON.stringify({ token: memberToken }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+      expect(details.status).toBe(200);
+      expect(publicPlayerDetailsResponseSchema.parse(await details.json()).timezone).toBe(timezone);
+      const token = await issuePublicPlayerToken(organizationId, eventId);
+      const playlist = await exports.default.fetch(
+        api(host, `/api/public/player/playlist?token=${encodeURIComponent(token)}`),
+      );
+      expect(playlist.status).toBe(200);
+      expect(publicPlayerPlaylistResponseSchema.parse(await playlist.json()).timezone).toBe(
+        timezone,
+      );
+    }
+  });
   it("resolves player details for a valid token", async () => {
     const token = await issuePlayerToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);
     const response = await exports.default.fetch(

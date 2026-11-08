@@ -70,6 +70,9 @@ function responseForRow(storage: DurableObjectStorage, row: AuditionRow): Respon
 
 function publicResponseForRow(storage: DurableObjectStorage, row: AuditionRow): Response {
   const rosterOptions = publicAuditionRosterOptions(storage);
+  const timezone = storage.sql
+    .exec<{ readonly timezone: string }>("SELECT timezone FROM organization_metadata LIMIT 1")
+    .one().timezone;
   return Response.json({
     availabilityNotes: row.availabilityNotes || undefined,
     createdAt: row.createdAt,
@@ -80,6 +83,7 @@ function publicResponseForRow(storage: DurableObjectStorage, row: AuditionRow): 
     scheduledTimeSlot: row.scheduledTimeSlot,
     slots: readSlotsForAudition(storage, row.id),
     status: row.status,
+    timezone,
     updatedAt: row.updatedAt,
     voicePart: row.voicePart || undefined,
   });

@@ -7,6 +7,8 @@ import { CommunicationRepositoryError } from "../../organization/organizationCom
 import { MusicRepositoryError } from "../../organization/organizationMusic";
 
 const communicationErrorMessages: Record<string, string> = {
+  organization_timezone_unavailable:
+    "The Organization timezone could not be loaded. No test email was sent. Try again.",
   communication_draft_revision_conflict:
     "This draft was modified in another session. Reload the draft to view current changes.",
   event_promotion_audience_exceeds_limit:

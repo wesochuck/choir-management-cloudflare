@@ -224,6 +224,7 @@ export async function createPublicTicketCheckout(
           purchaseId: pendingPurchase.id,
           quantity: pendingPurchase.quantity,
           requestId: validated.checkoutRequestId,
+          timezone: pendingPurchase.timezone,
         });
       } catch (error) {
         console.error(
@@ -454,6 +455,7 @@ export async function createPublicTicketCheckout(
         purchaseId: purchase.id,
         quantity: purchase.quantity,
         requestId: validated.checkoutRequestId,
+        timezone: purchase.timezone,
       });
     } catch (error) {
       console.error(

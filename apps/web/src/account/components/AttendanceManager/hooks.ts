@@ -9,7 +9,6 @@ import { useMemo, useReducer, useRef, useState } from "react";
 
 import {
   AuthApiError,
-  getOrganizationCalendarSettings,
   getOrganizationRosterConfiguration,
   listOrganizationEventAttendance,
   listOrganizationEvents,
@@ -17,6 +16,7 @@ import {
   queryKeys,
   updateOrganizationEventAttendance,
 } from "../../../api";
+import { useOrganizationTimezone } from "../../useOrganizationTimezone";
 import { type AttendanceGroup, groupRowsBySection } from "./grouping";
 import { type AttendanceUndoEntry, attendanceActionLabel, undoReducer } from "./undoHistory";
 
@@ -48,11 +48,8 @@ export function useAttendanceQueries(enabled: boolean) {
     queryKey: queryKeys.organization.rosterConfiguration,
   });
 
-  const { data: calendarSettings } = useQuery({
-    enabled,
-    queryFn: ({ signal }) => getOrganizationCalendarSettings(signal),
-    queryKey: queryKeys.organization.calendarSettings,
-  });
+  const timezoneQuery = useOrganizationTimezone(enabled);
+  const calendarSettings = timezoneQuery.data;
 
   const defaultEventId = useMemo(
     () =>
@@ -86,6 +83,8 @@ export function useAttendanceQueries(enabled: boolean) {
     rosterConfiguration,
     rows,
     setSelectedEventId,
+    timezone: calendarSettings?.timezone,
+    timezoneQuery,
     venues,
   };
 }

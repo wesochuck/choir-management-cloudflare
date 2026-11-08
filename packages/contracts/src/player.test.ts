@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { playerPlaylistItemSchema, publicPlayerDetailsResponseSchema } from "./player";
+import {
+  playerPlaylistItemSchema,
+  publicPlayerDetailsResponseSchema,
+  publicPlayerPlaylistResponseSchema,
+} from "./player";
 
 describe("Player contracts null-matrix and validation", () => {
   describe("playerPlaylistItemSchema", () => {
@@ -127,5 +131,52 @@ describe("Player contracts null-matrix and validation", () => {
           .success,
       ).toBe(false);
     });
+  });
+});
+
+describe("player timezone response compatibility", () => {
+  const details = {
+    eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    eventStartsAt: "2026-12-14T00:30:00.000Z",
+    eventTitle: "Evening concert",
+    items: [],
+    profileId: "profile",
+    profileName: "Singer",
+  };
+  const playlist = {
+    allPieces: [],
+    event: {
+      artworkFileId: null,
+      date: details.eventStartsAt,
+      id: details.eventId,
+      title: details.eventTitle,
+    },
+    organizationName: "Choir",
+    pieces: [],
+    setList: [],
+    voiceParts: [],
+  };
+  it.each(["America/New_York", "UTC", undefined])(
+    "preserves timezone %s in both response shapes",
+    (timezone) => {
+      expect(publicPlayerDetailsResponseSchema.parse({ ...details, timezone }).timezone).toBe(
+        timezone,
+      );
+      expect(publicPlayerPlaylistResponseSchema.parse({ ...playlist, timezone }).timezone).toBe(
+        timezone,
+      );
+    },
+  );
+  it("accepts omitted timezone for older responses", () => {
+    expect(publicPlayerDetailsResponseSchema.parse(details).timezone).toBeUndefined();
+    expect(publicPlayerPlaylistResponseSchema.parse(playlist).timezone).toBeUndefined();
+  });
+  it.each([null, "", 123])("rejects malformed timezone %s", (timezone) => {
+    expect(publicPlayerDetailsResponseSchema.safeParse({ ...details, timezone }).success).toBe(
+      false,
+    );
+    expect(publicPlayerPlaylistResponseSchema.safeParse({ ...playlist, timezone }).success).toBe(
+      false,
+    );
   });
 });

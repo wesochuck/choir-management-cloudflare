@@ -1,3 +1,4 @@
+import { OrganizationTimezoneStatus } from "../OrganizationTimezoneStatus";
 import { PortalContainerHost, PortalContainerProvider, Tabs, TabsContent } from "@choir/ui";
 import { AppLink } from "../AuthenticatedShell/navigation";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
@@ -40,17 +41,15 @@ export function SeatingManagerView({
   if (!enabled) {
     return <OrganizationMfaPrompt message="Verify Organization MFA to manage seating." />;
   }
-  if (loading && !resources) {
-    return <p role="status">Loading seating resources…</p>;
-  }
-  if (error && !resources) {
+  if (!resources) {
     return (
-      <p className="notice notice--error" role="alert">
-        {error}
-      </p>
+      <OrganizationTimezoneStatus
+        failed={!loading && Boolean(error)}
+        onRetry={model.retryResources}
+        errorMessage={error ?? undefined}
+      />
     );
   }
-  if (!resources) return null;
   if (resources.events.length === 0) {
     return (
       <div className="empty-state">
@@ -99,6 +98,7 @@ export function SeatingManagerView({
           isNarrow={isNarrow}
           mobileEditing={mobileEditing}
           setMobileEditing={setMobileEditing}
+          timezone={resources.calendarSettings?.timezone}
           totalSeats={totalSeats}
         />
 

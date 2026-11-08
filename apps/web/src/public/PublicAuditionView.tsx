@@ -26,6 +26,7 @@ interface AuditionDetails {
   readonly scheduledTimeSlot?: string | null;
   readonly status: string;
   readonly slots: AuditionSlot[];
+  readonly timezone?: string | undefined;
 }
 
 export type PublicAuditionSettings = NormalizedPublicAuditionSettings;
@@ -469,17 +470,29 @@ function AuditionDetailView({
           Status: <strong>{statusLabel[details.status] ?? details.status}</strong>
         </p>
         <p className="text-sm text-muted-foreground">
-          Submitted: {new Date(details.createdAt).toLocaleDateString()}
+          Submitted:{" "}
+          {new Date(details.createdAt).toLocaleDateString(undefined, {
+            ...(details.timezone ? { timeZone: details.timezone } : {}),
+          })}
         </p>
         {details.scheduledTimeSlot && (
           <p className="text-sm text-muted-foreground">
-            Scheduled audition: {new Date(details.scheduledTimeSlot).toLocaleString()}
+            Scheduled audition:{" "}
+            {details.timezone
+              ? formatAuditionDate(details.scheduledTimeSlot, details.timezone)
+              : new Date(details.scheduledTimeSlot).toLocaleString()}
           </p>
         )}
         {details.requestedSlots && details.requestedSlots.length > 0 && (
           <p className="text-sm text-muted-foreground">
             Preferred times:{" "}
-            {details.requestedSlots.map((slot) => new Date(slot).toLocaleString()).join(", ")}
+            {details.requestedSlots
+              .map((slot) =>
+                details.timezone
+                  ? formatAuditionDate(slot, details.timezone)
+                  : new Date(slot).toLocaleString(),
+              )
+              .join(", ")}
           </p>
         )}
       </div>

@@ -1,3 +1,5 @@
+import { useOrganizationTimezone } from "../../useOrganizationTimezone";
+import { OrganizationTimezoneStatus } from "../OrganizationTimezoneStatus";
 import { useEffect, useMemo, useState } from "react";
 import type {
   AuditionStatus,
@@ -14,7 +16,6 @@ import {
   convertOrganizationAudition,
   createOrganizationAudition,
   deleteOrganizationAudition,
-  getOrganizationCalendarSettings,
   getOrganizationAuditionSettings,
   getOrganizationRosterConfiguration,
   listOrganizationEvents,
@@ -47,7 +48,8 @@ export function AuditionManager({ enabled }: Props) {
   const [venues, setVenues] = useState<readonly OrganizationVenue[]>([]);
   const [rosterConfiguration, setRosterConfiguration] =
     useState<OrganizationRosterConfiguration | null>(null);
-  const [timezone, setTimezone] = useState("UTC");
+  const timezoneQuery = useOrganizationTimezone(enabled);
+  const timezone = timezoneQuery.timezone;
   const [activeTab, setActiveTab] = useState<AuditionTab>("inquiries");
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -86,13 +88,6 @@ export function AuditionManager({ enabled }: Props) {
       .catch(() => {
         setSettings(fallbackSettings);
         setSettingsLoaded(true);
-      });
-    getOrganizationCalendarSettings(controller.signal)
-      .then(({ timezone: nextTimezone }) => {
-        setTimezone(nextTimezone);
-      })
-      .catch(() => {
-        setTimezone("UTC");
       });
     listOrganizationEvents(controller.signal)
       .then(setPerformances)
@@ -246,7 +241,7 @@ export function AuditionManager({ enabled }: Props) {
   }
 
   async function scheduleAudition() {
-    if (!schedule || !scheduleTime) return;
+    if (!schedule || !scheduleTime || !timezone) return;
     setActionError(null);
     const scheduledTimeSlot = slotUtcValue(
       scheduleTime.slice(0, 10),
@@ -280,7 +275,7 @@ export function AuditionManager({ enabled }: Props) {
           Review candidate submissions, manage audition slots, and track singer inquiries.
         </p>
       </div>
-      {enabled && state.status === "ready" ? (
+      {enabled && state.status === "ready" && timezone ? (
         <button
           className="button button--primary"
           onClick={() => {
@@ -299,6 +294,20 @@ export function AuditionManager({ enabled }: Props) {
       <>
         {heading}
         <ManagerStatusPanel enabled={enabled} status={state.status} />
+      </>
+    );
+  }
+
+  if (!timezone) {
+    return (
+      <>
+        {heading}
+        <OrganizationTimezoneStatus
+          failed={timezoneQuery.isError}
+          onRetry={() => {
+            void timezoneQuery.refetch();
+          }}
+        />
       </>
     );
   }
@@ -451,6 +460,7 @@ export function AuditionManager({ enabled }: Props) {
                   setScheduleTime(initialScheduleTime);
                   setCustomScheduleTime(initialScheduleTime);
                 }}
+                timezone={timezone}
               />
             )}
           </TabsContent>

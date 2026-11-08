@@ -13,9 +13,16 @@ import type { PlayerPlaylistItem } from "./types";
 
 describe("format utilities", () => {
   describe("formatDate", () => {
-    it("formats ISO date string in long UTC format", () => {
+    it("formats ISO date string in long UTC format when timezone is omitted", () => {
       expect(formatDate("2026-10-15T19:00:00.000Z")).toContain("October");
       expect(formatDate("2026-10-15T19:00:00.000Z")).toContain("2026");
+    });
+
+    it("formats evening concert dates in the Organization timezone without shifting to the next UTC day", () => {
+      // 2026-12-14T00:00:00.000Z is Sunday, Dec 13, 2026 at 7:00 PM EST in America/New_York
+      const formatted = formatDate("2026-12-14T00:00:00.000Z", "America/New_York");
+      expect(formatted).toContain("December 13, 2026");
+      expect(formatted).not.toContain("December 14, 2026");
     });
 
     it("returns raw string if invalid date", () => {

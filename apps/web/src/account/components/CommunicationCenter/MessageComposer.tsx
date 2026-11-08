@@ -231,6 +231,7 @@ function PersonalizeSection({
   onUpdateAudience,
   placeholderGroups,
   selectedEvent,
+  timezone,
   idPrefix,
 }: {
   readonly audience: CommunicationAudienceRequest;
@@ -245,6 +246,7 @@ function PersonalizeSection({
     CommunicationPlaceholderDefinition[],
   ])[];
   readonly selectedEvent: OrganizationEvent | null;
+  readonly timezone?: string | null | undefined;
   readonly idPrefix: string;
 }) {
   return (
@@ -298,7 +300,7 @@ function PersonalizeSection({
                 <option value="">Choose an event…</option>
                 {events.map((event) => (
                   <option key={event.id} value={event.id}>
-                    {eventLabel(event)}
+                    {eventLabel(event, timezone)}
                   </option>
                 ))}
               </select>
@@ -539,6 +541,7 @@ export function MessageComposer({
         reachState={reachState}
         rosterConfiguration={rosterConfiguration}
         selectedEvent={selectedEvent}
+        timezone={timezone}
       />
 
       {/* 2. Context Conflict Banner */}
@@ -655,6 +658,7 @@ export function MessageComposer({
                     onUpdateAudience={onUpdateAudience}
                     placeholderGroups={placeholderGroups}
                     selectedEvent={selectedEvent}
+                    timezone={timezone}
                   />
                 </div>
               </details>

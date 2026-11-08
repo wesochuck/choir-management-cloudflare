@@ -52,6 +52,7 @@ export function isPlayerDetails(value: unknown): value is PlayerDetails {
     isNullableString(value.organizationName) &&
     isNullableString(value.performerLabel) &&
     isNullableString(value.profileName) &&
+    isNullableString(value.timezone) &&
     (value.trackLabels === undefined || value.trackLabels === null || isRecord(value.trackLabels))
   );
 }

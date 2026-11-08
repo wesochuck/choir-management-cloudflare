@@ -46,7 +46,9 @@ export function useSetListManagerController({
 }) {
   const { performerLabelPlural } = useOrganizationTerminology();
   const [resources, setResources] = useState<Resources>(emptyResources);
+  const [timezone, setTimezone] = useState<string | undefined>(undefined);
   const [loaded, setLoaded] = useState(false);
+  const [resourceAttempt, setResourceAttempt] = useState(0);
   const [selectedEventId, setSelectedEventIdState] = useState("");
   const [copyEventId, setCopyEventId] = useState("");
   const [items, setItems] = useState<SetListItem[]>([]);
@@ -126,6 +128,7 @@ export function useSetListManagerController({
     ])
       .then(([events, music, profiles, venues, calendarSettings]) => {
         setResources({ events, music, profiles, venues });
+        setTimezone(calendarSettings.timezone);
 
         const explicitEventIds = [
           initialEventId,
@@ -184,7 +187,7 @@ export function useSetListManagerController({
     return () => {
       controller.abort();
     };
-  }, [enabled, initialEventId]);
+  }, [enabled, initialEventId, resourceAttempt]);
 
   const performances = useMemo(
     () =>
@@ -485,6 +488,7 @@ export function useSetListManagerController({
       showNotes,
       defaultTransitionSeconds,
       resources.venues,
+      timezone,
     );
     try {
       await navigator.clipboard.writeText(text);
@@ -680,6 +684,11 @@ export function useSetListManagerController({
     quickCueCount,
     renewPracticePlayerLink,
     resources,
+    retryResources: () => {
+      setError(null);
+      setLoaded(false);
+      setResourceAttempt((attempt) => attempt + 1);
+    },
     save,
     saveItemEdit,
     selectedEvent,
@@ -707,6 +716,7 @@ export function useSetListManagerController({
     setShowNotes,
     showNotes,
     songsDuration,
+    timezone,
     totalDuration,
     updateDefaultTransitionSeconds,
     updateDraftItems,

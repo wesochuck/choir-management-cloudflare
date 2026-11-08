@@ -23,12 +23,14 @@ export function AuditionTable({
   onDelete,
   onEdit,
   onSchedule,
+  timezone,
 }: {
   readonly auditions: readonly OrganizationAudition[];
   readonly onConvert: (audition: OrganizationAudition) => void;
   readonly onDelete: (audition: OrganizationAudition) => void;
   readonly onEdit: (audition: OrganizationAudition) => void;
   readonly onSchedule: (audition: OrganizationAudition) => void;
+  readonly timezone?: string | undefined;
 }) {
   const columns: readonly DataTableColumn<OrganizationAudition>[] = [
     {
@@ -53,7 +55,7 @@ export function AuditionTable({
       mobileLabel: "Preferred times",
       render: (audition) =>
         audition.scheduledTimeSlot
-          ? formatDate(audition.scheduledTimeSlot)
+          ? formatDate(audition.scheduledTimeSlot, timezone)
           : audition.requestedSlots.length > 0
             ? (() => {
                 const requestedState = requestedSlotState(audition.requestedSlots);
@@ -88,7 +90,7 @@ export function AuditionTable({
       header: "Submitted",
       id: "submitted",
       mobileLabel: "Submitted",
-      render: (audition) => formatDate(audition.createdAt),
+      render: (audition) => formatDate(audition.createdAt, timezone),
       sortValue: (audition) => audition.createdAt,
     },
     {
@@ -304,7 +306,7 @@ export function AuditionDialogs({
                     <option value="">Choose a requested time…</option>
                     {schedule.requestedSlots.map((slot) => (
                       <option key={slot} value={localScheduleInputValue(slot, timezone)}>
-                        {formatDate(slot)}
+                        {formatDate(slot, timezone)}
                       </option>
                     ))}
                   </select>

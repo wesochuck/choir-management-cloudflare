@@ -34,6 +34,7 @@ interface RecipientContextPanelProps {
   readonly reachState: CommunicationReachState;
   readonly rosterConfiguration: OrganizationRosterConfiguration | null;
   readonly selectedEvent: OrganizationEvent | null;
+  readonly timezone?: string | null | undefined;
 }
 
 interface MemberFiltersDetailsProps {
@@ -248,12 +249,14 @@ function EventSelector({
   idPrefix,
   isTicketServiceNotice,
   onUpdateAudience,
+  timezone,
 }: {
   readonly audience: CommunicationAudienceRequest;
   readonly events: readonly OrganizationEvent[];
   readonly idPrefix: string;
   readonly isTicketServiceNotice: boolean;
   readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
+  readonly timezone?: string | null | undefined;
 }) {
   return (
     <div className="field">
@@ -283,7 +286,9 @@ function EventSelector({
         </option>
         {events.map((event) => (
           <option key={event.id} value={event.id}>
-            {event.isCanceled ? `${eventLabel(event)} (canceled)` : eventLabel(event)}
+            {event.isCanceled
+              ? `${eventLabel(event, timezone)} (canceled)`
+              : eventLabel(event, timezone)}
           </option>
         ))}
       </select>
@@ -354,6 +359,7 @@ function EventAudienceContext({
   isTicketBuyersSelected,
   isTicketServiceNotice,
   onUpdateAudience,
+  timezone,
 }: {
   readonly audience: CommunicationAudienceRequest;
   readonly events: readonly OrganizationEvent[];
@@ -363,6 +369,7 @@ function EventAudienceContext({
   readonly isTicketBuyersSelected: boolean;
   readonly isTicketServiceNotice: boolean;
   readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
+  readonly timezone?: string | null | undefined;
 }) {
   if (isEventPromotion || (!isMembersSelected && !isTicketBuyersSelected)) return null;
   return (
@@ -372,6 +379,7 @@ function EventAudienceContext({
       idPrefix={idPrefix}
       isTicketServiceNotice={isTicketServiceNotice}
       onUpdateAudience={onUpdateAudience}
+      timezone={timezone}
     />
   );
 }
@@ -506,6 +514,7 @@ export function RecipientContextPanel({
   reachState,
   rosterConfiguration,
   selectedEvent,
+  timezone,
 }: RecipientContextPanelProps) {
   const isMembersSelected = audience.targetAudiences.includes("Members");
   const isContactsSelected = audience.targetAudiences.includes("Contacts");
@@ -626,6 +635,7 @@ export function RecipientContextPanel({
               isTicketBuyersSelected={isTicketBuyersSelected}
               isTicketServiceNotice={isTicketServiceNotice}
               onUpdateAudience={onUpdateAudience}
+              timezone={timezone}
             />
 
             <PromotionAudienceContext

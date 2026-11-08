@@ -1,3 +1,4 @@
+import { OrganizationTimezoneBoundary } from "./components/OrganizationTimezoneStatus";
 import type {
   OrganizationAttendanceRow,
   OrganizationAttendanceStatus,
@@ -27,10 +28,11 @@ function attendanceLabel(status: OrganizationAttendanceStatus): string {
   return "Tap to check in";
 }
 
-function displayEventDate(value: string): string {
+function displayEventDate(value: string, timezone?: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
+    ...(timezone ? { timeZone: timezone } : {}),
   }).format(new Date(value));
 }
 
@@ -212,6 +214,7 @@ interface AttendanceControlsProps {
   readonly partLabel: string;
   readonly query: string;
   readonly onQueryChange: (query: string) => void;
+  readonly timezone?: string | undefined;
 }
 
 function AttendanceControlsComponent({
@@ -223,11 +226,12 @@ function AttendanceControlsComponent({
   partLabel,
   query,
   onQueryChange,
+  timezone,
 }: AttendanceControlsProps) {
   const selectedEvent = events.find((event) => event.id === eventId) ?? events[0];
   const selectedLocation = selectedEvent ? eventLocationLabel(selectedEvent) : "";
   const selectedEventText = selectedEvent
-    ? `${selectedEvent.title} · ${displayEventDate(selectedEvent.startsAt)}${selectedLocation ? ` · ${selectedLocation}` : ""}`
+    ? `${selectedEvent.title} · ${displayEventDate(selectedEvent.startsAt, timezone)}${selectedLocation ? ` · ${selectedLocation}` : ""}`
     : "";
 
   return (
@@ -244,7 +248,7 @@ function AttendanceControlsComponent({
           }}
         >
           {events.map((event) => {
-            const optionLabel = `${event.title} · ${displayEventDate(event.startsAt)}${eventLocationLabel(event) ? ` · ${eventLocationLabel(event)}` : ""}`;
+            const optionLabel = `${event.title} · ${displayEventDate(event.startsAt, timezone)}${eventLocationLabel(event) ? ` · ${eventLocationLabel(event)}` : ""}`;
             return (
               <option key={event.id} title={optionLabel} value={event.id}>
                 {optionLabel}
@@ -287,8 +291,17 @@ export function AttendanceManager({
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  const { dataUpdatedAt, eventId, events, rosterConfiguration, rows, setSelectedEventId, venues } =
-    useAttendanceQueries(enabled);
+  const {
+    dataUpdatedAt,
+    eventId,
+    events,
+    rosterConfiguration,
+    rows,
+    setSelectedEventId,
+    timezone,
+    timezoneQuery,
+    venues,
+  } = useAttendanceQueries(enabled);
   const includeDeclinedAbsences =
     events.find((event) => event.id === eventId)?.type === "Rehearsal";
 
@@ -386,201 +399,210 @@ export function AttendanceManager({
           id="attendance-events-panel"
           value="attendance"
         >
-          <div className="attendance-manager__sticky-header">
-            <div className="attendance-manager__intro">
-              <div className="attendance-manager__sync-container">
-                <p className="attendance-manager__sync" role="status">
-                  <span aria-hidden="true">●</span> Live updates every 5 seconds ·{" "}
-                  {formatSyncTime(dataUpdatedAt ? new Date(dataUpdatedAt) : null)}
-                </p>
-              </div>
-              <div className="attendance-manager__count" aria-label="Attendance progress">
-                <div>
-                  <strong>{String(counts.present)}</strong> / {String(counts.expected)}
+          <OrganizationTimezoneBoundary
+            timezone={timezone}
+            failed={timezoneQuery.isError}
+            onRetry={() => {
+              void timezoneQuery.refetch();
+            }}
+          >
+            <div className="attendance-manager__sticky-header">
+              <div className="attendance-manager__intro">
+                <div className="attendance-manager__sync-container">
+                  <p className="attendance-manager__sync" role="status">
+                    <span aria-hidden="true">●</span> Live updates every 5 seconds ·{" "}
+                    {formatSyncTime(dataUpdatedAt ? new Date(dataUpdatedAt) : null)}
+                  </p>
                 </div>
-                <span>present</span>
+                <div className="attendance-manager__count" aria-label="Attendance progress">
+                  <div>
+                    <strong>{String(counts.present)}</strong> / {String(counts.expected)}
+                  </div>
+                  <span>present</span>
+                </div>
+              </div>
+
+              <AttendanceControlsComponent
+                eventId={eventId}
+                eventLocationLabel={eventLocationLabel}
+                events={events}
+                onQueryChange={setQuery}
+                onSelectEvent={setSelectedEventId}
+                partLabel={partLabel}
+                performerLabel={performerLabel}
+                query={query}
+                timezone={timezone}
+              />
+
+              <div className="attendance-manager__toolbar">
+                <div className="attendance-filters" aria-label="Attendance filter" role="group">
+                  {(
+                    [
+                      ["Pending", `Unmarked ${String(counts.pending)}`],
+                      ["All", `All ${String(counts.roster)}`],
+                      ["Present", `Present ${String(counts.presentTotal)}`],
+                      ["Absent", `Absent ${String(counts.absent)}`],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      aria-label={label}
+                      aria-pressed={filter === value}
+                      title={label}
+                      className={
+                        filter === value
+                          ? "attendance-filter attendance-filter--active"
+                          : "attendance-filter"
+                      }
+                      key={value}
+                      onClick={() => {
+                        setFilter(value);
+                      }}
+                      type="button"
+                    >
+                      <span className="attendance-filter__label">{label}</span>
+                      <span aria-hidden="true" className="attendance-filter__compact-label">
+                        {value === "Present"
+                          ? `✓ ${String(counts.presentTotal)}`
+                          : value === "Absent"
+                            ? `× ${String(counts.absent)}`
+                            : value === "All"
+                              ? "All"
+                              : label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  aria-label="Mark remaining present"
+                  title="Mark remaining present"
+                  className="button button--primary attendance-manager__bulk"
+                  disabled={bulkBusy || markableRows.length === 0}
+                  onClick={() => {
+                    setBulkConfirmOpen(true);
+                  }}
+                  type="button"
+                >
+                  <span className="attendance-manager__bulk-label">
+                    {bulkBusy ? "Saving…" : "Mark remaining present"}
+                  </span>
+                  <span aria-hidden="true" className="attendance-manager__bulk-icon">
+                    ✓+
+                  </span>
+                </button>
+              </div>
+              <div
+                className={`attendance-undo-slot${latestUndoEntry === null ? " attendance-undo-slot--empty" : ""}`}
+              >
+                <AttendanceUndoBarComponent
+                  entry={latestUndoEntry}
+                  isBusy={undoBusy}
+                  isPerformerSaving={
+                    latestUndoEntry !== null && savingIds.has(latestUndoEntry.profileId)
+                  }
+                  onUndo={handleUndo}
+                  undoButtonRef={undoButtonRef}
+                  undoError={undoError}
+                />
               </div>
             </div>
 
-            <AttendanceControlsComponent
-              eventId={eventId}
-              eventLocationLabel={eventLocationLabel}
-              events={events}
-              onQueryChange={setQuery}
-              onSelectEvent={setSelectedEventId}
-              partLabel={partLabel}
-              performerLabel={performerLabel}
-              query={query}
-            />
+            <div aria-atomic="true" aria-live="polite" className="sr-only">
+              {liveAnnouncement}
+            </div>
 
-            <div className="attendance-manager__toolbar">
-              <div className="attendance-filters" aria-label="Attendance filter" role="group">
-                {(
-                  [
-                    ["Pending", `Unmarked ${String(counts.pending)}`],
-                    ["All", `All ${String(counts.roster)}`],
-                    ["Present", `Present ${String(counts.presentTotal)}`],
-                    ["Absent", `Absent ${String(counts.absent)}`],
-                  ] as const
-                ).map(([value, label]) => (
+            {message ? (
+              <p className="attendance-manager__message" role="alert">
+                {message}
+              </p>
+            ) : null}
+
+            {rows.length === 0 ? <p>No Profiles are available for this event.</p> : null}
+            {rows.length > 0 && groupedRows.rsvped.length + groupedRows.notRsvped.length === 0 ? (
+              <p className="attendance-manager__empty">
+                No {performerLabelPlural.toLowerCase()} match this filter.
+              </p>
+            ) : null}
+            <div className="attendance-list">
+              {groupedRows.rsvped.map((group) => (
+                <AttendanceGroupComponent
+                  bulkBusy={bulkBusy}
+                  group={group}
+                  key={group.key}
+                  onChange={changeAttendance}
+                  partLabel={partLabel}
+                  savingIds={savingIds}
+                />
+              ))}
+              {groupedRows.notRsvped.length > 0 ? (
+                <div
+                  aria-label="Not currently RSVP'd"
+                  className="attendance-list__divider"
+                  role="separator"
+                >
+                  <span>Not currently RSVP&apos;d</span>
+                </div>
+              ) : null}
+              {groupedRows.notRsvped.map((group) => (
+                <AttendanceGroupComponent
+                  bulkBusy={bulkBusy}
+                  group={group}
+                  key={`not-rsvped-${group.key}`}
+                  onChange={changeAttendance}
+                  partLabel={partLabel}
+                  savingIds={savingIds}
+                />
+              ))}
+            </div>
+            <UnexpectedAttendanceDialog
+              busy={rescueBusy}
+              candidate={rescueCandidate}
+              onClose={() => {
+                if (!rescueBusy) setRescueCandidate(null);
+              }}
+              onConfirm={() => {
+                void confirmUnexpectedAttendance();
+              }}
+            />
+            <Dialog
+              description="This action may be difficult to undo."
+              onClose={() => {
+                if (!bulkBusy) setBulkConfirmOpen(false);
+              }}
+              open={bulkConfirmOpen}
+              title="Mark remaining present?"
+            >
+              <div className="form-stack">
+                <p className="notice notice--warning" role="alert">
+                  This will mark {String(markableRows.length)}{" "}
+                  {markableRows.length === 1
+                    ? performerLabel.toLowerCase()
+                    : performerLabelPlural.toLowerCase()}{" "}
+                  who RSVP&apos;d Yes and are not currently Present as Present.
+                </p>
+                <div className="dialog__actions">
                   <button
-                    aria-label={label}
-                    aria-pressed={filter === value}
-                    title={label}
-                    className={
-                      filter === value
-                        ? "attendance-filter attendance-filter--active"
-                        : "attendance-filter"
-                    }
-                    key={value}
+                    className="button button--secondary"
                     onClick={() => {
-                      setFilter(value);
+                      setBulkConfirmOpen(false);
                     }}
                     type="button"
                   >
-                    <span className="attendance-filter__label">{label}</span>
-                    <span aria-hidden="true" className="attendance-filter__compact-label">
-                      {value === "Present"
-                        ? `✓ ${String(counts.presentTotal)}`
-                        : value === "Absent"
-                          ? `× ${String(counts.absent)}`
-                          : value === "All"
-                            ? "All"
-                            : label}
-                    </span>
+                    Cancel
                   </button>
-                ))}
+                  <button
+                    className="button button--danger"
+                    onClick={() => {
+                      setBulkConfirmOpen(false);
+                      void markRemainingPresent(markableRows);
+                    }}
+                    type="button"
+                  >
+                    Mark remaining present
+                  </button>
+                </div>
               </div>
-              <button
-                aria-label="Mark remaining present"
-                title="Mark remaining present"
-                className="button button--primary attendance-manager__bulk"
-                disabled={bulkBusy || markableRows.length === 0}
-                onClick={() => {
-                  setBulkConfirmOpen(true);
-                }}
-                type="button"
-              >
-                <span className="attendance-manager__bulk-label">
-                  {bulkBusy ? "Saving…" : "Mark remaining present"}
-                </span>
-                <span aria-hidden="true" className="attendance-manager__bulk-icon">
-                  ✓+
-                </span>
-              </button>
-            </div>
-            <div
-              className={`attendance-undo-slot${latestUndoEntry === null ? " attendance-undo-slot--empty" : ""}`}
-            >
-              <AttendanceUndoBarComponent
-                entry={latestUndoEntry}
-                isBusy={undoBusy}
-                isPerformerSaving={
-                  latestUndoEntry !== null && savingIds.has(latestUndoEntry.profileId)
-                }
-                onUndo={handleUndo}
-                undoButtonRef={undoButtonRef}
-                undoError={undoError}
-              />
-            </div>
-          </div>
-
-          <div aria-atomic="true" aria-live="polite" className="sr-only">
-            {liveAnnouncement}
-          </div>
-
-          {message ? (
-            <p className="attendance-manager__message" role="alert">
-              {message}
-            </p>
-          ) : null}
-
-          {rows.length === 0 ? <p>No Profiles are available for this event.</p> : null}
-          {rows.length > 0 && groupedRows.rsvped.length + groupedRows.notRsvped.length === 0 ? (
-            <p className="attendance-manager__empty">
-              No {performerLabelPlural.toLowerCase()} match this filter.
-            </p>
-          ) : null}
-          <div className="attendance-list">
-            {groupedRows.rsvped.map((group) => (
-              <AttendanceGroupComponent
-                bulkBusy={bulkBusy}
-                group={group}
-                key={group.key}
-                onChange={changeAttendance}
-                partLabel={partLabel}
-                savingIds={savingIds}
-              />
-            ))}
-            {groupedRows.notRsvped.length > 0 ? (
-              <div
-                aria-label="Not currently RSVP'd"
-                className="attendance-list__divider"
-                role="separator"
-              >
-                <span>Not currently RSVP&apos;d</span>
-              </div>
-            ) : null}
-            {groupedRows.notRsvped.map((group) => (
-              <AttendanceGroupComponent
-                bulkBusy={bulkBusy}
-                group={group}
-                key={`not-rsvped-${group.key}`}
-                onChange={changeAttendance}
-                partLabel={partLabel}
-                savingIds={savingIds}
-              />
-            ))}
-          </div>
-          <UnexpectedAttendanceDialog
-            busy={rescueBusy}
-            candidate={rescueCandidate}
-            onClose={() => {
-              if (!rescueBusy) setRescueCandidate(null);
-            }}
-            onConfirm={() => {
-              void confirmUnexpectedAttendance();
-            }}
-          />
-          <Dialog
-            description="This action may be difficult to undo."
-            onClose={() => {
-              if (!bulkBusy) setBulkConfirmOpen(false);
-            }}
-            open={bulkConfirmOpen}
-            title="Mark remaining present?"
-          >
-            <div className="form-stack">
-              <p className="notice notice--warning" role="alert">
-                This will mark {String(markableRows.length)}{" "}
-                {markableRows.length === 1
-                  ? performerLabel.toLowerCase()
-                  : performerLabelPlural.toLowerCase()}{" "}
-                who RSVP&apos;d Yes and are not currently Present as Present.
-              </p>
-              <div className="dialog__actions">
-                <button
-                  className="button button--secondary"
-                  onClick={() => {
-                    setBulkConfirmOpen(false);
-                  }}
-                  type="button"
-                >
-                  Cancel
-                </button>
-                <button
-                  className="button button--danger"
-                  onClick={() => {
-                    setBulkConfirmOpen(false);
-                    void markRemainingPresent(markableRows);
-                  }}
-                  type="button"
-                >
-                  Mark remaining present
-                </button>
-              </div>
-            </div>
-          </Dialog>
+            </Dialog>
+          </OrganizationTimezoneBoundary>
         </TabsContent>
 
         <TabsContent

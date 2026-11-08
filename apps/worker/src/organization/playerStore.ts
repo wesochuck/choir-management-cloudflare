@@ -313,6 +313,12 @@ function readOrganizationName(storage: DurableObjectStorage): string | undefined
   }
 }
 
+function readOrganizationTimezone(storage: DurableObjectStorage): string {
+  return storage.sql
+    .exec<{ timezone: string }>("SELECT timezone FROM organization_metadata LIMIT 1")
+    .one().timezone;
+}
+
 export function readPlayerDetailsFromStore(
   storage: DurableObjectStorage,
   _organizationId: string | null,
@@ -372,6 +378,7 @@ export function readPlayerDetailsFromStore(
     performerLabel: rosterConfig.performerLabel,
     profileId,
     profileName: profileRow.displayName,
+    timezone: readOrganizationTimezone(storage),
     trackLabels: readTrackLabels(rosterConfig),
   });
 }
@@ -419,6 +426,7 @@ export function readPlayerPlaylistFromStore(
     ),
     organizationName: readOrganizationName(storage),
     performerLabel: rosterConfig.performerLabel,
+    timezone: readOrganizationTimezone(storage),
     trackLabels: readTrackLabels(rosterConfig),
   });
 }

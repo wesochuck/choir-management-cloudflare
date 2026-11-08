@@ -50,10 +50,16 @@ export const emptyCreate: OrganizationAuditionCreateRequest = {
   voicePart: "",
 };
 
-export function formatDate(value: string | null | undefined): string {
+export function formatDate(value: string | null | undefined, timezone?: string): string {
   if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  if (Number.isNaN(date.getTime())) return value;
+  if (!timezone) return date.toLocaleString();
+  try {
+    return date.toLocaleString(undefined, { timeZone: timezone });
+  } catch {
+    return date.toLocaleString();
+  }
 }
 
 export function requestedScheduleValue(

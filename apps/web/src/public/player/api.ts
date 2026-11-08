@@ -64,6 +64,7 @@ export function parsePlayerDetails(data: unknown): PlayerDetails {
     organizationName: typeof data.organizationName === "string" ? data.organizationName : undefined,
     performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
     profileName: typeof data.profileName === "string" ? data.profileName : undefined,
+    timezone: typeof data.timezone === "string" ? data.timezone : undefined,
     trackLabels: parseTrackLabels(data.trackLabels),
     activeRosterInvite: parseActiveRosterInvite(data.activeRosterInvite),
   };
@@ -91,6 +92,7 @@ export function parsePublicPlaylistDetails(data: unknown): PlayerDetails {
     items: data.pieces.map(normalizePlaylistItem),
     organizationName: typeof data.organizationName === "string" ? data.organizationName : undefined,
     performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
+    timezone: typeof data.timezone === "string" ? data.timezone : undefined,
     trackLabels: parseTrackLabels(data.trackLabels),
     activeRosterInvite: parseActiveRosterInvite(data.activeRosterInvite),
   };

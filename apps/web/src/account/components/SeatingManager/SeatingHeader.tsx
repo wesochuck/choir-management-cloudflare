@@ -11,6 +11,7 @@ export interface SeatingHeaderProps {
   readonly isNarrow: boolean;
   readonly mobileEditing: boolean;
   readonly setMobileEditing: (value: boolean) => void;
+  readonly timezone?: string | undefined;
   readonly totalSeats: number;
 }
 
@@ -24,6 +25,7 @@ export function SeatingHeader({
   isNarrow,
   mobileEditing,
   setMobileEditing,
+  timezone,
   totalSeats,
 }: SeatingHeaderProps) {
   return (
@@ -32,8 +34,8 @@ export function SeatingHeader({
         <h1>Performance seating</h1>
         <p>
           {activeEvent?.title ?? "Performance"} ·{" "}
-          {activeEvent ? formatEventDate(activeEvent.startsAt) : ""} · {assignedCount}/{totalSeats}{" "}
-          seats assigned
+          {activeEvent ? formatEventDate(activeEvent.startsAt, timezone) : ""} · {assignedCount}/
+          {totalSeats} seats assigned
         </p>
         {eligibleCount > totalSeats ? (
           <p className="notice notice--warning" role="alert">

@@ -391,26 +391,29 @@ export function moveItemToIndex(
   return next;
 }
 
-export function displayEvent(event: OrganizationEvent): string {
-  const formattedDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-    new Date(event.startsAt),
-  );
+export function displayEvent(event: OrganizationEvent, timezone?: string): string {
+  const formattedDate = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    ...(timezone ? { timeZone: timezone } : {}),
+  }).format(new Date(event.startsAt));
   return `${formattedDate} · ${event.title}`;
 }
 
-export function printDateOnly(value: string): string {
+export function printDateOnly(value: string, timezone?: string): string {
   return new Intl.DateTimeFormat(undefined, {
     day: "numeric",
     month: "long",
     weekday: "long",
     year: "numeric",
+    ...(timezone ? { timeZone: timezone } : {}),
   }).format(new Date(value));
 }
 
-export function printTimeOnly(value: string): string {
+export function printTimeOnly(value: string, timezone?: string): string {
   return new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
     minute: "2-digit",
+    ...(timezone ? { timeZone: timezone } : {}),
   }).format(new Date(value));
 }
 
@@ -595,6 +598,7 @@ export function setListDocumentText(
   showNotes = false,
   defaultTransitionSeconds?: number,
   venues?: readonly OrganizationVenue[] | string,
+  timezone?: string,
 ): string {
   const transitionSeconds = defaultTransitionSeconds ?? event.setListDefaultTransitionSeconds;
   const timing = setListTiming(items, music, transitionSeconds);
@@ -602,8 +606,8 @@ export function setListDocumentText(
   const venue = resolveEventVenueName(event, venues);
   return [
     `Set List: ${event.title}`,
-    `Date: ${printDateOnly(event.startsAt)}`,
-    `Time: ${printTimeOnly(event.startsAt)}`,
+    `Date: ${printDateOnly(event.startsAt, timezone)}`,
+    `Time: ${printTimeOnly(event.startsAt, timezone)}`,
     `Venue: ${venue ?? "—"}`,
     `Estimated runtime: ${formatSetListDuration(timing.estimatedRuntime)}`,
     ...(transitionSeconds > 0

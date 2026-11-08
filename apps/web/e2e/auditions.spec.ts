@@ -751,6 +751,10 @@ for (const theme of ["light", "dark"] as const) {
       });
     });
 
+    await page.route("**/api/organization/calendar-settings", async (route) => {
+      await route.fulfill({ json: { requestId, timezone: "America/New_York" } });
+    });
+
     await page.goto("/admin/auditions");
 
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);

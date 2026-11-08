@@ -509,6 +509,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         items: z.array(z.record(z.string(), z.unknown())).max(500),
         organizationName: z.string().trim().min(1).max(120),
         performerLabel: z.string().trim().min(1).max(50).default("Performer"),
+        timezone: z.string().min(1).max(100).optional(),
         trackLabels: z.record(z.string().min(1).max(100), z.string().min(1).max(100)).optional(),
         activeRosterInvite: activeRosterInviteSummarySchema.nullable().optional(),
       })
@@ -538,6 +539,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       performerLabel: playlist.data.performerLabel,
       requestId: context.get("requestId"),
       setList: playlist.data.items,
+      timezone: playlist.data.timezone,
       trackLabels: playlist.data.trackLabels ?? {},
       voiceParts: [],
     });

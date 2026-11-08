@@ -46,6 +46,7 @@ export function useCommunicationCenterController({
 
   const [branding, setBranding] = useState<OrganizationBranding | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
+  const [resourceAttempt, setResourceAttempt] = useState(0);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [contactLists, setContactLists] = useState<readonly ContactList[]>([]);
   const [providerStatus, setProviderStatus] = useState<OrganizationProviderStatusResponse | null>(
@@ -174,6 +175,7 @@ export function useCommunicationCenterController({
     initialNav.draftId,
     initialNav.originFilter,
     initialNav.statusFilter,
+    resourceAttempt,
     loadHistoryPage,
     resumeDraft,
     setTemplates,
@@ -271,6 +273,10 @@ export function useCommunicationCenterController({
     successNotice,
     templates: templates.templates,
     timezone,
+    retryResources: () => {
+      setError(null);
+      setResourceAttempt((attempt) => attempt + 1);
+    },
     unifiedMessages: history.unifiedMessages,
     updateAudience: composer.updateAudience,
     voiceParts: composer.voiceParts,
