@@ -134,7 +134,7 @@ test("keeps inactive and off-roster badges separated", async ({ page }, testInfo
     await page.evaluate((nextTheme) => {
       document.querySelector(".signed-in-shell")?.setAttribute("data-theme", nextTheme);
     }, theme);
-    const group = page.locator(".status-pill-group:visible");
+    const group = page.locator(".status-pill-group:visible, .roster-card-metadata:visible");
     const inactive = await group.getByText("Inactive", { exact: true }).boundingBox();
     const offRoster = await group.getByText("Off roster", { exact: true }).boundingBox();
     if (!inactive || !offRoster) throw new Error("Status badges missing");

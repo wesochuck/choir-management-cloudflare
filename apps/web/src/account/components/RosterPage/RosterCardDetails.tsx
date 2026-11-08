@@ -40,7 +40,7 @@ export function RosterCardMetadata({
         {profile.voicePart || "Not assigned"}
         <span aria-hidden="true"> · </span>
         <span className="sr-only">, Status: </span>
-        {statusLabel(profile.globalStatus)}
+        <span>{statusLabel(profile.globalStatus)}</span>
       </span>
       {profile.hidden ? <span className="status-pill status-pill--hidden">Off roster</span> : null}
     </span>
