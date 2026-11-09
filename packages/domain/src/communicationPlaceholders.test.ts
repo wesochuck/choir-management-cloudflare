@@ -286,6 +286,33 @@ describe("communicationPlaceholders domain logic", () => {
       ).toContain("{eventTitle}");
     });
 
+    it("uses eventPromotion metadata to provide event context for event placeholders and ticket page links", () => {
+      const issues = validateCommunicationContext({
+        audience: audience(["Ticket Buyers", "Contacts"], null),
+        channel: "Email",
+        contentMarkdown: "Join us for {eventTitle} on {eventDate}.\n\n{{EVENT_TICKET_LINK}}",
+        eventPromotion: {
+          announcementKind: "initial",
+          eventId: "event-456",
+          parentMessageId: null,
+        },
+        subject: "Tickets for {eventTitle}",
+      });
+      expect(issues).toEqual([]);
+    });
+
+    it("flags EVENT_TICKET_LINK as event_required when no event context or promotion is present", () => {
+      const issues = validateCommunicationContext({
+        audience: audience(["Ticket Buyers", "Contacts"], null),
+        channel: "Email",
+        contentMarkdown: "Join us: {{EVENT_TICKET_LINK}}",
+        subject: "Tickets",
+      });
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.code).toBe("event_required");
+      expect(issues[0]?.placeholder).toBe("{{EVENT_TICKET_LINK}}");
+    });
+
     it("returns no issues for legacy recipient aliases with buyer and donor audiences", () => {
       const issues = validateCommunicationContext({
         audience: audience(["Ticket Buyers", "Donors"]),

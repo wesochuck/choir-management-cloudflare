@@ -7,6 +7,7 @@ import type {
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { Dialog, DialogClose } from "@choir/ui";
+import { useEffect, useRef } from "react";
 import {
   communicationPreviewValues,
   populateCommunicationPreview,
@@ -66,6 +67,16 @@ export function CommunicationReviewDialog({
 
   const totalCount = reachState.data?.total ?? 0;
   const previewValues = communicationPreviewValues(selectedEvent, timezone, branding);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      if (typeof errorRef.current.scrollIntoView === "function") {
+        errorRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      errorRef.current.focus();
+    }
+  }, [error]);
 
   return (
     <Dialog
@@ -77,7 +88,7 @@ export function CommunicationReviewDialog({
       title="Review message"
     >
       {error ? (
-        <p className="notice notice--error" role="alert">
+        <p className="notice notice--error" ref={errorRef} role="alert" tabIndex={-1}>
           {error}
         </p>
       ) : null}

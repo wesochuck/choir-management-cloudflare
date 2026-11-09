@@ -548,18 +548,79 @@ function ticketServiceAudienceIssues(
   return issues;
 }
 
+export interface CommunicationEventPromotionLike {
+  readonly eventId: string;
+  readonly [key: string]: unknown;
+}
+
 function hasCommunicationEventContext(
   requestedEventId: string | null | undefined,
   audienceEventId: string | null | undefined,
+  promotionEventId?: string | null,
 ): boolean {
-  return Boolean(requestedEventId ?? audienceEventId);
+  return Boolean(requestedEventId ?? promotionEventId ?? audienceEventId);
+}
+
+function validatePlaceholderDefinition(
+  def: CommunicationPlaceholderDefinition,
+  tag: string,
+  audience: CommunicationAudienceLike,
+  channel: CommunicationChannel,
+  context: CommunicationPlaceholderContext,
+  hasEventContext: boolean,
+): CommunicationContextIssue | null {
+  const isOrderContext = context === "ticket" || context === "bundle";
+
+  // 1. Check audience compatibility (every selected audience must be supported)
+  if (!isPlaceholderCompatibleWithAudience(def, audience.targetAudiences)) {
+    const supported = def.audience?.join(" or ") ?? "all audiences";
+    const incompatibleSelected = audience.targetAudiences.filter((target) => {
+      if (!isCommunicationAudienceTarget(target)) return true;
+      return !def.audience?.includes(target);
+    });
+    return {
+      code: "incompatible_audience",
+      message: `${def.label} can only be used when all selected recipients are ${supported}. ${incompatibleSelected.join(" and ")} ${incompatibleSelected.length === 1 ? "is" : "are"} currently included.`,
+      placeholder: tag,
+    };
+  }
+
+  // 2. Check channel compatibility
+  if (!isPlaceholderCompatibleWithChannel(def, channel)) {
+    return {
+      code: "incompatible_channel",
+      message: `${def.label} is only available for ${def.channels?.join(" or ") ?? "specific"} delivery.`,
+      placeholder: tag,
+    };
+  }
+
+  // 3. Check event requirement
+  if (def.requiresEvent && !isOrderContext && !hasEventContext) {
+    return {
+      code: "event_required",
+      message: `${def.label} requires an event to be selected.`,
+      placeholder: tag,
+    };
+  }
+
+  // 4. Check context requirement
+  if (!def.contexts.includes(context)) {
+    return {
+      code: "incompatible_context",
+      message: `${def.label} cannot be used in this message context.`,
+      placeholder: tag,
+    };
+  }
+
+  return null;
 }
 
 export function validateCommunicationContext(request: {
   readonly audience: CommunicationAudienceLike;
   readonly channel: CommunicationChannel;
   readonly contentMarkdown: string;
-  readonly eventId?: string | null;
+  readonly eventId?: string | null | undefined;
+  readonly eventPromotion?: CommunicationEventPromotionLike | null | undefined;
   readonly subject: string;
 }): readonly CommunicationContextIssue[] {
   const { audience, channel, contentMarkdown, subject } = request;
@@ -567,57 +628,25 @@ export function validateCommunicationContext(request: {
   const usedTags = extractCommunicationPlaceholders(fullText);
   const context = determineCommunicationPlaceholderContext(fullText);
   const issues: CommunicationContextIssue[] = [...ticketServiceAudienceIssues(audience, channel)];
-  const hasEventContext = hasCommunicationEventContext(request.eventId, audience.eventId);
+  const hasEventContext = hasCommunicationEventContext(
+    request.eventId,
+    audience.eventId,
+    request.eventPromotion?.eventId,
+  );
 
   for (const tag of usedTags) {
     const def = findCommunicationPlaceholderDefinition(tag);
     if (!def) continue;
 
-    const isOrderContext = context === "ticket" || context === "bundle";
-
-    // 1. Check audience compatibility (every selected audience must be supported)
-    if (!isPlaceholderCompatibleWithAudience(def, audience.targetAudiences)) {
-      const supported = def.audience?.join(" or ") ?? "all audiences";
-      const incompatibleSelected = audience.targetAudiences.filter((target) => {
-        if (!isCommunicationAudienceTarget(target)) return true;
-        return !def.audience?.includes(target);
-      });
-      issues.push({
-        code: "incompatible_audience",
-        message: `${def.label} can only be used when all selected recipients are ${supported}. ${incompatibleSelected.join(" and ")} ${incompatibleSelected.length === 1 ? "is" : "are"} currently included.`,
-        placeholder: tag,
-      });
-      continue;
-    }
-
-    // 2. Check channel compatibility
-    if (!isPlaceholderCompatibleWithChannel(def, channel)) {
-      issues.push({
-        code: "incompatible_channel",
-        message: `${def.label} is only available for ${def.channels?.join(" or ") ?? "specific"} delivery.`,
-        placeholder: tag,
-      });
-      continue;
-    }
-
-    // 3. Check event requirement
-    if (def.requiresEvent && !isOrderContext && !hasEventContext) {
-      issues.push({
-        code: "event_required",
-        message: `${def.label} requires an event to be selected.`,
-        placeholder: tag,
-      });
-      continue;
-    }
-
-    // 4. Check context requirement
-    if (!def.contexts.includes(context)) {
-      issues.push({
-        code: "incompatible_context",
-        message: `${def.label} cannot be used in this message context.`,
-        placeholder: tag,
-      });
-    }
+    const issue = validatePlaceholderDefinition(
+      def,
+      tag,
+      audience,
+      channel,
+      context,
+      hasEventContext,
+    );
+    if (issue) issues.push(issue);
   }
 
   return issues;

@@ -279,8 +279,8 @@ describe("Organization communications pagination and keyset cursors", () => {
       const message = {
         audience,
         channel: "Email",
-        contentMarkdown: "Join us.",
-        subject: "Invitation",
+        contentMarkdown: isPromotion ? "Join us: {{EVENT_TICKET_LINK}}" : "Join us.",
+        subject: isPromotion ? "Invitation: {eventTitle}" : "Invitation",
       };
       const reachResponse = await write(
         "alpha.localhost",

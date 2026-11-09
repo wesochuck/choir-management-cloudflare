@@ -562,7 +562,14 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         } satisfies ProblemDetails,
         400,
       );
-    const validationIssues = validateCommunicationContext(body.data);
+    const validationIssues = validateCommunicationContext({
+      audience: body.data.audience,
+      channel: body.data.channel,
+      contentMarkdown: body.data.contentMarkdown,
+      eventId: body.data.eventPromotion?.eventId ?? body.data.audience.eventId,
+      eventPromotion: body.data.eventPromotion,
+      subject: body.data.subject,
+    });
     if (validationIssues.length > 0) {
       return context.json(
         {

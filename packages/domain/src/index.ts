@@ -282,6 +282,7 @@ export {
   type CommunicationAudienceTarget,
   type CommunicationChannel,
   type CommunicationContextIssue,
+  type CommunicationEventPromotionLike,
   type CommunicationPlaceholderCategory,
   type CommunicationPlaceholderDefinition,
   type CommunicationPlaceholderContext,
