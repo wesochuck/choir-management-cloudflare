@@ -4,7 +4,6 @@ import type { ComponentProps } from "react";
 import type { getOrganizationCommunicationDeliverySummary } from "../../../../auth/api";
 import { CommunicationDeliveryDetails } from "../../CommunicationCenter/CommunicationDeliveryDetails";
 import { CommunicationReviewDialog } from "../../CommunicationCenter/CommunicationReviewDialog";
-import { CommunicationTestDialog } from "../../CommunicationCenter/CommunicationTestDialog";
 import { MessageComposer } from "../../CommunicationCenter/MessageComposer";
 import { MessageList } from "../../CommunicationCenter/MessageList";
 import { SaveAsTemplateDialog } from "../../CommunicationCenter/SaveAsTemplateDialog";
@@ -352,9 +351,8 @@ export function PromotionSection({
           onOpenSaveTemplate={() => {
             controller.setSaveTemplateOpen(true);
           }}
-          onOpenTestEmail={() => {
-            controller.setTestEmailOpen(true);
-          }}
+          onSendTestEmail={controller.sendTestEmail}
+          testEmailError={controller.error}
           onRemoveConflictingPlaceholder={controller.removeConflictingPlaceholder}
           onSaveDraft={() => {
             void controller.persistDraft();
@@ -406,15 +404,6 @@ export function PromotionSection({
           subject={controller.subject}
           timezone={timezone}
           branding={controller.branding}
-        />
-        <CommunicationTestDialog
-          busy={controller.busy}
-          error={controller.error}
-          onClose={() => {
-            controller.setTestEmailOpen(false);
-          }}
-          onSend={controller.sendTestEmail}
-          open={controller.testEmailOpen}
         />
         <SaveAsTemplateDialog
           busy={controller.busy}

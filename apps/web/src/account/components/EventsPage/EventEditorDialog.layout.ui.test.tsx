@@ -17,6 +17,7 @@ import {
   tbdVenue,
   venueHall,
 } from "./EventEditorDialog/testHarness";
+import { defaultAudience } from "../CommunicationCenter/utils";
 import { emptyEvent } from "./utils";
 
 vi.mock("../../../auth/api", async (importOriginal) => {
@@ -30,6 +31,8 @@ vi.mock("../../../auth/api", async (importOriginal) => {
     listOrganizationCommunicationTemplates: vi.fn(),
     listOrganizationEventPromotionMessages: vi.fn(),
     listOrganizationVenues: vi.fn(),
+    saveOrganizationCommunicationDraft: vi.fn(),
+    sendOrganizationCommunicationTestEmail: vi.fn(),
   };
 });
 
@@ -47,7 +50,12 @@ vi.mock("../../../api", async (importOriginal) => {
 });
 
 import { previewOrganizationCommunicationReach } from "../../../api";
-import { createOrganizationVenue, listOrganizationVenues } from "../../../auth/api";
+import {
+  createOrganizationVenue,
+  listOrganizationVenues,
+  saveOrganizationCommunicationDraft,
+  sendOrganizationCommunicationTestEmail,
+} from "../../../auth/api";
 
 beforeEach(() => {
   resetEventEditorMocks();
@@ -155,6 +163,121 @@ describe("EventEditorDialog section layout", () => {
     expect(screen.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByLabelText("Subject")).toHaveValue("Draft survives section changes");
+  });
+
+  it("sends a test email inline without opening a modal, auto-saving the draft and keeping the event editor open", async () => {
+    const user = userEvent.setup();
+    const startsAt = new Date(Date.now() + 86_400_000).toISOString();
+    const eventRequest: OrganizationEventRequest = {
+      ...emptyEvent,
+      isTicketingEnabled: true,
+      publishOnWebsite: true,
+      startsAt,
+      title: "Spring Concert",
+      type: "Performance",
+      venueId: venueHall.id,
+    };
+    const event: OrganizationEvent = {
+      ...eventRequest,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      id: "22222222-2222-4222-8222-222222222222",
+      isCanceled: false,
+      rsvpDeadlineAt: null,
+      rsvpDeadlinePassed: false,
+      rsvpSelfServiceOpen: true,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const onClose = vi.fn();
+    const onSubmit = vi.fn();
+    vi.mocked(saveOrganizationCommunicationDraft).mockResolvedValue({
+      audience: {
+        ...defaultAudience,
+        excludeTicketBuyersForEventId: event.id,
+        targetAudiences: ["Ticket Buyers"],
+        ticketBuyerMode: "marketing",
+        ticketBuyerPastEventsOnly: true,
+        ticketBuyerSourceEventIds: [],
+      },
+      channel: "Email",
+      contentMarkdown: "Draft content",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      draftRevision: 1,
+      eventPromotion: { announcementKind: "initial", eventId: event.id, parentMessageId: null },
+      id: "draft-1",
+      queuedByName: null,
+      queuedByUserId: null,
+      reach: {
+        audienceOverLimit: false,
+        both: 0,
+        email: 1,
+        sms: 0,
+        ticketBuyerPurchasesOverLimit: 0,
+        total: 1,
+        undeliverableTicketBuyerPurchases: 0,
+        unreachable: 0,
+      },
+      sentAt: null,
+      status: "Draft",
+      subject: "Test Subject",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    vi.mocked(sendOrganizationCommunicationTestEmail).mockResolvedValue(undefined);
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={event.id}
+        error={null}
+        event={eventRequest}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        initialSection="promotion"
+        onClose={onClose}
+        onSubmit={onSubmit}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={eventStateWithPromotion(event)}
+      />,
+    );
+
+    const prepareButton = await screen.findByRole("button", { name: "Prepare announcement" });
+    await user.click(prepareButton);
+
+    // Click "Send test"
+    const sendTestButton = screen.getByRole("button", { name: "Send test" });
+    await user.click(sendTestButton);
+
+    // Verify inline panel appears, NOT a modal Dialog
+    expect(screen.queryByRole("dialog", { name: "Send test email" })).not.toBeInTheDocument();
+    const testRegion = screen.getByRole("region", { name: "Send test email" });
+    expect(testRegion).toBeInTheDocument();
+
+    const emailInput = screen.getByLabelText("Test recipient email");
+    await user.clear(emailInput);
+    await user.type(emailInput, "reviewer@example.com");
+
+    // Click Send test email
+    const submitTestButton = within(testRegion).getByRole("button", { name: "Send test email" });
+    await user.click(submitTestButton);
+
+    // Verify draft was auto-saved and test email sent
+    await waitFor(() => {
+      expect(saveOrganizationCommunicationDraft).toHaveBeenCalled();
+      expect(sendOrganizationCommunicationTestEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "reviewer@example.com" }),
+        expect.any(String),
+      );
+    });
+
+    // Verify success notice is displayed
+    expect(await screen.findByText("Test email sent to reviewer@example.com.")).toBeInTheDocument();
+
+    // Verify EventEditorDialog remained open and was NOT closed or submitted
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Edit event" })).toBeInTheDocument();
   });
 
   it("links ticket sales to public visibility and preserves visibility when ticketing is turned off", async () => {

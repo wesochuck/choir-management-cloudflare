@@ -11,8 +11,10 @@ const communicationErrorMessages: Record<string, string> = {
     "The Organization timezone could not be loaded. No test email was sent. Try again.",
   communication_draft_revision_conflict:
     "This draft was modified in another session. Reload the draft to view current changes.",
+  communication_audience_exceeds_limit:
+    "The audience exceeds the 10,000-recipient limit. Narrow the selection before sending.",
   event_promotion_audience_exceeds_limit:
-    "This audience exceeds the 500-recipient promotion limit. Narrow the source events or Contact filters.",
+    "This audience exceeds the 10,000-recipient promotion limit. Narrow the source events or Contact filters.",
   event_promotion_draft_required: "Save this promotion draft before sending.",
   event_promotion_initial_exists: "An initial announcement already exists for this performance.",
   event_promotion_not_eligible:
@@ -26,7 +28,7 @@ const communicationErrorMessages: Record<string, string> = {
   event_promotion_review_stale:
     "The audience or message changed after review. Review the recipients again before sending.",
   ticket_service_audience_exceeds_limit:
-    "This performance has more than 1,000 paid ticket orders, so its complete ticket-holder audience exceeds the message limit. No message was sent.",
+    "This performance has more than 10,000 paid ticket orders, so its complete ticket-holder audience exceeds the message limit. No message was sent.",
 };
 
 export function communicationProblem(error: unknown, requestIdValue: string, message: string) {

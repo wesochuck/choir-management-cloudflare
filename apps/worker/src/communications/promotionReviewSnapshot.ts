@@ -6,7 +6,7 @@ const textEncoder = new TextEncoder();
 const reviewEnvelopeSchema = z.object({
   audienceDigest: z.string().min(1).max(128),
   draftRevision: z.number().int().positive(),
-  eventId: z.uuid(),
+  eventId: z.uuid().nullable(),
   expiresAt: z.number().int().positive(),
   messageDigest: z.string().min(1).max(128),
   messageId: z.uuid(),
@@ -18,12 +18,15 @@ const reviewEnvelopeSchema = z.object({
 export interface PromotionReviewSnapshotInput {
   readonly audience: unknown;
   readonly contentMarkdown: string;
+  readonly channel?: string;
   readonly draftRevision: number;
-  readonly eventId: string;
+  readonly eventId: string | null;
   readonly messageId: string;
   readonly organizationId: string;
   readonly recipients: readonly {
     readonly email: string;
+    readonly phone?: string;
+    readonly name?: string;
     readonly profileId: string;
     readonly subject: unknown;
   }[];
@@ -105,16 +108,20 @@ function normalizedRecipients(input: PromotionReviewSnapshotInput) {
     .map((recipient) => ({
       email: recipient.email.trim().toLowerCase(),
       profileId: recipient.profileId,
+      phone: recipient.phone ?? "",
+      name: recipient.name ?? "",
       subject: recipient.subject,
     }))
-    .sort((left, right) => stableJson(left).localeCompare(stableJson(right)));
+    .map((value) => ({ key: stableJson(value), value }))
+    .sort((left, right) => left.key.localeCompare(right.key))
+    .map(({ value }) => value);
 }
 
 async function inputDigests(input: PromotionReviewSnapshotInput) {
   return Promise.all([
     digest(stableJson(input.audience)),
     digest(stableJson(normalizedRecipients(input))),
-    digest(stableJson([input.subject, input.contentMarkdown])),
+    digest(stableJson([input.subject, input.contentMarkdown, input.channel ?? "Email"])),
   ]);
 }
 
@@ -165,7 +172,9 @@ export async function issuePromotionReviewSnapshot(
     draftRevision: input.draftRevision,
     eventId: input.eventId,
     expiresAt: now + REVIEW_WINDOW_MS,
-    messageDigest: await digest(stableJson([input.subject, input.contentMarkdown])),
+    messageDigest: await digest(
+      stableJson([input.subject, input.contentMarkdown, input.channel ?? "Email"]),
+    ),
     messageId: input.messageId,
     organizationId: input.organizationId,
     recipientDigest: await digest(stableJson(recipients)),

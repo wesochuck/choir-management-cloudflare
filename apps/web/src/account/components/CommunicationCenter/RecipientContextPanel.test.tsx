@@ -167,7 +167,7 @@ describe("RecipientContextPanel Contacts audience", () => {
     });
     expect(html).toContain("1 paid ticket orders have no matching Contact or usable email");
     expect(html).toContain(
-      "2 paid ticket orders exceed the 1,000-order message limit; sending is blocked",
+      "2 paid ticket orders exceed the 10,000-order message limit; sending is blocked",
     );
   });
 });

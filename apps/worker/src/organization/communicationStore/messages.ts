@@ -17,7 +17,7 @@ import { MAX_COMMUNICATION_DELIVERIES } from "./contracts";
 import {
   insertQueuedMessage,
   targetEventPurchaseExists,
-  updatePromotionDraftForSend,
+  updateReviewedDraftForSend,
 } from "./drafts";
 import { audit, readMessage } from "./shared";
 import { wakeOrganizationAlarm } from "../scheduler";
@@ -128,20 +128,21 @@ export async function sendMessage(
   if (deliveries.length > MAX_COMMUNICATION_DELIVERIES) {
     return Response.json({ code: "communication_delivery_limit_exceeded" }, { status: 413 });
   }
+  const isPromotion = Boolean(operation.message.eventPromotion);
+  const isReviewedDraft = isPromotion || Boolean(operation.message.reviewSnapshot);
   const inserted = storage.transactionSync(() => {
-    const isPromotion = Boolean(operation.message.eventPromotion);
     if (isPromotion && promotionAudienceChangedByPurchase(storage, operation)) {
       return "promotion_review_stale";
     }
-    const updatedPromotion = updatePromotionDraftForSend(storage, operation, reach, now);
-    if (isPromotion && !updatedPromotion) return "draft_conflict";
+    if (isReviewedDraft && !updateReviewedDraftForSend(storage, operation, reach, now))
+      return "draft_conflict";
     if (isPromotion) {
       storage.sql.exec(
         "UPDATE event_communication_links SET operation_key = NULL WHERE message_id = ?",
         operation.messageId,
       );
     }
-    if (!isPromotion) insertQueuedMessage(storage, operation, reach, now);
+    if (!isReviewedDraft) insertQueuedMessage(storage, operation, reach, now);
     const persisted = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
         operation.dedupeKey
@@ -213,7 +214,7 @@ export async function sendMessage(
     if (inserted === "promotion_review_stale") {
       return Response.json({ code: "event_promotion_review_stale" }, { status: 409 });
     }
-    if (operation.message.eventPromotion) {
+    if (inserted === "draft_conflict") {
       return Response.json({ code: "communication_draft_revision_conflict" }, { status: 409 });
     }
     const existing = storage.sql
@@ -322,7 +323,7 @@ export async function retryMessage(
     return Response.json({ code: "communication_has_no_failed_deliveries" }, { status: 409 });
   storage.transactionSync(() => {
     storage.sql.exec(
-      `UPDATE communication_deliveries SET status = 'queued', failure_detail = '', updated_at = ?
+      `UPDATE communication_deliveries SET status = 'queued', delivery_job_id = NULL, failure_detail = '', updated_at = ?
        WHERE message_id = ? AND status = 'failed'`,
       now,
       operation.messageId,
@@ -380,7 +381,8 @@ export function recordDeliveryResults(
              ELSE provider_status END,
            failure_detail = ?,
            last_attempt_at = ?, updated_at = ?
-         WHERE id = ? AND message_id = ? AND status IN ('queued', 'processing')`,
+         WHERE id = ? AND message_id = ? AND status IN ('queued', 'processing')
+           AND (delivery_job_id = ? OR delivery_job_id IS NULL)`,
         result.status,
         result.providerMessageId,
         result.status,
@@ -390,23 +392,23 @@ export function recordDeliveryResults(
         now,
         result.deliveryId,
         messageId,
+        operation.jobId,
       );
     }
-    const counts = storage.sql
-      .exec<{
-        readonly [column: string]: SqlStorageValue;
-        readonly failed: number;
-        readonly remaining: number;
-        readonly sent: number;
-      }>(
-        `SELECT SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
-          SUM(CASE WHEN status IN ('queued', 'processing') THEN 1 ELSE 0 END) AS remaining,
-          SUM(CASE WHEN status IN ('sent', 'suppressed') THEN 1 ELSE 0 END) AS sent
-         FROM communication_deliveries WHERE message_id = ?`,
-        messageId,
-      )
-      .one();
-    const status = counts.remaining > 0 ? "Queued" : counts.sent > 0 ? "Sent" : "Failed";
+    const hasStatus = (statuses: readonly string[]) =>
+      storage.sql
+        .exec<{ readonly found: number }>(
+          `SELECT 1 AS found FROM communication_deliveries
+       WHERE message_id = ? AND status IN (SELECT value FROM json_each(?)) LIMIT 1`,
+          messageId,
+          JSON.stringify(statuses),
+        )
+        .toArray().length > 0;
+    const status = hasStatus(["queued", "processing"])
+      ? "Queued"
+      : hasStatus(["sent", "suppressed"])
+        ? "Sent"
+        : "Failed";
     storage.sql.exec(
       `UPDATE communication_messages SET status = ?, sent_at = CASE WHEN ? = 'Sent' THEN ? ELSE sent_at END,
         updated_at = ? WHERE id = ? AND canceled_at IS NULL`,

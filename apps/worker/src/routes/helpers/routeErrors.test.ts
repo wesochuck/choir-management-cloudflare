@@ -14,7 +14,7 @@ describe("routeErrors communicationProblem", () => {
     expect(overflow.problem).toMatchObject({
       code: "event_promotion_audience_exceeds_limit",
       message:
-        "This audience exceeds the 500-recipient promotion limit. Narrow the source events or Contact filters.",
+        "This audience exceeds the 10,000-recipient promotion limit. Narrow the source events or Contact filters.",
       requestId: "req-1",
     });
 

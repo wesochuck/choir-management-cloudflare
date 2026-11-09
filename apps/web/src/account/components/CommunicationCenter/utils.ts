@@ -269,12 +269,12 @@ function eventPromotionOverflowText(reach: CommunicationReach): string {
   const issues: string[] = [];
   if (reach.ticketBuyerPurchasesOverLimit > 0) {
     issues.push(
-      `${String(reach.ticketBuyerPurchasesOverLimit)} paid past ticket orders exceed the 500-recipient event-promotion limit; sending is blocked`,
+      `${String(reach.ticketBuyerPurchasesOverLimit)} paid past ticket orders exceed the 10,000-recipient event-promotion limit; sending is blocked`,
     );
   }
   if (reach.audienceOverLimit) {
     issues.push(
-      "this audience exceeds the 500-recipient event-promotion limit; sending is blocked",
+      "this audience exceeds the 10,000-recipient event-promotion limit; sending is blocked",
     );
   }
   return issues.length > 0 ? ` · ${issues.join(" · ")}` : "";
@@ -297,7 +297,7 @@ export function reachSummaryText(
         : "";
     const purchasesOverLimit =
       reach.ticketBuyerPurchasesOverLimit > 0
-        ? ` · ${String(reach.ticketBuyerPurchasesOverLimit)} paid ticket orders exceed the 1,000-order message limit; sending is blocked`
+        ? ` · ${String(reach.ticketBuyerPurchasesOverLimit)} paid ticket orders exceed the 10,000-order message limit; sending is blocked`
         : "";
     return `${String(reachableCount)} ticket-holder recipients can receive this email · ${unreachable}${undeliverablePurchases}${purchasesOverLimit}${eventPromotionOverflowText(reach)}`;
   }

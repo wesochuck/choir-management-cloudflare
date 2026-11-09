@@ -1,4 +1,5 @@
 import {
+  COMMUNICATION_RECIPIENTS_MAX,
   communicationAudienceRequestSchema,
   communicationDraftRequestSchema,
   communicationReachSchema,
@@ -10,7 +11,8 @@ import {
 import type { SqlStorageValue } from "@cloudflare/workers-types";
 import { z } from "zod";
 
-export const MAX_COMMUNICATION_DELIVERIES = 1_000;
+export const MAX_COMMUNICATION_DELIVERIES = COMMUNICATION_RECIPIENTS_MAX * 2;
+export const COMMUNICATION_DELIVERY_BATCH_SIZE = 50;
 
 /**
  * Narrow storage surface for audience resolution (mirrors ContactStoreStorage).
@@ -93,16 +95,13 @@ export const sendOperationSchema = contextSchema
     inboxNotification: inboxNotificationSchema.optional(),
     message: communicationSendRequestSchema,
     messageId: z.uuid(),
-    recipients: z.array(recipientSchema).max(MAX_COMMUNICATION_DELIVERIES),
+    recipients: z.array(recipientSchema).max(COMMUNICATION_RECIPIENTS_MAX),
     ticketBuyerPurchasesOverLimit: z.number().int().nonnegative().default(0),
     undeliverableTicketBuyerPurchases: z.number().int().nonnegative().default(0),
     audienceOverLimit: z.boolean().default(false),
   })
   .superRefine((value, refinementContext) => {
-    const recipientLimit =
-      value.message.audience.ticketBuyerMode === "ticket_service"
-        ? MAX_COMMUNICATION_DELIVERIES
-        : 500;
+    const recipientLimit = COMMUNICATION_RECIPIENTS_MAX;
     if (value.recipients.length > recipientLimit) {
       refinementContext.addIssue({
         code: "too_big",
@@ -120,14 +119,14 @@ export const sendOperationSchema = contextSchema
     ) {
       refinementContext.addIssue({
         code: "custom",
-        message: `The complete ticket-holder audience exceeds the ${String(MAX_COMMUNICATION_DELIVERIES)}-recipient message limit.`,
+        message: `The complete ticket-holder audience exceeds the ${String(COMMUNICATION_RECIPIENTS_MAX)}-recipient message limit.`,
         path: ["ticketBuyerPurchasesOverLimit"],
       });
     }
-    if (value.message.eventPromotion && value.audienceOverLimit) {
+    if (value.audienceOverLimit) {
       refinementContext.addIssue({
         code: "custom",
-        message: "The event promotion audience exceeds the 500-recipient limit.",
+        message: "The audience exceeds the 10,000-recipient limit.",
         path: ["audienceOverLimit"],
       });
     }
@@ -146,7 +145,7 @@ export const sendOperationSchema = contextSchema
         path: ["recipients"],
         type: "number",
         inclusive: true,
-        message: "A communication cannot contain more than 1,000 deliveries.",
+        message: "A communication cannot contain more than 20,000 deliveries.",
       });
     }
   });
@@ -285,3 +284,36 @@ export const messageColumns = `id, channel, status, subject, content_markdown AS
   updated_at AS updatedAt, sent_at AS sentAt, canceled_at AS canceledAt,
   event_promotion_json AS eventPromotionJson, draft_revision AS draftRevision,
   queued_by_user_id AS queuedByUserId, queued_by_name AS queuedByName`;
+
+export const deliveryJobResponseSchema = z.object({
+  contentMarkdown: z.string().max(100_000),
+  ticketServiceNotice: z.boolean().default(false),
+  context: z
+    .object({
+      eventId: z.uuid(),
+      eventCallTime: z.string(),
+      eventDate: z.string(),
+      eventDetails: z.string(),
+      eventLocation: z.string(),
+      eventTitle: z.string(),
+      eventType: z.string(),
+      eventTicketPath: z.string().max(320).default(""),
+      setlist: z.string(),
+    })
+    .nullable(),
+  deliveries: z
+    .array(
+      z.object({
+        channel: z.enum(["email", "sms"]),
+        destination: z.string().min(1).max(320),
+        id: z.uuid(),
+        profileId: z.uuid(),
+        recipientName: z.string().min(1).max(200),
+        subject: communicationRecipientSubjectSchema.optional(),
+        unsubscribeUrl: z.url().max(4_096).nullable(),
+      }),
+    )
+    .max(COMMUNICATION_DELIVERY_BATCH_SIZE),
+  messageId: z.uuid(),
+  subject: z.string().max(300),
+});

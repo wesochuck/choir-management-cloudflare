@@ -20,6 +20,7 @@ export function SaveAsTemplateDialog({
 
   async function handleSubmit(event: React.SyntheticEvent) {
     event.preventDefault();
+    event.stopPropagation();
     if (!title.trim()) return;
     await onSave(title.trim());
   }

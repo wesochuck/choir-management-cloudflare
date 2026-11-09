@@ -20,6 +20,7 @@ export function CommunicationTestDialog({
 
   async function handleSubmit(event: React.SyntheticEvent) {
     event.preventDefault();
+    event.stopPropagation();
     if (!email.trim()) return;
     await onSend(email.trim());
   }

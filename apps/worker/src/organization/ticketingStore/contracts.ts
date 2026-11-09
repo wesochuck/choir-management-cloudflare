@@ -243,6 +243,7 @@ export interface DiscountCodeRow {
   readonly updatedAt: string;
 }
 
+// Preserve the timezone captured at checkout, including UTC, after Organization settings change.
 export const purchaseSelect = `SELECT id, event_id AS eventId, event_title AS eventTitle,
   event_starts_at AS eventStartsAt, event_timezone AS timezone,
   bundle_id AS bundleId, bundle_title AS bundleTitle,

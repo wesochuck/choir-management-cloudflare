@@ -2516,6 +2516,16 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
         ON notification_receipts(expires_at)`,
     ],
   },
+  {
+    version: 138,
+    statements: [
+      "ALTER TABLE communication_deliveries ADD COLUMN delivery_job_id TEXT",
+      // Claims, replay, and continuation seek one campaign/job partition rather than
+      // scanning delivered history on every 50-recipient batch.
+      `CREATE INDEX idx_communication_deliveries_batch
+       ON communication_deliveries(message_id, delivery_job_id, status, id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

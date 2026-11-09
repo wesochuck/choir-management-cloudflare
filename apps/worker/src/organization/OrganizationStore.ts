@@ -1,4 +1,13 @@
 import {
+  checkCommunicationDelivery,
+  type CommunicationDeliveryCheckInput,
+  communicationBatchInputSchema,
+  finishCommunicationBatch,
+  type CommunicationBatchInput,
+} from "./communicationStore/batches";
+import { readCommunicationJobFromStore } from "./communicationStore/deliveryQueries";
+import { deliveryJobResponseSchema } from "./communicationStore/contracts";
+import {
   claimCheckoutReminder,
   confirmCheckoutReminderSend,
   checkoutReminderDestination,
@@ -900,6 +909,25 @@ export class OrganizationStore extends DurableObject {
     readonly organizationId: string;
   }) {
     return getPublicWebsiteDocumentForDownloadFromStore(this.ctx.storage, input);
+  }
+
+  async claimCommunicationDeliveryBatch(input: CommunicationBatchInput) {
+    const parsed = communicationBatchInputSchema.parse(input);
+    const response = readCommunicationJobFromStore(
+      this.ctx.storage,
+      parsed.organizationId,
+      parsed.jobId,
+    );
+    if (!response.ok) throw new Error("communication_batch_unavailable");
+    return deliveryJobResponseSchema.parse(await response.json());
+  }
+
+  checkCommunicationDelivery(input: CommunicationDeliveryCheckInput) {
+    return checkCommunicationDelivery(this.ctx.storage, input);
+  }
+
+  async finishCommunicationDeliveryBatch(input: CommunicationBatchInput) {
+    return finishCommunicationBatch(this.ctx.storage, input);
   }
 
   private async dispatchRpcCall(call: OrganizationRpcCall): Promise<OrganizationRpcResult> {

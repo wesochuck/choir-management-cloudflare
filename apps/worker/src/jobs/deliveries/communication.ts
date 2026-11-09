@@ -1,13 +1,11 @@
+import { organizationStoreStub } from "../../organization/rpc/client";
 import {
   extractCommunicationPlaceholders,
   renderCommunicationTemplate,
   renderOrganizationLogoPlaceholder,
 } from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
-import {
-  readCommunicationDeliveryJob,
-  recordCommunicationDeliveryResults,
-} from "../../organization/organizationCommunications";
+import { recordCommunicationDeliveryResults } from "../../organization/organizationCommunications";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
 import {
@@ -23,8 +21,12 @@ import {
 async function renderDeliveryContent(
   env: JobConsumerEnv,
   job: DeliveryJob,
-  deliveryJob: Awaited<ReturnType<typeof readCommunicationDeliveryJob>>,
-  delivery: Awaited<ReturnType<typeof readCommunicationDeliveryJob>>["deliveries"][number],
+  deliveryJob: Awaited<
+    ReturnType<ReturnType<typeof organizationStoreStub>["claimCommunicationDeliveryBatch"]>
+  >,
+  delivery: Awaited<
+    ReturnType<ReturnType<typeof organizationStoreStub>["claimCommunicationDeliveryBatch"]>
+  >["deliveries"][number],
   orgName: string,
   logoUrl: string | null,
   canonicalOrigin: string | null,
@@ -85,7 +87,11 @@ export async function deliverCommunicationJob(
   env: JobConsumerEnv,
   job: DeliveryJob,
 ): Promise<void> {
-  const deliveryJob = await readCommunicationDeliveryJob(env, job.organizationId, job.jobId);
+  const stub = organizationStoreStub(env, job.organizationId);
+  const deliveryJob = await stub.claimCommunicationDeliveryBatch({
+    organizationId: job.organizationId,
+    jobId: job.jobId,
+  });
   const senderConfig = await readOrganizationEmailSenderConfig(env, job.organizationId);
   const branding = await readOrganizationBrandingConfig(env, job.organizationId);
   const trimmedOrgName = branding.organizationName.trim();
@@ -136,6 +142,14 @@ export async function deliverCommunicationJob(
       continue;
     }
 
+    if (
+      !(await stub.checkCommunicationDelivery({
+        organizationId: job.organizationId,
+        jobId: job.jobId,
+        deliveryId: delivery.id,
+      }))
+    )
+      continue;
     const result = await deliverOrganizationCommunication(env, {
       channel: delivery.channel,
       contentMarkdown: renderedContent,
@@ -164,4 +178,8 @@ export async function deliverCommunicationJob(
       results: [{ deliveryId: delivery.id, ...result }],
     });
   }
+  await stub.finishCommunicationDeliveryBatch({
+    organizationId: job.organizationId,
+    jobId: job.jobId,
+  });
 }

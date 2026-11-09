@@ -42,7 +42,9 @@ interface MessageComposerProps {
   readonly onContentChange: (value: string) => void;
   readonly onOpenReview: () => void;
   readonly onOpenSaveTemplate: () => void;
-  readonly onOpenTestEmail: () => void;
+  readonly onOpenTestEmail?: (() => void) | undefined;
+  readonly onSendTestEmail?: ((email: string) => Promise<void>) | undefined;
+  readonly testEmailError?: string | null | undefined;
   readonly onRemoveConflictingPlaceholder: (tag: string) => void;
   readonly onSaveDraft: () => void;
   readonly onSubjectChange: (value: string) => void;
@@ -335,24 +337,156 @@ function PersonalizeSection({
   );
 }
 
+function getStoredTestEmail(): string {
+  try {
+    if (typeof window !== "undefined" && typeof window.localStorage !== "undefined") {
+      return window.localStorage.getItem("communication_test_recipient_email") ?? "";
+    }
+  } catch {
+    // Ignore storage errors in restricted contexts
+  }
+  return "";
+}
+
+function setStoredTestEmail(email: string): void {
+  try {
+    if (typeof window !== "undefined" && typeof window.localStorage !== "undefined") {
+      window.localStorage.setItem("communication_test_recipient_email", email);
+    }
+  } catch {
+    // Ignore storage errors in restricted contexts
+  }
+}
+
+function ComposerTestPanel({
+  busy,
+  error,
+  idPrefix,
+  onClose,
+  onSend,
+}: {
+  readonly busy: boolean;
+  readonly error?: string | null | undefined;
+  readonly idPrefix: string;
+  readonly onClose: () => void;
+  readonly onSend: (email: string) => Promise<void>;
+}) {
+  const [email, setEmail] = useState(() => getStoredTestEmail());
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  async function handleSend(): Promise<void> {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setValidationError("Enter a test recipient email.");
+      return;
+    }
+    if (!trimmed.includes("@") || !trimmed.includes(".")) {
+      setValidationError("Enter a valid email address.");
+      return;
+    }
+    setValidationError(null);
+    setStoredTestEmail(trimmed);
+    try {
+      await onSend(trimmed);
+      onClose();
+    } catch {
+      // Keep panel open so user can retry or correct inputs
+    }
+  }
+
+  return (
+    <div aria-label="Send test email" className="communication-test-panel" role="region">
+      <div className="communication-test-panel__header">
+        <h5 className="communication-test-panel__title">Send test email</h5>
+        <p className="communication-test-panel__description">
+          Send a test version of this message using the current draft and sample recipient values.
+        </p>
+      </div>
+
+      {validationError || error ? (
+        <p className="notice notice--error" role="alert">
+          {validationError ?? error}
+        </p>
+      ) : null}
+
+      <div className="communication-test-panel__controls">
+        <div className="field">
+          <label htmlFor={`${idPrefix}-test-email`}>Test recipient email</label>
+          <div className="communication-test-panel__input-row">
+            <input
+              autoFocus
+              className="input"
+              disabled={busy}
+              id={`${idPrefix}-test-email`}
+              maxLength={320}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (validationError) setValidationError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleSend();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  onClose();
+                }
+              }}
+              placeholder="you@example.test"
+              required
+              type="email"
+              value={email}
+            />
+            <button
+              className="button button--primary"
+              disabled={busy || !email.trim()}
+              onClick={() => {
+                void handleSend();
+              }}
+              type="button"
+            >
+              {busy ? "Sending…" : "Send test email"}
+            </button>
+            <button
+              className="button button--secondary"
+              disabled={busy}
+              onClick={onClose}
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="field-help">
+            The test email will resolve sample recipient and event data matching the live preview.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ComposerActionBar({
   busy,
   channel,
   contentMarkdown,
   isSendDisabled,
+  isTestOpen,
   onOpenReview,
   onOpenSaveTemplate,
   onOpenTestEmail,
   onSaveDraft,
+  onToggleTest,
 }: {
   readonly busy: boolean;
   readonly channel: CommunicationChannel;
   readonly contentMarkdown: string;
   readonly isSendDisabled: boolean;
+  readonly isTestOpen: boolean;
   readonly onOpenReview: () => void;
   readonly onOpenSaveTemplate: () => void;
-  readonly onOpenTestEmail: () => void;
+  readonly onOpenTestEmail?: (() => void) | undefined;
   readonly onSaveDraft: () => void;
+  readonly onToggleTest?: (() => void) | undefined;
 }) {
   const isTemplateDisabled = busy || contentMarkdown.trim().length === 0;
   const isTestDisabled = busy || contentMarkdown.trim().length === 0;
@@ -383,15 +517,22 @@ function ComposerActionBar({
         </button>
         {channel !== "SMS" ? (
           <button
+            aria-expanded={onToggleTest ? isTestOpen : undefined}
             className="button button--secondary"
             disabled={isTestDisabled}
-            onClick={onOpenTestEmail}
+            onClick={() => {
+              if (onToggleTest) {
+                onToggleTest();
+              } else if (onOpenTestEmail) {
+                onOpenTestEmail();
+              }
+            }}
             title={
               contentMarkdown.trim().length === 0 ? "Enter message body to send a test" : undefined
             }
             type="button"
           >
-            Send test
+            {onToggleTest && isTestOpen ? "Close test" : "Send test"}
           </button>
         ) : null}
       </div>
@@ -425,6 +566,8 @@ export function MessageComposer({
   onOpenReview,
   onOpenSaveTemplate,
   onOpenTestEmail,
+  onSendTestEmail,
+  testEmailError,
   onRemoveConflictingPlaceholder,
   onSaveDraft,
   onSubjectChange,
@@ -439,6 +582,7 @@ export function MessageComposer({
   subject,
   templates,
 }: MessageComposerProps) {
+  const [isTestOpen, setIsTestOpen] = useState(false);
   const [previewSize, setPreviewSize] = useState<"desktop" | "mobile">("desktop");
   const placeholderPickerRef = useRef<HTMLDetailsElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -732,15 +876,36 @@ export function MessageComposer({
       </div>
 
       {/* 6. Persistent Composer Action Bar */}
+      {isTestOpen && onSendTestEmail ? (
+        <ComposerTestPanel
+          busy={busy}
+          error={testEmailError}
+          idPrefix={idPrefix}
+          onClose={() => {
+            setIsTestOpen(false);
+          }}
+          onSend={async (email) => {
+            await onSendTestEmail(email);
+          }}
+        />
+      ) : null}
       <ComposerActionBar
         busy={busy}
         channel={channel}
         contentMarkdown={contentMarkdown}
         isSendDisabled={isSendDisabled}
+        isTestOpen={isTestOpen}
         onOpenReview={onOpenReview}
         onOpenSaveTemplate={onOpenSaveTemplate}
         onOpenTestEmail={onOpenTestEmail}
         onSaveDraft={onSaveDraft}
+        onToggleTest={
+          onSendTestEmail
+            ? () => {
+                setIsTestOpen((open) => !open);
+              }
+            : undefined
+        }
       />
       {confirmationDialog}
     </div>

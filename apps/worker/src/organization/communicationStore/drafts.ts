@@ -9,14 +9,14 @@ import type {
 } from "./contracts";
 import { audit, eventPromotionIsEligible, readMessage } from "./shared";
 
-export function updatePromotionDraftForSend(
+export function updateReviewedDraftForSend(
   storage: DurableObjectStorage,
   operation: z.infer<typeof sendOperationSchema>,
   reach: ReturnType<typeof communicationReach>,
   now: string,
 ): boolean {
   const promotion = operation.message.eventPromotion;
-  if (!promotion || !eventPromotionIsEligible(storage, promotion.eventId, now)) return false;
+  if (promotion && !eventPromotionIsEligible(storage, promotion.eventId, now)) return false;
   const draft = storage.sql
     .exec<{
       readonly draftRevision: number;
@@ -36,7 +36,7 @@ export function updatePromotionDraftForSend(
   if (
     draft?.status !== "Draft" ||
     draft.draftRevision !== operation.message.expectedRevision ||
-    JSON.stringify(storedPromotion) !== JSON.stringify(promotion)
+    JSON.stringify(storedPromotion) !== JSON.stringify(promotion ?? null)
   ) {
     return false;
   }
@@ -133,8 +133,10 @@ export function targetEventPurchaseExists(
   column: "contact_id" | "normalized_buyer_email",
   values: readonly string[],
 ): boolean {
-  for (let offset = 0; offset < values.length; offset += 400) {
-    const batch = values.slice(offset, offset + 400);
+  // Each value is bound twice, plus two event IDs: 49 * 2 + 2 = 100.
+  const batchSize = 49;
+  for (let offset = 0; offset < values.length; offset += batchSize) {
+    const batch = values.slice(offset, offset + batchSize);
     const placeholders = batch.map(() => "?").join(", ");
     const found = storage.sql
       .exec<{ readonly id: string }>(

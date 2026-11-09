@@ -168,7 +168,7 @@ export function useCommunicationComposer({
   const resumeDraft = useCallback(
     (draft: CommunicationMessage) => {
       setSendIdempotencyKey(crypto.randomUUID());
-      setActiveDraft(draft.eventPromotion ? draft : null);
+      setActiveDraft(draft);
       setEventPromotion(draft.eventPromotion);
       audienceRef.current = draft.audience;
       setAudience(draft.audience);
@@ -304,12 +304,12 @@ export function useCommunicationComposer({
         channel,
         contentMarkdown,
         ...(eventPromotion ? { eventPromotion } : {}),
-        ...(eventPromotion && activeDraft
+        ...(activeDraft
           ? { expectedRevision: activeDraft.draftRevision, messageId: activeDraft.id }
           : {}),
         subject,
       });
-      if (saved.eventPromotion) setActiveDraft(saved);
+      setActiveDraft(saved);
       setReviewSnapshot(null);
       setMessages((current) => [saved, ...current.filter((m) => m.id !== saved.id)]);
       void loadHistoryPage(statusFilter, originFilter, currentCursor);
@@ -336,6 +336,8 @@ export function useCommunicationComposer({
     subject,
   ]);
 
+  const needsPersistedReview = Boolean(eventPromotion) || (reachState.data?.total ?? 0) > 500;
+
   const openReviewAndSend = useCallback(async () => {
     if (contextIssues.length > 0) return;
     setBusy(true);
@@ -345,8 +347,8 @@ export function useCommunicationComposer({
         audience,
         channel,
       };
-      if (eventPromotion) {
-        if (!activeDraft) {
+      if (needsPersistedReview) {
+        if (eventPromotion && !activeDraft) {
           setError("Save the event promotion draft before reviewing it in Communications.");
           return;
         }
@@ -354,9 +356,10 @@ export function useCommunicationComposer({
           audience,
           channel,
           contentMarkdown,
-          eventPromotion,
-          expectedRevision: activeDraft.draftRevision,
-          messageId: activeDraft.id,
+          ...(eventPromotion ? { eventPromotion } : {}),
+          ...(activeDraft
+            ? { expectedRevision: activeDraft.draftRevision, messageId: activeDraft.id }
+            : {}),
           subject,
         });
         setActiveDraft(saved);
@@ -366,7 +369,7 @@ export function useCommunicationComposer({
           channel,
           contentMarkdown,
           draftRevision: saved.draftRevision,
-          eventPromotion,
+          ...(eventPromotion ? { eventPromotion } : {}),
           messageId: saved.id,
           subject,
         };
@@ -377,21 +380,13 @@ export function useCommunicationComposer({
         setError("No reachable recipients found for the selected criteria.");
         return;
       }
-      if (freshReach.ticketBuyerPurchasesOverLimit > 0) {
+      if (freshReach.ticketBuyerPurchasesOverLimit > 0 || freshReach.audienceOverLimit) {
         setError(
-          audience.excludeTicketBuyersForEventId
-            ? "This past ticket-buyer audience exceeds the 500-recipient event-promotion limit. Narrow the audience before sending."
-            : "This event has more than 1,000 paid ticket orders, so the complete audience cannot be sent in one message.",
+          "This audience exceeds the 10,000-recipient limit. Narrow the audience before sending.",
         );
         return;
       }
-      if (freshReach.audienceOverLimit) {
-        setError(
-          "This event promotion audience exceeds the 500-recipient limit. Narrow the audience before sending.",
-        );
-        return;
-      }
-      if (eventPromotion && !freshReach.reviewSnapshot) {
+      if (needsPersistedReview && !freshReach.reviewSnapshot) {
         setError("The recipient review could not be verified. Reopen it before sending.");
         return;
       }
@@ -404,6 +399,7 @@ export function useCommunicationComposer({
     }
   }, [
     activeDraft,
+    needsPersistedReview,
     audience,
     channel,
     contentMarkdown,
@@ -425,10 +421,10 @@ export function useCommunicationComposer({
           channel,
           contentMarkdown,
           ...(eventPromotion ? { eventPromotion } : {}),
-          ...(eventPromotion && activeDraft
+          ...((eventPromotion || reviewSnapshot) && activeDraft
             ? { expectedRevision: activeDraft.draftRevision, messageId: activeDraft.id }
             : {}),
-          ...(eventPromotion && reviewSnapshot ? { reviewSnapshot } : {}),
+          ...(reviewSnapshot ? { reviewSnapshot } : {}),
           subject,
         },
         sendIdempotencyKey,
@@ -478,6 +474,9 @@ export function useCommunicationComposer({
       setBusy(true);
       setError(null);
       try {
+        if (eventPromotion) {
+          await saveDraftAction();
+        }
         await sendOrganizationCommunicationTestEmail(
           {
             audience,
@@ -492,11 +491,21 @@ export function useCommunicationComposer({
         setSuccessNotice(`Test email sent to ${email}.`);
       } catch (err: unknown) {
         setError(failureMessage(err));
+        throw err;
       } finally {
         setBusy(false);
       }
     },
-    [audience, contentMarkdown, eventPromotion, setBusy, setError, setSuccessNotice, subject],
+    [
+      audience,
+      contentMarkdown,
+      eventPromotion,
+      saveDraftAction,
+      setBusy,
+      setError,
+      setSuccessNotice,
+      subject,
+    ],
   );
 
   return {

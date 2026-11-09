@@ -1,4 +1,5 @@
 import { runInDurableObject } from "cloudflare:test";
+import { futureDateString, futureIsoDate } from "@choir/testkit";
 import {
   communicationDeliveryRecipientsPageResponseSchema,
   communicationHistoryPageResponseSchema,
@@ -159,6 +160,203 @@ describe("Organization communications pagination and keyset cursors", () => {
     );
     expect(invalidResponse.status).toBe(400);
   });
+
+  it.each([
+    { isPromotion: false, selectByIds: false },
+    { isPromotion: true, selectByIds: false },
+    { isPromotion: false, selectByIds: true },
+    { isPromotion: true, selectByIds: true },
+  ])(
+    "previews, saves, and queues a large Contact audience ($isPromotion promotion, $selectByIds selection) with suppression across query batches",
+    async ({ isPromotion, selectByIds }) => {
+      const cookie = await signIn();
+      const listId = crypto.randomUUID();
+      const organizationStub = stores.get(stores.idFromName("organization-alpha"));
+      const contactIds = await runInDurableObject<OrganizationStore, string[]>(
+        organizationStub,
+        (_instance, state) => {
+          const now = new Date().toISOString();
+          state.storage.sql.exec(
+            "INSERT INTO contact_lists (id, name, description, created_at, updated_at) VALUES (?, 'Imported audience', '', ?, ?)",
+            listId,
+            now,
+            now,
+          );
+          const ids: string[] = [];
+          for (let index = 0; index < 201; index += 1) {
+            const id = crypto.randomUUID();
+            ids.push(id);
+            const suffix = String(index).padStart(3, "0");
+            const email = `contact${suffix}@example.test`;
+            const profileId = selectByIds ? crypto.randomUUID() : null;
+            if (profileId) {
+              state.storage.sql.exec(
+                "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                profileId,
+                `Linked ${suffix}`,
+                now,
+                now,
+              );
+            }
+            state.storage.sql.exec(
+              `INSERT INTO contacts (id, display_name, email, normalized_email, profile_id, source, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'import', ?, ?)`,
+              id,
+              `Contact ${suffix}`,
+              email,
+              email,
+              profileId,
+              now,
+              now,
+            );
+            state.storage.sql.exec(
+              "INSERT INTO contact_list_memberships (contact_id, list_id, created_at) VALUES (?, ?, ?)",
+              id,
+              listId,
+              now,
+            );
+          }
+          return ids;
+        },
+      );
+      for (const index of [0, 100, 200]) {
+        await database
+          .prepare(
+            `INSERT INTO email_recipient_suppressions
+          (email_normalized, reason, source_event_id, provider_message_id, active, created_at, updated_at)
+         VALUES (?, 'bounce', 'test-event', 'test-provider-message', 1, ?, ?)`,
+          )
+          .bind(
+            `contact${String(index).padStart(3, "0")}@example.test`,
+            new Date().toISOString(),
+            new Date().toISOString(),
+          )
+          .run();
+      }
+      let eventPromotion:
+        { announcementKind: "initial"; eventId: string; parentMessageId: null } | undefined;
+      if (isPromotion) {
+        const venueResponse = await write("alpha.localhost", "/api/organization/venues", cookie, {
+          address: "1 Test Way",
+          name: "Promotion Hall",
+        });
+        const venueId = organizationVenueSchema.parse(await venueResponse.json()).id;
+        const eventResponse = await write("alpha.localhost", "/api/organization/events", cookie, {
+          advancePriceCents: 1000,
+          callTime: "",
+          dayOfPriceCents: 1200,
+          details: "",
+          doorsOpenTime: "",
+          durationMinutes: null,
+          isTicketingEnabled: true,
+          location: "",
+          parentPerformanceId: null,
+          publicDetails: "",
+          publicGraphicFileId: null,
+          publishOnWebsite: true,
+          rsvpDeadlineDate: futureDateString({ days: 20 }),
+          rsvpFollowUpLeadHours: null,
+          rsvpFollowUpMode: "inherit",
+          setList: [],
+          setListApproved: false,
+          startsAt: futureIsoDate({ days: 30 }),
+          ticketCapacity: 300,
+          title: "Contact invitation concert",
+          type: "Performance",
+          venueId,
+        });
+        expect(eventResponse.status).toBe(201);
+        const eventId = organizationEventSchema.parse(await eventResponse.json()).id;
+        eventPromotion = { announcementKind: "initial", eventId, parentMessageId: null };
+      }
+      const audience = {
+        contactIds: selectByIds ? contactIds : [],
+        contactListIds: selectByIds ? [] : [listId],
+        contactSource: "import",
+        targetAudiences: ["Contacts"],
+        ...(eventPromotion ? { excludeTicketBuyersForEventId: eventPromotion.eventId } : {}),
+      };
+      const message = {
+        audience,
+        channel: "Email",
+        contentMarkdown: "Join us.",
+        subject: "Invitation",
+      };
+      const reachResponse = await write(
+        "alpha.localhost",
+        "/api/organization/communications/reach-preview",
+        cookie,
+        message,
+      );
+      expect(reachResponse.status).toBe(200);
+      expect(communicationReachResponseSchema.parse(await reachResponse.json())).toMatchObject({
+        email: 198,
+        total: 198,
+        unreachable: 3,
+      });
+      const draftResponse = await write(
+        "alpha.localhost",
+        "/api/organization/communications/drafts",
+        cookie,
+        { ...message, eventPromotion },
+      );
+      expect(draftResponse.status).toBe(201);
+      const draft = communicationMessageResponseSchema.parse(await draftResponse.json());
+      expect(draft).toMatchObject({ status: "Draft", reach: { email: 198, unreachable: 3 } });
+      const reviewResponse = await write(
+        "alpha.localhost",
+        "/api/organization/communications/reach-preview",
+        cookie,
+        {
+          ...message,
+          eventPromotion,
+          messageId: draft.id,
+          draftRevision: draft.draftRevision,
+        },
+      );
+      expect(reviewResponse.status).toBe(200);
+      const review = communicationReachResponseSchema.parse(await reviewResponse.json());
+      expect(review.email).toBe(198);
+      if (isPromotion) expect(review.reviewSnapshot).toBeTruthy();
+      const sendResponse = await write(
+        "alpha.localhost",
+        "/api/organization/communications/send",
+        cookie,
+        {
+          ...message,
+          eventPromotion,
+          ...(eventPromotion
+            ? {
+                messageId: draft.id,
+                expectedRevision: draft.draftRevision,
+                reviewSnapshot: review.reviewSnapshot,
+              }
+            : {}),
+        },
+      );
+      expect(sendResponse.status).toBe(202);
+      const queued = communicationMessageResponseSchema.parse(await sendResponse.json());
+      expect(queued.reach.email).toBe(198);
+      await runInDurableObject<OrganizationStore, undefined>(
+        organizationStub,
+        (_instance, state) => {
+          const deliveries = state.storage.sql
+            .exec<{ destination: string }>(
+              "SELECT destination FROM communication_deliveries WHERE message_id = ?",
+              queued.id,
+            )
+            .toArray();
+          expect(deliveries).toHaveLength(198);
+          const destinations = new Set(deliveries.map(({ destination }) => destination));
+          for (const index of [0, 100, 200]) {
+            expect(destinations).not.toContain(
+              `contact${String(index).padStart(3, "0")}@example.test`,
+            );
+          }
+        },
+      );
+    },
+  );
 
   it("reuses a client-stable event promotion draft ID when the save response is retried", async () => {
     const cookie = await signIn();

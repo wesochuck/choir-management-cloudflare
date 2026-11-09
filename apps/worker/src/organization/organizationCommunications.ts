@@ -1,4 +1,5 @@
 import {
+  COMMUNICATION_RECIPIENTS_MAX,
   communicationDeliveryRecipientsPageResponseSchema,
   communicationDeliverySummarySchema,
   communicationHistoryPageResponseSchema,
@@ -60,10 +61,11 @@ import {
   storeErrorCode,
   storeErrorStatus,
 } from "./rpc/repository";
-import type { InboxNotification } from "./communicationStore/contracts";
+import { deliveryJobResponseSchema, type InboxNotification } from "./communicationStore/contracts";
 
 const candidateResponseSchema = z.object({
   contactsOverLimit: z.boolean().default(false),
+  audienceOverLimit: z.boolean().default(false),
   ticketBuyerPurchasesOverLimit: z.number().int().nonnegative().default(0),
   undeliverableTicketBuyerPurchases: z.number().int().nonnegative().default(0),
   recipients: z.array(
@@ -83,37 +85,9 @@ const candidateResponseSchema = z.object({
     }),
   ),
 });
-const EMAIL_SUPPRESSION_LOOKUP_BATCH_SIZE = 500;
-export const deliveryJobResponseSchema = z.object({
-  contentMarkdown: z.string().max(100_000),
-  ticketServiceNotice: z.boolean().default(false),
-  context: z
-    .object({
-      eventId: z.uuid(),
-      eventCallTime: z.string(),
-      eventDate: z.string(),
-      eventDetails: z.string(),
-      eventLocation: z.string(),
-      eventTitle: z.string(),
-      eventType: z.string(),
-      eventTicketPath: z.string().max(320).default(""),
-      setlist: z.string(),
-    })
-    .nullable(),
-  deliveries: z.array(
-    z.object({
-      channel: z.enum(["email", "sms"]),
-      destination: z.string().min(1).max(320),
-      id: z.uuid(),
-      profileId: z.uuid(),
-      recipientName: z.string().min(1).max(200),
-      subject: communicationRecipientSubjectSchema.optional(),
-      unsubscribeUrl: z.url().max(4_096).nullable(),
-    }),
-  ),
-  messageId: z.uuid(),
-  subject: z.string().max(300),
-});
+// D1 permits at most 100 bound parameters per statement. Each email uses one.
+const EMAIL_SUPPRESSION_LOOKUP_BATCH_SIZE = 100;
+export { deliveryJobResponseSchema } from "./communicationStore/contracts";
 const retryResponseSchema = z.object({
   messageId: z.uuid(),
   retried: z.number().int().nonnegative(),
@@ -240,53 +214,60 @@ async function resolveRecipients(
     };
   });
   const resolved = dedupeCommunicationCandidates(domainCandidates);
+  const audienceOverLimit =
+    resolution.audienceOverLimit ||
+    resolution.contactsOverLimit ||
+    resolved.length > COMMUNICATION_RECIPIENTS_MAX;
   const globallySuppressed = await globallySuppressedEmails(database, resolved);
-  const recipients = await Promise.all(
-    resolved.map(async (recipient) => {
-      const subject = subjectFromKindId(recipient.subjectKind, recipient.subjectId);
-      // Phase 7 typed unsubscribe subject: profile and contact recipients
-      // carry their kind in `resourceId` with the underlying ID in
-      // `subjectId`. Legacy profile tokens omit `resourceId` and still verify
-      // as profiles. Phase 9 resolves Ticket Buyer and Donor audiences to
-      // contact subjects, so commerce recipients carry contact tokens too;
-      // historical `ticket_purchase`/`donation` subjects never verify and are
-      // never minted for new sends.
-      const tokenable =
-        audience.ticketBuyerMode !== "ticket_service" &&
-        recipient.email !== "" &&
-        unsubscribeOrigin !== null &&
-        (subject.kind === "contact" || subject.kind === "profile");
-      const token = tokenable
-        ? await issueSignedLink(env.SIGNED_LINK_SECRET, {
-            algorithm: "HS256",
-            expiresAt: issuedAt + 365 * 24 * 60 * 60,
-            issuedAt,
-            organizationId,
-            purpose: "unsubscribe",
-            resourceId: subject.kind,
-            revocation: "email-v1",
-            subjectId: recipient.subjectId,
-            version: 1,
-          })
-        : null;
-      return {
-        email: globallySuppressed.has(normalizeEmail(recipient.email)) ? "" : recipient.email,
-        name: recipient.displayName,
-        phone: recipient.phone,
-        profileId: recipient.subjectId,
-        subject,
-        unsubscribeUrl:
-          token && unsubscribeOrigin
-            ? `${unsubscribeOrigin}/unsubscribe?token=${encodeURIComponent(token)}`
-            : null,
-      };
-    }),
-  );
+  const recipients: Recipient[] = [];
+  for (let offset = 0; offset < resolved.length; offset += 100) {
+    recipients.push(
+      ...(await Promise.all(
+        resolved.slice(offset, offset + 100).map(async (recipient) => {
+          const subject = subjectFromKindId(recipient.subjectKind, recipient.subjectId);
+          // Phase 7 typed unsubscribe subject: profile and contact recipients
+          // carry their kind in `resourceId` with the underlying ID in
+          // `subjectId`. Legacy profile tokens omit `resourceId` and still verify
+          // as profiles. Phase 9 resolves Ticket Buyer and Donor audiences to
+          // contact subjects, so commerce recipients carry contact tokens too;
+          // historical `ticket_purchase`/`donation` subjects never verify and are
+          // never minted for new sends.
+          const tokenable =
+            !audienceOverLimit &&
+            audience.ticketBuyerMode !== "ticket_service" &&
+            recipient.email !== "" &&
+            unsubscribeOrigin !== null &&
+            (subject.kind === "contact" || subject.kind === "profile");
+          const token = tokenable
+            ? await issueSignedLink(env.SIGNED_LINK_SECRET, {
+                algorithm: "HS256",
+                expiresAt: issuedAt + 365 * 24 * 60 * 60,
+                issuedAt,
+                organizationId,
+                purpose: "unsubscribe",
+                resourceId: subject.kind,
+                revocation: "email-v1",
+                subjectId: recipient.subjectId,
+                version: 1,
+              })
+            : null;
+          return {
+            email: globallySuppressed.has(normalizeEmail(recipient.email)) ? "" : recipient.email,
+            name: recipient.displayName,
+            phone: recipient.phone,
+            profileId: recipient.subjectId,
+            subject,
+            unsubscribeUrl:
+              token && unsubscribeOrigin
+                ? `${unsubscribeOrigin}/unsubscribe?token=${encodeURIComponent(token)}`
+                : null,
+          };
+        }),
+      )),
+    );
+  }
   return {
-    audienceOverLimit:
-      audience.excludeTicketBuyersForEventId !== undefined &&
-      audience.excludeTicketBuyersForEventId !== null &&
-      (resolution.contactsOverLimit || resolved.length > 500),
+    audienceOverLimit,
     recipients,
     ticketBuyerPurchasesOverLimit: resolution.ticketBuyerPurchasesOverLimit,
     undeliverableTicketBuyerPurchases: resolution.undeliverableTicketBuyerPurchases,
@@ -342,7 +323,7 @@ export async function previewCommunicationReach(
     resolution.ticketBuyerPurchasesOverLimit,
     resolution.audienceOverLimit,
   );
-  if (!request.eventPromotion) return reach;
+  if (!request.eventPromotion && !request.messageId) return reach;
   if (
     !request.messageId ||
     !request.draftRevision ||
@@ -353,9 +334,10 @@ export async function previewCommunicationReach(
   }
   const reviewSnapshot = await issuePromotionReviewSnapshot(env.SIGNED_LINK_SECRET, {
     audience: request.audience,
+    channel: request.channel,
     contentMarkdown: request.contentMarkdown,
     draftRevision: request.draftRevision,
-    eventId: request.eventPromotion.eventId,
+    eventId: request.eventPromotion?.eventId ?? null,
     messageId: request.messageId,
     organizationId,
     recipients: resolution.recipients,
@@ -401,6 +383,48 @@ export async function saveCommunicationDraft(
   return communicationMessageSchema.parse(await response.json());
 }
 
+async function assertCommunicationReview(
+  env: Env,
+  organizationId: string,
+  message: CommunicationSendRequest,
+  recipients: readonly Recipient[],
+): Promise<void> {
+  if (
+    !message.eventPromotion &&
+    communicationReach(recipients, message.channel).total <= 500 &&
+    !message.reviewSnapshot
+  )
+    return;
+  if (!message.reviewSnapshot || !message.messageId || !message.expectedRevision) {
+    throw new CommunicationRepositoryError("event_promotion_review_required", 409);
+  }
+  const reviewStatus = await verifyPromotionReviewSnapshot(
+    env.SIGNED_LINK_SECRET,
+    message.reviewSnapshot,
+    {
+      audience: message.audience,
+      channel: message.channel,
+      contentMarkdown: message.contentMarkdown,
+      draftRevision: message.expectedRevision,
+      eventId: message.eventPromotion?.eventId ?? null,
+      messageId: message.messageId,
+      organizationId: organizationId,
+      recipients: recipients,
+      subject: message.subject,
+    },
+  );
+  if (reviewStatus !== "valid") {
+    throw new CommunicationRepositoryError(
+      reviewStatus === "expired"
+        ? "event_promotion_review_expired"
+        : reviewStatus === "stale"
+          ? "event_promotion_review_stale"
+          : "event_promotion_review_invalid",
+      409,
+    );
+  }
+}
+
 export async function sendOrganizationCommunication(
   env: Env,
   database: D1Database,
@@ -424,37 +448,9 @@ export async function sendOrganizationCommunication(
     );
   }
   if (resolution.audienceOverLimit) {
-    throw new CommunicationRepositoryError("event_promotion_audience_exceeds_limit", 409);
+    throw new CommunicationRepositoryError("communication_audience_exceeds_limit", 409);
   }
-  if (message.eventPromotion) {
-    if (!message.reviewSnapshot || !message.messageId || !message.expectedRevision) {
-      throw new CommunicationRepositoryError("event_promotion_review_required", 409);
-    }
-    const reviewStatus = await verifyPromotionReviewSnapshot(
-      env.SIGNED_LINK_SECRET,
-      message.reviewSnapshot,
-      {
-        audience: message.audience,
-        contentMarkdown: message.contentMarkdown,
-        draftRevision: message.expectedRevision,
-        eventId: message.eventPromotion.eventId,
-        messageId: message.messageId,
-        organizationId: context.organizationId,
-        recipients: resolution.recipients,
-        subject: message.subject,
-      },
-    );
-    if (reviewStatus !== "valid") {
-      throw new CommunicationRepositoryError(
-        reviewStatus === "expired"
-          ? "event_promotion_review_expired"
-          : reviewStatus === "stale"
-            ? "event_promotion_review_stale"
-            : "event_promotion_review_invalid",
-        409,
-      );
-    }
-  }
+  await assertCommunicationReview(env, context.organizationId, message, resolution.recipients);
   const response = await post(env, context.organizationId, "/internal/communications/manage", {
     action: "send",
     ...context,

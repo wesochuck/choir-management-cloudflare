@@ -224,7 +224,7 @@ export async function requeueJob(
         if (sourceState.ready) {
           storage.sql.exec(
             `UPDATE communication_deliveries
-             SET status = 'queued', failure_detail = '', updated_at = ?
+             SET status = 'queued', delivery_job_id = NULL, failure_detail = '', updated_at = ?
              WHERE message_id = ? AND status IN ('processing', 'failed')`,
             now,
             messageId,

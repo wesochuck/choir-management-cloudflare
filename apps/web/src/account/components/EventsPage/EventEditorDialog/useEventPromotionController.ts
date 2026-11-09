@@ -411,7 +411,7 @@ export function useEventPromotionController({
       }
       if (freshReach.ticketBuyerPurchasesOverLimit > 0 || freshReach.audienceOverLimit) {
         setError(
-          "This audience exceeds the 500-recipient promotion limit. Narrow the source events or Contact filters.",
+          "This audience exceeds the 10,000-recipient promotion limit. Narrow the source events or Contact filters.",
         );
         return;
       }
@@ -467,6 +467,8 @@ export function useEventPromotionController({
     setBusy(true);
     setError(null);
     try {
+      const saved = await persistDraft();
+      if (!saved) return;
       await sendOrganizationCommunicationTestEmail(
         { audience, contentMarkdown, email, eventId: eventPromotion.eventId, subject },
         crypto.randomUUID(),
@@ -475,6 +477,7 @@ export function useEventPromotionController({
       setSuccess(`Test email sent to ${email}.`);
     } catch (testError: unknown) {
       setError(failureMessage(testError));
+      throw testError;
     } finally {
       setBusy(false);
     }

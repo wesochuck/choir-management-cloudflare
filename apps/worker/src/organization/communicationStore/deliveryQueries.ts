@@ -1,3 +1,4 @@
+import { suppressCommunicationBatch } from "./suppression";
 import type { SqlStorageValue } from "@cloudflare/workers-types";
 import {
   communicationDeliveryRecipientSchema,
@@ -8,7 +9,11 @@ import {
 import { summarizeCommunicationDeliveries } from "@choir/domain";
 import { z } from "zod";
 
-import { type DeliveryRow } from "./contracts";
+import {
+  COMMUNICATION_DELIVERY_BATCH_SIZE,
+  MAX_COMMUNICATION_DELIVERIES,
+  type DeliveryRow,
+} from "./contracts";
 import { eventCommunicationContext, identityMatches, readMessage } from "./shared";
 
 interface ProfileDeliveryRow {
@@ -86,7 +91,7 @@ export function readCommunicationSummaryFromStore(
       `SELECT id, message_id AS messageId, recipient_name AS recipientName, channel, destination,
         status, attempts, failure_detail AS failureDetail, provider_status AS providerStatus,
         updated_at AS updatedAt
-       FROM communication_deliveries WHERE message_id = ? ORDER BY id LIMIT 10000`,
+       FROM communication_deliveries WHERE message_id = ? ORDER BY id LIMIT ${String(MAX_COMMUNICATION_DELIVERIES)}`,
       parsedMessageId.data,
     )
     .toArray();
@@ -229,94 +234,35 @@ export function readCommunicationJobFromStore(
       .at(0);
     if (!current || current.canceledAt || current.status !== "Queued") return [];
     const now = new Date().toISOString();
-    const contactPreferenceSuppression =
-      message.audience.ticketBuyerMode === "ticket_service"
-        ? `OR EXISTS (
-             SELECT 1 FROM contact_communication_preferences pref
-             WHERE pref.contact_id = communication_deliveries.profile_id
-               AND pref.channel = 'email' AND pref.status = 'unsubscribed'
-               AND pref.source IN ('provider_bounce', 'provider_complaint')
-           )`
-        : `OR EXISTS (
-             SELECT 1 FROM contact_communication_preferences pref
-             WHERE pref.contact_id = communication_deliveries.profile_id
-               AND pref.channel = 'email' AND pref.status = 'unsubscribed'
-           )`;
-    storage.sql.exec(
-      `UPDATE communication_deliveries
-       SET status = 'suppressed', failure_detail = '', updated_at = ?
-       WHERE message_id = ? AND channel = 'email' AND status = 'queued'
-         AND (
-           EXISTS (
-             SELECT 1 FROM profiles p
-             WHERE p.id IN (
-               communication_deliveries.profile_id,
-               (
-                 SELECT linked_contact.profile_id
-                 FROM contacts linked_contact
-                 WHERE linked_contact.id = communication_deliveries.profile_id
-               )
-             )
-               AND (
-                 p.do_not_email = 1 OR p.provider_email_suppressed = 1
-                 OR p.last_bounce_at <> '' OR EXISTS (
-                   SELECT 1 FROM communication_suppressions s
-                   WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
-                 )
-               )
-           )
-           ${contactPreferenceSuppression}
-           OR EXISTS (
-             SELECT 1 FROM contacts c
-             JOIN contact_communication_preferences pref ON pref.contact_id = c.id
-             WHERE c.profile_id = communication_deliveries.profile_id
-               AND pref.channel = 'email' AND pref.status = 'unsubscribed'
-           )
-           OR EXISTS (
-             SELECT 1 FROM contacts c
-             JOIN communication_suppressions s ON s.profile_id = c.profile_id
-             WHERE c.id = communication_deliveries.profile_id
-               AND s.channel = 'email' AND s.active = 1
-           )
-           OR EXISTS (
-             SELECT 1 FROM communication_messages m, profiles p
-             WHERE m.id = communication_deliveries.message_id
-               AND p.id IN (
-                 communication_deliveries.profile_id,
-                 (
-                   SELECT linked_contact.profile_id
-                   FROM contacts linked_contact
-                   WHERE linked_contact.id = communication_deliveries.profile_id
-                 )
-               )
-               AND (
-                 (
-                   json_extract(m.automation_json, '$.kind') = 'event_reminder'
-                   AND (
-                     (
-                       json_extract(m.automation_json, '$.eventType') = 'Rehearsal'
-                       AND p.receive_rehearsal_reminders = 0
-                     )
-                     OR (
-                       json_extract(m.automation_json, '$.eventType') = 'Performance'
-                       AND p.receive_performance_reminders = 0
-                     )
-                     OR (
-                       json_extract(m.automation_json, '$.eventType') NOT IN ('Rehearsal', 'Performance')
-                       AND p.receive_other_event_reminders = 0
-                     )
-                   )
-                 )
-                 OR (
-                   json_extract(m.automation_json, '$.kind') = 'rsvp_follow_up'
-                   AND json_extract(m.automation_json, '$.eventType') NOT IN ('Rehearsal', 'Performance')
-                   AND p.receive_other_event_reminders = 0
-                 )
-               )
-           )
-         )`,
-      now,
+    const assigned =
+      storage.sql
+        .exec<{ readonly id: string }>(
+          "SELECT id FROM communication_deliveries WHERE message_id = ? AND delivery_job_id = ? LIMIT 1",
+          messageId,
+          parsedJobId.data,
+        )
+        .toArray().length > 0;
+    if (!assigned) {
+      const claimPending = (status: "queued" | "processing") =>
+        storage.sql.exec(
+          `UPDATE communication_deliveries SET delivery_job_id = ?
+         WHERE id IN (SELECT id FROM communication_deliveries
+           WHERE message_id = ? AND delivery_job_id IS NULL AND status = ?
+           ORDER BY id LIMIT ?)`,
+          parsedJobId.data,
+          messageId,
+          status,
+          COMMUNICATION_DELIVERY_BATCH_SIZE,
+        ).rowsWritten;
+      // Pre-batch Workers may have left processing rows without ownership.
+      // Separate indexed seeks avoid sorting all remaining rows across statuses.
+      if (claimPending("queued") === 0) claimPending("processing");
+    }
+    suppressCommunicationBatch(
+      storage,
       messageId,
+      parsedJobId.data,
+      message.audience.ticketBuyerMode === "ticket_service",
     );
     const queued = storage.sql
       .exec<
@@ -334,16 +280,18 @@ export function readCommunicationJobFromStore(
         `SELECT id, message_id AS messageId, profile_id AS profileId, recipient_name AS recipientName,
           channel, destination, unsubscribe_url AS unsubscribeUrl,
           recipient_subject_json AS recipientSubjectJson
-         FROM communication_deliveries WHERE message_id = ? AND status = 'queued'
-         ORDER BY id LIMIT 1000`,
+         FROM communication_deliveries WHERE message_id = ? AND delivery_job_id = ? AND status IN ('queued', 'processing')
+         ORDER BY id LIMIT ${String(COMMUNICATION_DELIVERY_BATCH_SIZE)}`,
         messageId,
+        parsedJobId.data,
       )
       .toArray();
     storage.sql.exec(
       `UPDATE communication_deliveries SET status = 'processing', updated_at = ?
-       WHERE message_id = ? AND status = 'queued'`,
+       WHERE message_id = ? AND delivery_job_id = ? AND status = 'queued'`,
       now,
       messageId,
+      parsedJobId.data,
     );
     return queued.map(
       ({

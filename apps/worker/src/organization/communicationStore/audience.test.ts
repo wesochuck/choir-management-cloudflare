@@ -1011,7 +1011,7 @@ describe("resolveCommunicationAudienceFromStore", () => {
     ]);
   });
 
-  it("bounds each contact audience to 500 recipients", async () => {
+  it("resolves a complete Contact audience beyond the former 500-recipient cap", async () => {
     const { db, storage } = seedDatabase();
     for (let index = 0; index < 505; index += 1) {
       seedContact(db, {
@@ -1020,12 +1020,12 @@ describe("resolveCommunicationAudienceFromStore", () => {
       });
     }
     const { recipients } = await resolveAudience(storage, audienceFor(["Contacts"]));
-    expect(recipients).toHaveLength(500);
+    expect(recipients).toHaveLength(505);
   });
 
-  it("reports a bounded Contact promotion when its audience exceeds 500", async () => {
+  it("reports a bounded Contact promotion when its audience exceeds 10,000", async () => {
     const { db, storage } = seedDatabase();
-    for (let index = 0; index < 501; index += 1) {
+    for (let index = 0; index < 10_001; index += 1) {
       seedContact(db, {
         displayName: `Promotion Contact ${String(index)}`,
         email: `promotion${String(index)}@example.com`,
@@ -1037,7 +1037,7 @@ describe("resolveCommunicationAudienceFromStore", () => {
         excludeTicketBuyersForEventId: uuidFor("promotion-target"),
       }),
     );
-    expect(result.recipients).toHaveLength(500);
+    expect(result.recipients).toHaveLength(10_000);
     expect(result.contactsOverLimit).toBe(true);
   });
 
@@ -1068,7 +1068,7 @@ describe("resolveCommunicationAudienceFromStore", () => {
   it("reports paid ticket orders beyond the bounded service-notice audience", async () => {
     const { db, storage } = seedDatabase();
     const eventId = uuidFor("service-limit-event");
-    for (let index = 0; index < 1_001; index += 1) {
+    for (let index = 0; index < 10_001; index += 1) {
       seedTicketPurchase(
         db,
         `Unlinked buyer ${String(index)}`,
@@ -1085,7 +1085,7 @@ describe("resolveCommunicationAudienceFromStore", () => {
     );
     expect(result.recipients).toEqual([]);
     expect(result.ticketBuyerPurchasesOverLimit).toBe(1);
-    expect(result.undeliverableTicketBuyerPurchases).toBe(1_000);
+    expect(result.undeliverableTicketBuyerPurchases).toBe(10_000);
   });
 
   it("carries the v80 recipient subject column through fresh migrations", () => {
@@ -1192,14 +1192,14 @@ describe("communication send boundaries", () => {
     };
   }
 
-  it("rejects more than 500 recipients overall", () => {
-    expect(sendOperationSchema.safeParse(sendOperation(500)).success).toBe(true);
-    expect(sendOperationSchema.safeParse(sendOperation(501)).success).toBe(false);
+  it("accepts 10,000 recipients and rejects overflow", () => {
+    expect(sendOperationSchema.safeParse(sendOperation(10_000)).success).toBe(true);
+    expect(sendOperationSchema.safeParse(sendOperation(10_001)).success).toBe(false);
   });
 
-  it("allows up to 1,000 email-only ticket-service recipients and rejects overflow", () => {
-    expect(sendOperationSchema.safeParse(sendOperation(1_000, "Email", true)).success).toBe(true);
-    expect(sendOperationSchema.safeParse(sendOperation(1_001, "Email", true)).success).toBe(false);
+  it("allows up to 10,000 email-only ticket-service recipients and rejects overflow", () => {
+    expect(sendOperationSchema.safeParse(sendOperation(10_000, "Email", true)).success).toBe(true);
+    expect(sendOperationSchema.safeParse(sendOperation(10_001, "Email", true)).success).toBe(false);
     expect(
       sendOperationSchema.safeParse({
         ...sendOperation(1, "Email", true),
@@ -1208,9 +1208,9 @@ describe("communication send boundaries", () => {
     ).toBe(false);
   });
 
-  it("holds 500 dual-channel recipients within the 1,000-delivery maximum", () => {
-    // 500 recipients × (email + sms) = exactly 1,000 deliveries: accepted.
-    expect(sendOperationSchema.safeParse(sendOperation(500, "Both")).success).toBe(true);
+  it("holds 10,000 dual-channel recipients within the 20,000-delivery maximum", () => {
+    // 10,000 recipients × (email + sms) = exactly 20,000 deliveries.
+    expect(sendOperationSchema.safeParse(sendOperation(10_000, "Both")).success).toBe(true);
   });
 
   it("blocks event promotions when the bounded preview found audience overflow", () => {

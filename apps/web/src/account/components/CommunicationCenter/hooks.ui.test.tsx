@@ -250,6 +250,76 @@ describe("useCommunicationCenterController filters", () => {
     });
   });
 
+  it("saves and verifies a 10,000-recipient Contact message before sending", async () => {
+    vi.spyOn(apiModule, "getOrganizationCommunicationHistory").mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      requestId: "req-1",
+    });
+    const audience: CommunicationMessage["audience"] = {
+      ...promotionAudience,
+      excludeTicketBuyersForEventId: null,
+      targetAudiences: ["Contacts"],
+      ticketBuyerPastEventsOnly: false,
+    };
+    const draft: CommunicationMessage = {
+      ...promotionDraft(1, "Draft"),
+      audience,
+      eventPromotion: null,
+      contentMarkdown: "Hello {recipientName}.",
+      subject: "Invitation",
+      reach: { ...promotionDraft(1, "Draft").reach, email: 10_000, total: 10_000 },
+    };
+    const saveSpy = vi
+      .spyOn(apiModule, "saveOrganizationCommunicationDraft")
+      .mockResolvedValue({ ...draft, draftRevision: 2 });
+    const previewSpy = vi
+      .spyOn(apiModule, "previewOrganizationCommunicationReach")
+      .mockResolvedValue({
+        ...draft.reach,
+        reviewSnapshot: "verified-large-campaign",
+      });
+    const sendSpy = vi
+      .spyOn(apiModule, "sendOrganizationCommunication")
+      .mockResolvedValue({ ...draft, status: "Queued" });
+    vi.spyOn(apiModule, "getOrganizationCalendarSettings").mockResolvedValue({
+      timezone: "America/New_York",
+    });
+    vi.spyOn(apiModule, "listOrganizationEvents").mockResolvedValue([]);
+    vi.spyOn(apiModule, "listOrganizationCommunicationTemplates").mockResolvedValue([]);
+    vi.spyOn(apiModule, "getOrganizationProviderStatus").mockResolvedValue(mockProviderStatus);
+    vi.spyOn(apiModule, "getOrganizationEmailSettings").mockResolvedValue(mockEmailSettings);
+    vi.spyOn(apiModule, "getOrganizationRosterConfiguration").mockResolvedValue(mockRosterConfig);
+    const { result } = renderHook(() => useCommunicationCenterController({ enabled: true }));
+    act(() => {
+      result.current.resumeDraft(draft);
+    });
+    await waitFor(() => {
+      expect(result.current.reachState.data?.total).toBe(10_000);
+    });
+    await act(async () => result.current.openReviewAndSend());
+    expect(saveSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedRevision: 1, messageId: draft.id }),
+    );
+    expect(previewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        draftRevision: 2,
+        messageId: draft.id,
+        contentMarkdown: draft.contentMarkdown,
+      }),
+    );
+    expect(result.current.isReviewOpen).toBe(true);
+    await act(async () => result.current.sendCommunication());
+    expect(sendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedRevision: 2,
+        messageId: draft.id,
+        reviewSnapshot: "verified-large-campaign",
+      }),
+      expect.any(String),
+    );
+  });
+
   it("resumes and sends an event promotion with its complete audience and persisted revision", async () => {
     const historySpy = vi
       .spyOn(apiModule, "getOrganizationCommunicationHistory")

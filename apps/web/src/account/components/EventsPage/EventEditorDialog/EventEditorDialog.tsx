@@ -617,6 +617,9 @@ export function EventEditorDialog({
                 noValidate
                 onSubmit={(formEvent) => {
                   formEvent.preventDefault();
+                  if (activeSection === "promotion") {
+                    return;
+                  }
                   if (primaryAction.mode === "next" && primaryAction.targetSection) {
                     handleNextSection(primaryAction.targetSection);
                   } else {

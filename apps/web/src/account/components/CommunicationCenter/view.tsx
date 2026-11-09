@@ -219,6 +219,8 @@ export function CommunicationCenterView({
                   onOpenReview={() => void openReviewAndSend()}
                   onOpenSaveTemplate={openSaveAsTemplate}
                   onOpenTestEmail={openTestEmail}
+                  onSendTestEmail={sendTestEmail}
+                  testEmailError={error}
                   onRemoveConflictingPlaceholder={removeConflictingPlaceholder}
                   onSaveDraft={() => void saveDraft()}
                   onSubjectChange={setSubject}

@@ -97,8 +97,10 @@ export function communicationRecipientSubjectId(subject: CommunicationRecipientS
   }
 }
 
+export const COMMUNICATION_RECIPIENTS_MAX = 10_000;
+
 /** Maximum Contact IDs accepted by one communication audience request. */
-export const COMMUNICATION_AUDIENCE_CONTACT_IDS_MAX = 500;
+export const COMMUNICATION_AUDIENCE_CONTACT_IDS_MAX = COMMUNICATION_RECIPIENTS_MAX;
 
 /** Maximum Contact Lists accepted by one communication audience request. */
 export const COMMUNICATION_AUDIENCE_CONTACT_LISTS_MAX = 50;
@@ -117,7 +119,7 @@ const communicationAudienceRequestBaseSchema = z.object({
     .array(z.enum(["Active", "Idle", "Inactive"]))
     .max(3)
     .default(["Active"]),
-  profileIds: z.array(z.uuid()).max(500).default([]),
+  profileIds: z.array(z.uuid()).max(COMMUNICATION_RECIPIENTS_MAX).default([]),
   rsvp: z.enum(["All", "Yes", "No", "Pending"]).default("All"),
   targetAudiences: z.array(communicationAudienceTargetSchema).min(1).max(4).default(["Members"]),
   ticketBuyerMode: communicationTicketBuyerModeSchema.default("marketing"),

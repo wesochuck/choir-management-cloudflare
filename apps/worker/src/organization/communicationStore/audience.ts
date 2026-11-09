@@ -1,3 +1,4 @@
+import { COMMUNICATION_RECIPIENTS_MAX } from "@choir/contracts";
 import { primaryRosterContactSql } from "../organizationStore/rosterContact";
 import type {
   communicationAudienceRequestSchema,
@@ -6,7 +7,6 @@ import type {
 import { z } from "zod";
 
 import {
-  MAX_COMMUNICATION_DELIVERIES,
   audienceOperationSchema,
   type CandidateRow,
   type CommunicationAudienceStorage,
@@ -32,11 +32,12 @@ interface AudienceCandidate {
   readonly voicePart: string;
 }
 
-const AUDIENCE_MEMBER_LIMIT = 500;
-const AUDIENCE_CONTACT_LIMIT = 500;
-const AUDIENCE_COMMERCE_LIMIT = 500;
-const AUDIENCE_TICKET_SERVICE_LIMIT = MAX_COMMUNICATION_DELIVERIES;
-const COMMERCE_LOOKUP_BATCH_SIZE = 500;
+const AUDIENCE_MEMBER_LIMIT = COMMUNICATION_RECIPIENTS_MAX + 1;
+const AUDIENCE_CONTACT_LIMIT = COMMUNICATION_RECIPIENTS_MAX;
+const AUDIENCE_COMMERCE_LIMIT = COMMUNICATION_RECIPIENTS_MAX;
+const AUDIENCE_TICKET_SERVICE_LIMIT = COMMUNICATION_RECIPIENTS_MAX;
+// SQLite-backed Durable Objects permit 100 bound parameters per query.
+const COMMERCE_LOOKUP_BATCH_SIZE = 100;
 
 function placeholders(count: number): string {
   return Array.from({ length: count }, () => "?").join(", ");
@@ -48,13 +49,13 @@ function ticketBuyerEventFilter(audience: Audience): {
 } {
   const sourceEventIds = audience.ticketBuyerSourceEventIds ?? [];
   if (sourceEventIds.length > 0) {
-    const ids = placeholders(sourceEventIds.length);
+    const ids = "SELECT value FROM json_each(?)";
     const asOf = new Date().toISOString();
     const eligibleEvents = `SELECT id FROM events
       WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
         AND starts_at < ? AND id IN (${ids})`;
     return {
-      params: [asOf, ...sourceEventIds, asOf, ...sourceEventIds],
+      params: [asOf, JSON.stringify(sourceEventIds), asOf, JSON.stringify(sourceEventIds)],
       sql: `AND (p.event_id IN (${eligibleEvents}) OR EXISTS (
         SELECT 1 FROM ticket_bundle_allocations a
         WHERE a.purchase_id = p.id AND a.event_id IN (${eligibleEvents})
@@ -228,6 +229,7 @@ interface CommerceSelection {
 }
 
 interface CommerceSelections {
+  readonly audienceOverLimit: boolean;
   readonly selections: CommerceSelection[];
   readonly ticketBuyerPurchasesOverLimit: number;
 }
@@ -254,7 +256,7 @@ function readTicketBuyerSelections(
   audience: Audience,
 ): CommerceSelections {
   if (!audience.targetAudiences.includes("Ticket Buyers")) {
-    return { selections: [], ticketBuyerPurchasesOverLimit: 0 };
+    return { audienceOverLimit: false, selections: [], ticketBuyerPurchasesOverLimit: 0 };
   }
   const isTicketService = audience.ticketBuyerMode === "ticket_service";
   const eventFilter = ticketBuyerEventFilter(audience);
@@ -265,32 +267,21 @@ function readTicketBuyerSelections(
   );
   const ticketConsent = isTicketService ? "" : "AND p.marketing_opt_in = 1";
   let ticketBuyerPurchasesOverLimit = ticketBuyerServiceOverflow(storage, audience);
-  const promotionBuyerScope =
-    (audience.ticketBuyerPastEventsOnly ?? false) ||
-    (audience.ticketBuyerSourceEventIds?.length ?? 0) > 0;
-  const ticketPurchaseLimit = isTicketService
-    ? AUDIENCE_TICKET_SERVICE_LIMIT
-    : promotionBuyerScope
-      ? AUDIENCE_COMMERCE_LIMIT + 1
-      : AUDIENCE_COMMERCE_LIMIT;
   const ticketRows = storage.sql
     .exec<CommerceTransactionRow>(
       `SELECT p.id, p.buyer_name AS buyerName, p.buyer_email AS buyerEmail,
         p.contact_id AS contactId
        FROM ticket_purchases p
        WHERE p.status = 'paid' ${ticketConsent} ${eventFilter.sql} ${exclusionFilter.sql}
-       ORDER BY p.buyer_name COLLATE NOCASE, p.id LIMIT ${String(ticketPurchaseLimit)}`,
+       ORDER BY p.buyer_name COLLATE NOCASE, p.id LIMIT ${String(AUDIENCE_COMMERCE_LIMIT + 1)}`,
       ...eventFilter.params,
       ...exclusionFilter.params,
     )
     .toArray();
-  const marketingPromotionScope = promotionBuyerScope && !isTicketService;
-  const promotionOverflow = marketingPromotionScope && ticketRows.length > AUDIENCE_COMMERCE_LIMIT;
-  if (promotionOverflow) ticketBuyerPurchasesOverLimit = 1;
-  const selectedRows = marketingPromotionScope
-    ? ticketRows.slice(0, AUDIENCE_COMMERCE_LIMIT)
-    : ticketRows;
+  if (ticketRows.length > AUDIENCE_COMMERCE_LIMIT) ticketBuyerPurchasesOverLimit = 1;
+  const selectedRows = ticketRows.slice(0, AUDIENCE_COMMERCE_LIMIT);
   return {
+    audienceOverLimit: false,
     selections: selectedRows.map((row) => ({
       row,
       ticketBuyerMode: audience.ticketBuyerMode,
@@ -303,6 +294,7 @@ function readTicketBuyerSelections(
 function readCommerceSelections(storage: AudienceStorage, audience: Audience): CommerceSelections {
   const ticketBuyerSelections = readTicketBuyerSelections(storage, audience);
   const selections = [...ticketBuyerSelections.selections];
+  let audienceOverLimit = false;
   if (audience.targetAudiences.includes("Donors")) {
     const donorRows = storage.sql
       .exec<CommerceTransactionRow>(
@@ -310,14 +302,16 @@ function readCommerceSelections(storage: AudienceStorage, audience: Audience): C
           d.contact_id AS contactId
          FROM donations d
          WHERE d.status = 'paid' AND d.marketing_consent = 1
-         ORDER BY d.buyer_name COLLATE NOCASE, d.id LIMIT ${String(AUDIENCE_COMMERCE_LIMIT)}`,
+         ORDER BY d.buyer_name COLLATE NOCASE, d.id LIMIT ${String(AUDIENCE_COMMERCE_LIMIT + 1)}`,
       )
       .toArray();
-    for (const row of donorRows) {
+    audienceOverLimit = donorRows.length > AUDIENCE_COMMERCE_LIMIT;
+    for (const row of donorRows.slice(0, AUDIENCE_COMMERCE_LIMIT)) {
       selections.push({ row, ticketBuyerMode: "marketing", voicePart: "Donor" });
     }
   }
   return {
+    audienceOverLimit,
     selections,
     ticketBuyerPurchasesOverLimit: ticketBuyerSelections.ticketBuyerPurchasesOverLimit,
   };
@@ -429,6 +423,7 @@ function toCommerceCandidate(
 }
 
 interface CommerceRecipientResolution {
+  readonly audienceOverLimit: boolean;
   readonly recipients: AudienceCandidate[];
   readonly ticketBuyerPurchasesOverLimit: number;
   readonly undeliverableTicketBuyerPurchases: number;
@@ -442,6 +437,7 @@ function commerceRecipients(
   const selections = selectionResult.selections;
   if (selections.length === 0) {
     return {
+      audienceOverLimit: selectionResult.audienceOverLimit,
       recipients: [],
       ticketBuyerPurchasesOverLimit: selectionResult.ticketBuyerPurchasesOverLimit,
       undeliverableTicketBuyerPurchases: 0,
@@ -469,6 +465,7 @@ function commerceRecipients(
     recipients.push(candidate);
   }
   return {
+    audienceOverLimit: selectionResult.audienceOverLimit,
     recipients,
     ticketBuyerPurchasesOverLimit: selectionResult.ticketBuyerPurchasesOverLimit,
     undeliverableTicketBuyerPurchases,
@@ -492,22 +489,23 @@ function contactSelectionSql(audience: Audience): {
   readonly sql: string;
 } {
   const { contactIds, contactListIds } = audience;
+  // Bind bounded selections as JSON so large lists stay within SQLite's parameter limit.
   if (contactListIds.length > 0 && contactIds.length > 0) {
     return {
-      params: [...contactListIds, ...contactIds],
-      sql: `(EXISTS (SELECT 1 FROM contact_list_memberships m WHERE m.contact_id = c.id AND m.list_id IN (${placeholders(contactListIds.length)})) OR c.id IN (${placeholders(contactIds.length)}))`,
+      params: [JSON.stringify(contactListIds), JSON.stringify(contactIds)],
+      sql: `(EXISTS (SELECT 1 FROM contact_list_memberships m WHERE m.contact_id = c.id AND m.list_id IN (SELECT value FROM json_each(?))) OR c.id IN (SELECT value FROM json_each(?)))`,
     };
   }
   if (contactListIds.length > 0) {
     return {
-      params: [...contactListIds],
-      sql: `EXISTS (SELECT 1 FROM contact_list_memberships m WHERE m.contact_id = c.id AND m.list_id IN (${placeholders(contactListIds.length)}))`,
+      params: [JSON.stringify(contactListIds)],
+      sql: `EXISTS (SELECT 1 FROM contact_list_memberships m WHERE m.contact_id = c.id AND m.list_id IN (SELECT value FROM json_each(?)))`,
     };
   }
   if (contactIds.length > 0) {
     return {
-      params: [...contactIds],
-      sql: `c.id IN (${placeholders(contactIds.length)})`,
+      params: [JSON.stringify(contactIds)],
+      sql: `c.id IN (SELECT value FROM json_each(?))`,
     };
   }
   return { params: [], sql: "1 = 1" };
@@ -629,18 +627,12 @@ function contactRecipients(
        LEFT JOIN contact_communication_preferences sms_pref
          ON sms_pref.contact_id = c.id AND sms_pref.channel = 'sms'
        WHERE ${where.join(" AND ")}
-       ORDER BY c.display_name COLLATE NOCASE, c.id LIMIT ${String(
-         audience.excludeTicketBuyersForEventId
-           ? AUDIENCE_CONTACT_LIMIT + 1
-           : AUDIENCE_CONTACT_LIMIT,
-       )}`,
+       ORDER BY c.display_name COLLATE NOCASE, c.id LIMIT ${String(AUDIENCE_CONTACT_LIMIT + 1)}`,
       ...params,
     )
     .toArray();
-  const overLimit = Boolean(
-    audience.excludeTicketBuyersForEventId && rows.length > AUDIENCE_CONTACT_LIMIT,
-  );
-  const selectedRows = overLimit ? rows.slice(0, AUDIENCE_CONTACT_LIMIT) : rows;
+  const overLimit = rows.length > AUDIENCE_CONTACT_LIMIT;
+  const selectedRows = rows.slice(0, AUDIENCE_CONTACT_LIMIT);
   // Foreign list/contact IDs from another Organization simply match nothing:
   // storage is Organization-scoped, so cross-tenant audience IDs stay empty.
   const linkedProfileIds = selectedRows
@@ -678,6 +670,8 @@ interface MemberCandidateRow extends CandidateRow {
 
 function memberRecipients(storage: AudienceStorage, audience: Audience): AudienceCandidate[] {
   if (!audience.targetAudiences.includes("Members")) return [];
+  const requestedVoiceParts = allowedVoiceParts(storage, audience.voiceParts);
+  const excludedVoiceParts = trackOnlyVoiceParts(storage);
   const rows = storage.sql
     .exec<MemberCandidateRow>(
       `SELECT p.id, p.display_name AS displayName, c.email, c.id AS contactId,
@@ -698,13 +692,24 @@ function memberRecipients(storage: AudienceStorage, audience: Audience): Audienc
          LEFT JOIN contact_communication_preferences email_pref ON email_pref.contact_id = c.id AND email_pref.channel = 'email'
          LEFT JOIN contact_communication_preferences sms_pref ON sms_pref.contact_id = c.id AND sms_pref.channel = 'sms'
          LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
+         WHERE (? = '[]' OR p.id IN (SELECT value FROM json_each(?)))
+           AND p.global_status IN (SELECT value FROM json_each(?))
+           AND p.voice_part NOT IN (SELECT value FROM json_each(?))
+           AND (? IS NULL OR p.voice_part IN (SELECT value FROM json_each(?)))
+           AND (? = 1 OR COALESCE(r.rsvp, 'Pending') = ?)
          ORDER BY p.display_name COLLATE NOCASE, p.id LIMIT ${String(AUDIENCE_MEMBER_LIMIT)}`,
       audience.eventId ?? "",
+      JSON.stringify(audience.profileIds),
+      JSON.stringify(audience.profileIds),
+      JSON.stringify(audience.globalStatuses),
+      JSON.stringify([...excludedVoiceParts]),
+      requestedVoiceParts ? JSON.stringify([...requestedVoiceParts]) : null,
+      JSON.stringify(requestedVoiceParts ? [...requestedVoiceParts] : []),
+      !audience.eventId || audience.rsvp === "All" ? 1 : 0,
+      audience.rsvp,
     )
     .toArray();
   const requestedProfiles = audience.profileIds.length > 0 ? new Set(audience.profileIds) : null;
-  const requestedVoiceParts = allowedVoiceParts(storage, audience.voiceParts);
-  const excludedVoiceParts = trackOnlyVoiceParts(storage);
   const statuses = new Set(audience.globalStatuses);
   return rows
     .filter(({ id }) => !requestedProfiles || requestedProfiles.has(id))
@@ -759,14 +764,19 @@ export async function resolveCommunicationAudienceFromStore(
   // .find scans over the growing recipient list).
   const commerce = commerceRecipients(storage, audience);
   const contacts = contactRecipients(storage, audience);
+  const members = memberRecipients(storage, audience);
   const recipients: AudienceCandidate[] = [
-    ...memberRecipients(storage, audience),
+    ...members,
     ...contacts.recipients,
     ...commerce.recipients,
   ];
   return Response.json({
     recipients,
     contactsOverLimit: contacts.overLimit,
+    audienceOverLimit:
+      contacts.overLimit ||
+      commerce.audienceOverLimit ||
+      members.length > COMMUNICATION_RECIPIENTS_MAX,
     ticketBuyerPurchasesOverLimit: commerce.ticketBuyerPurchasesOverLimit,
     undeliverableTicketBuyerPurchases: commerce.undeliverableTicketBuyerPurchases,
   });

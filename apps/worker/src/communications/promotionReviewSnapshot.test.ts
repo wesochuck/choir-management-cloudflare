@@ -47,6 +47,50 @@ describe("event promotion review snapshots", () => {
     ).resolves.toBe("stale");
   });
 
+  it("binds a generic campaign review to its channel and SMS destination", async () => {
+    const generic = {
+      ...input,
+      eventId: null,
+      channel: "SMS",
+      recipients: input.recipients.map((recipient) => ({ ...recipient, phone: "+15551234567" })),
+    };
+    const token = await issuePromotionReviewSnapshot(
+      "a-secret-that-is-long-enough-for-tests",
+      generic,
+      1_000,
+    );
+    await expect(
+      verifyPromotionReviewSnapshot(
+        "a-secret-that-is-long-enough-for-tests",
+        token,
+        generic,
+        2_000,
+      ),
+    ).resolves.toBe("valid");
+    await expect(
+      verifyPromotionReviewSnapshot(
+        "a-secret-that-is-long-enough-for-tests",
+        token,
+        { ...generic, channel: "Email" },
+        2_000,
+      ),
+    ).resolves.toBe("stale");
+    await expect(
+      verifyPromotionReviewSnapshot(
+        "a-secret-that-is-long-enough-for-tests",
+        token,
+        {
+          ...generic,
+          recipients: generic.recipients.map((recipient) => ({
+            ...recipient,
+            phone: "+15557654321",
+          })),
+        },
+        2_000,
+      ),
+    ).resolves.toBe("stale");
+  });
+
   it("expires review confirmation and rejects a token signed for another secret", async () => {
     const token = await issuePromotionReviewSnapshot(
       "a-secret-that-is-long-enough-for-tests",
