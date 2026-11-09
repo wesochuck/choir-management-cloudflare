@@ -334,6 +334,16 @@ export const removeContactsFromListResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
+export const contactBulkDeleteRequestSchema = z.object({
+  contactIds: contactIdsForBulkOperationSchema,
+});
+
+export const contactBulkDeleteResponseSchema = z.object({
+  deletedCount: z.number().int().nonnegative().max(CONTACT_BULK_OPERATION_MAX),
+  deletedIds: z.array(z.uuid()).max(CONTACT_BULK_OPERATION_MAX),
+  requestId: requestIdSchema,
+});
+
 const contactListMembershipInputSchema = z.object({
   contactId: z.uuid(),
   listId: z.uuid(),
@@ -416,6 +426,8 @@ export type AddContactsToListRequest = z.infer<typeof addContactsToListRequestSc
 export type RemoveContactsFromListRequest = z.infer<typeof removeContactsFromListRequestSchema>;
 export type AddContactsToListResponse = z.infer<typeof addContactsToListResponseSchema>;
 export type RemoveContactsFromListResponse = z.infer<typeof removeContactsFromListResponseSchema>;
+export type ContactBulkDeleteRequest = z.infer<typeof contactBulkDeleteRequestSchema>;
+export type ContactBulkDeleteResponse = z.infer<typeof contactBulkDeleteResponseSchema>;
 export type BulkAddContactListMembershipRequest = z.infer<
   typeof bulkAddContactListMembershipRequestSchema
 >;

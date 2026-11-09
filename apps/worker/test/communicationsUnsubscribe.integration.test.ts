@@ -416,5 +416,113 @@ describe("Organization communications unsubscribe and suppressions", () => {
     expect((await postFeedback({ ...feedbackBody, sourceId: crypto.randomUUID() })).status).toBe(
       404,
     );
+
+    // Provider webhook (delivered): an email delivered to a contact transitions
+    // an unknown or missing preference to "subscribed" with "email_delivered".
+    const unknownContactResponse = await write(
+      "alpha.localhost",
+      "/api/organization/contacts",
+      cookie,
+      {
+        displayName: "Unknown Sam",
+        email: "unknown.sam@example.test",
+        emailStatus: "unknown",
+      },
+    );
+    expect(unknownContactResponse.status).toBe(201);
+    const unknownContactId = z
+      .object({ contact: z.object({ id: z.uuid() }) })
+      .parse(await unknownContactResponse.json()).contact.id;
+
+    const deliveredDeliveryId = crypto.randomUUID();
+    const deliveredProviderMsgId = `provider-msg-${deliveredDeliveryId}`;
+    await runInDurableObject<OrganizationStore, undefined>(alphaStub, (_instance, state) => {
+      const now = new Date().toISOString();
+      state.storage.sql.exec(
+        `INSERT INTO communication_deliveries
+            (id, message_id, profile_id, recipient_name, channel, destination, status,
+             attempts, provider_message_id, failure_detail, created_at, updated_at,
+             unsubscribe_url, recipient_subject_json)
+           VALUES (?, ?, ?, 'Unknown Sam', 'email', 'unknown.sam@example.test', 'sent',
+             1, ?, '', ?, ?, NULL, ?)`,
+        deliveredDeliveryId,
+        crypto.randomUUID(),
+        unknownContactId,
+        deliveredProviderMsgId,
+        now,
+        now,
+        JSON.stringify({ contactId: unknownContactId, kind: "contact" }),
+      );
+      return undefined;
+    });
+
+    const deliveredFeedbackBody = {
+      bounceType: null,
+      eventId: crypto.randomUUID(),
+      eventTimestamp: new Date().toISOString(),
+      organizationId: "organization-alpha",
+      providerMessageId: deliveredProviderMsgId,
+      providerReason: "250 2.0.0 OK",
+      providerSmtpEnhancedStatusCode: "2.0.0",
+      providerSmtpResponse: "250 2.0.0 OK",
+      providerSmtpStatusCode: "250",
+      providerStatus: "delivered",
+      recipient: "unknown.sam@example.test",
+      sourceId: deliveredDeliveryId,
+      sourceKind: "communication_delivery",
+      shouldSuppress: false,
+    };
+
+    const deliveredResponse = await postFeedback(deliveredFeedbackBody);
+    expect(deliveredResponse.status).toBe(200);
+    expect(await deliveredResponse.json()).toMatchObject({
+      contactId: unknownContactId,
+      profileId: null,
+      providerSuppressed: false,
+      recorded: true,
+    });
+
+    const deliveredContactDetail = z
+      .object({
+        preferences: z.array(
+          z.object({ channel: z.string(), source: z.string().nullable(), status: z.string() }),
+        ),
+      })
+      .parse(
+        await (
+          await exports.default.fetch(
+            api("alpha.localhost", `/api/organization/contacts/${unknownContactId}`, cookie),
+          )
+        ).json(),
+      );
+    expect(
+      deliveredContactDetail.preferences.find((preference) => preference.channel === "email"),
+    ).toMatchObject({ status: "subscribed", source: "email_delivered" });
+
+    // Delivered event must never override an explicit unsubscribed preference:
+    const deliveredToBounceResponse = await postFeedback({
+      ...deliveredFeedbackBody,
+      eventId: crypto.randomUUID(),
+      providerMessageId,
+      recipient: "bounce.june@example.test",
+      sourceId: deliveryId,
+    });
+    expect(deliveredToBounceResponse.status).toBe(200);
+    const postDeliveryBounceDetail = z
+      .object({
+        preferences: z.array(
+          z.object({ channel: z.string(), source: z.string().nullable(), status: z.string() }),
+        ),
+      })
+      .parse(
+        await (
+          await exports.default.fetch(
+            api("alpha.localhost", `/api/organization/contacts/${bounceContactId}`, cookie),
+          )
+        ).json(),
+      );
+    expect(
+      postDeliveryBounceDetail.preferences.find((preference) => preference.channel === "email"),
+    ).toMatchObject({ status: "unsubscribed", source: "provider_bounce" });
   });
 });

@@ -1,6 +1,7 @@
 import {
   addContactsToListRequestSchema,
   CONTACT_BULK_OPERATION_MAX,
+  contactBulkDeleteRequestSchema,
   contactCommunicationStatusSchema,
   contactCreateRequestSchema,
   contactListCreateRequestSchema,
@@ -519,6 +520,50 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         error,
         context.get("requestId"),
         "The contact could not be deleted.",
+      );
+      return context.json(result.problem, result.status);
+    }
+  });
+
+  router.post("/api/organization/contacts/bulk-delete", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const rawBody = await readRequestJson(context);
+    const parsedBody = contactBulkDeleteRequestSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return context.json(
+        {
+          ...validationProblem(
+            `Choose between 1 and ${String(CONTACT_BULK_OPERATION_MAX)} valid contacts to delete.`,
+            context.get("requestId"),
+          ),
+        },
+        400,
+      );
+    }
+    try {
+      const stub = organizationStoreStub(context.env, authorization.organizationId);
+      const result = await stub.bulkDeleteContacts({
+        actorUserId: authorization.userId,
+        contactIds: parsedBody.data.contactIds,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      });
+      return context.json({
+        deletedCount: result.deletedCount,
+        deletedIds: result.deletedIds,
+        requestId: context.get("requestId"),
+      });
+    } catch (error: unknown) {
+      const result = contactProblem(
+        error,
+        context.get("requestId"),
+        "The contacts could not be deleted.",
       );
       return context.json(result.problem, result.status);
     }

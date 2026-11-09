@@ -11,6 +11,7 @@
 
 export {
   addContactsToListInStore,
+  bulkDeleteContactsInStore,
   ContactStoreError,
   createContactInStore,
   createContactListInStore,

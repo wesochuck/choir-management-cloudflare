@@ -2,7 +2,10 @@ import type {
   communicationSendRequestSchema,
   CommunicationRecipientSubject,
 } from "@choir/contracts";
-import { communicationRecipientSubjectFromLegacy } from "@choir/contracts";
+import {
+  communicationRecipientSubjectFromLegacy,
+  communicationRecipientSubjectSchema,
+} from "@choir/contracts";
 import { communicationReach, normalizeEmail } from "@choir/domain";
 import type { z } from "zod";
 
@@ -355,6 +358,85 @@ export async function retryMessage(
   return Response.json({ messageId: operation.messageId, retried: failed });
 }
 
+function resolveRecipientContactId(
+  storage: DurableObjectStorage,
+  deliveryId: string,
+): string | null {
+  const row = storage.sql
+    .exec<{
+      readonly channel: string;
+      readonly profile_id: string;
+      readonly recipient_subject_json: string | null;
+    }>(
+      `SELECT channel, profile_id, recipient_subject_json
+       FROM communication_deliveries WHERE id = ? LIMIT 1`,
+      deliveryId,
+    )
+    .toArray()
+    .at(0);
+  if (row?.channel !== "email") return null;
+  if (row.recipient_subject_json) {
+    try {
+      const parsed = communicationRecipientSubjectSchema.safeParse(
+        JSON.parse(row.recipient_subject_json) as unknown,
+      );
+      if (parsed.success && parsed.data.kind === "contact") {
+        return parsed.data.contactId;
+      }
+    } catch {
+      // Ignore invalid JSON
+    }
+  }
+  if (row.profile_id) {
+    const contact = storage.sql
+      .exec<{ readonly id: string }>("SELECT id FROM contacts WHERE id = ? LIMIT 1", row.profile_id)
+      .toArray()
+      .at(0);
+    if (contact) return contact.id;
+  }
+  return null;
+}
+
+function markDeliveredContactEmailPreference(
+  storage: DurableObjectStorage,
+  deliveryId: string,
+  now: string,
+): void {
+  const contactId = resolveRecipientContactId(storage, deliveryId);
+  if (!contactId) return;
+  storage.sql.exec(
+    `INSERT INTO contact_communication_preferences
+      (contact_id, channel, status, source, observed_at, updated_at)
+     VALUES (?, 'email', 'subscribed', 'email_delivered', ?, ?)
+     ON CONFLICT(contact_id, channel) DO UPDATE SET
+       status = CASE
+         WHEN contact_communication_preferences.status = 'unsubscribed' THEN 'unsubscribed'
+         ELSE 'subscribed'
+       END,
+       source = CASE
+         WHEN contact_communication_preferences.status = 'unsubscribed'
+           THEN contact_communication_preferences.source
+         WHEN contact_communication_preferences.source IS NULL
+           OR contact_communication_preferences.source = ''
+           OR contact_communication_preferences.source = 'import'
+           OR contact_communication_preferences.status != 'subscribed'
+           THEN 'email_delivered'
+         ELSE contact_communication_preferences.source
+       END,
+       observed_at = CASE
+         WHEN contact_communication_preferences.status != 'unsubscribed' THEN excluded.observed_at
+         ELSE contact_communication_preferences.observed_at
+       END,
+       updated_at = CASE
+         WHEN contact_communication_preferences.status != 'unsubscribed' THEN excluded.updated_at
+         ELSE contact_communication_preferences.updated_at
+       END`,
+    contactId,
+    now,
+    now,
+  );
+}
+
 export function recordDeliveryResults(
   storage: DurableObjectStorage,
   operation: z.infer<typeof deliveryResultOperationSchema>,
@@ -394,6 +476,9 @@ export function recordDeliveryResults(
         messageId,
         operation.jobId,
       );
+      if (result.status === "sent") {
+        markDeliveredContactEmailPreference(storage, result.deliveryId, now);
+      }
     }
     const hasStatus = (statuses: readonly string[]) =>
       storage.sql

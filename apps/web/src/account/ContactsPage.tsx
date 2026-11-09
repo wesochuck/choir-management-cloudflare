@@ -47,6 +47,7 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
     activeTab,
     allVisibleSelected,
     bulkBusy,
+    bulkDeleteContacts,
     bulkListId,
     clearFilters,
     closeDetails,
@@ -265,9 +266,7 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
               <div aria-label="Bulk contact actions" className="roster-bulk-actions" role="region">
                 <div>
                   <strong>{selectedIds.length} selected</strong>
-                  <p>
-                    Bulk actions change list membership only. Contacts themselves are preserved.
-                  </p>
+                  <p>Update list memberships or permanently delete selected contacts.</p>
                   <p>
                     {lists.length === 0
                       ? "Create a new list below to add these contacts."
@@ -320,6 +319,20 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                     type="button"
                   >
                     {bulkBusy ? "Updating…" : "Remove from list"}
+                  </button>
+                  <button
+                    className="button button--danger button--control-height"
+                    disabled={
+                      bulkBusy ||
+                      selectedIds.length === 0 ||
+                      selectedIds.length > CONTACTS_BULK_OPERATION_MAX
+                    }
+                    onClick={() => {
+                      void bulkDeleteContacts();
+                    }}
+                    type="button"
+                  >
+                    {bulkBusy ? "Deleting…" : "Delete"}
                   </button>
                 </div>
               </div>

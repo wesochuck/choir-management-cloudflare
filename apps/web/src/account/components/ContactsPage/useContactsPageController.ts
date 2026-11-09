@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addContactsToContactList,
   AuthApiError,
+  bulkDeleteOrganizationContacts,
   contactErrorMessage,
   CONTACTS_BULK_OPERATION_MAX,
   createOrganizationContact,
@@ -506,6 +507,58 @@ export function useContactsPageController({ enabled }: { readonly enabled: boole
     }
   }
 
+  async function bulkDeleteContacts(): Promise<void> {
+    if (selectedIds.length === 0) {
+      setError("Select at least one contact to delete.");
+      return;
+    }
+    if (selectedIds.length > CONTACTS_BULK_OPERATION_MAX) {
+      setError(`Select at most ${String(CONTACTS_BULK_OPERATION_MAX)} contacts to delete.`);
+      return;
+    }
+    const count = selectedIds.length;
+    const confirmed = await confirm({
+      confirmLabel: `Delete ${String(count)} contact${count === 1 ? "" : "s"}`,
+      description: `Delete ${String(count)} selected contact${count === 1 ? "" : "s"}? This permanently removes the contacts, their communication preferences, and their list memberships. This action cannot be undone.`,
+      destructive: true,
+      title: `Delete ${String(count)} contact${count === 1 ? "" : "s"}?`,
+    });
+    if (!confirmed) return;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      const idsToDelete = [...selectedIds];
+      const deleteSet = new Set(idsToDelete);
+      const result = await bulkDeleteOrganizationContacts(idsToDelete);
+      setSelectedIds((current) => current.filter((id) => !deleteSet.has(id)));
+      if (viewingContactId && deleteSet.has(viewingContactId)) {
+        setViewingContactId(null);
+      }
+      if (editorState.kind === "edit" && deleteSet.has(editorState.contactId)) {
+        setEditorState({ kind: "closed" });
+      }
+      setSuccess(`Deleted ${String(result.deletedCount)} contact(s).`);
+      queryClient.setQueriesData<ContactsListResult>(
+        { queryKey: ["organization", "contacts", "list"] },
+        (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            contacts: current.contacts.filter((candidate) => !deleteSet.has(candidate.id)),
+            memberships: current.memberships.filter((m) => !deleteSet.has(m.contactId)),
+            preferences: current.preferences.filter((p) => !deleteSet.has(p.contactId)),
+          };
+        },
+      );
+      await invalidateContacts();
+    } catch (bulkError: unknown) {
+      setError(contactErrorMessage(bulkError, "The contacts could not be deleted."));
+      await invalidateContacts();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   function exportCsv(): void {
     setError(null);
     try {
@@ -540,6 +593,7 @@ export function useContactsPageController({ enabled }: { readonly enabled: boole
     activeTab,
     allVisibleSelected,
     bulkBusy,
+    bulkDeleteContacts,
     bulkListId,
     clearFilters,
     closeDetails,

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ContactStoreError,
+  bulkDeleteContactsInStore,
   createContactInStore,
   createContactListInStore,
   deleteContactInStore,
@@ -226,6 +227,94 @@ describe("contact CRUD with real SQLite", () => {
     expect(
       countFor(db, "SELECT COUNT(*) AS count FROM audit_events WHERE target_id = ?", contactId),
     ).toBeGreaterThanOrEqual(3);
+  });
+
+  it("bulk deletes contacts atomically, cleaning memberships, preferences, commerce, and emitting audit logs", () => {
+    const { db, storage } = createFreshContactContext();
+    const contactId1 = uuidFor(1051);
+    const contactId2 = uuidFor(1052);
+    const listId = uuidFor(1053);
+
+    createContactListInStore(storage, {
+      actorUserId: ACTOR_ID,
+      listId,
+      name: "Donor List",
+      organizationId: ORG_ID,
+      requestId: uuidFor(1054),
+    });
+
+    for (const [id, email] of [
+      [contactId1, "contact1@example.test"],
+      [contactId2, "contact2@example.test"],
+    ] as const) {
+      createContactInStore(storage, {
+        actorUserId: ACTOR_ID,
+        contactId: id,
+        email,
+        organizationId: ORG_ID,
+        requestId: uuidFor(1055),
+      });
+    }
+
+    addContactsToListInStore(storage, {
+      actorUserId: ACTOR_ID,
+      contactIds: [contactId1, contactId2],
+      listId,
+      organizationId: ORG_ID,
+      requestId: uuidFor(1056),
+    });
+
+    const result = bulkDeleteContactsInStore(storage, {
+      actorUserId: ACTOR_ID,
+      contactIds: [contactId1, contactId2],
+      organizationId: ORG_ID,
+      requestId: uuidFor(1057),
+    });
+
+    expect(result.deletedCount).toBe(2);
+    expect(result.deletedIds).toEqual([contactId1, contactId2]);
+
+    expectContactStoreError(
+      () => getContactFromStore(storage, ORG_ID, contactId1),
+      "contact_not_found",
+    );
+    expectContactStoreError(
+      () => getContactFromStore(storage, ORG_ID, contactId2),
+      "contact_not_found",
+    );
+
+    expect(
+      countFor(
+        db,
+        "SELECT COUNT(*) AS count FROM contact_list_memberships WHERE contact_id IN (?, ?)",
+        contactId1,
+        contactId2,
+      ),
+    ).toBe(0);
+
+    // Rejects empty or oversized bulk delete
+    expectContactStoreError(
+      () =>
+        bulkDeleteContactsInStore(storage, {
+          actorUserId: ACTOR_ID,
+          contactIds: [],
+          organizationId: ORG_ID,
+          requestId: uuidFor(1058),
+        }),
+      "validation_failed",
+    );
+
+    // Rejects non-existent contact
+    expectContactStoreError(
+      () =>
+        bulkDeleteContactsInStore(storage, {
+          actorUserId: ACTOR_ID,
+          contactIds: [uuidFor(9999)],
+          organizationId: ORG_ID,
+          requestId: uuidFor(1059),
+        }),
+      "contact_not_found",
+    );
   });
 
   it("rejects updates that would leave a contact without identity", () => {

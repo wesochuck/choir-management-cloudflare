@@ -162,3 +162,23 @@ it("keeps the created list selected for retry when adding contacts fails", async
   expect(create).toHaveBeenCalledTimes(1);
   expect(add).toHaveBeenCalledTimes(2);
 });
+
+it("supports bulk deleting selected contacts after confirmation", async () => {
+  const bulkDelete = vi.spyOn(api, "bulkDeleteOrganizationContacts").mockResolvedValue({
+    deletedCount: 2,
+    deletedIds: contacts.map(({ id }) => id),
+    requestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  });
+  const user = setup();
+  await user.click(screen.getByRole("checkbox", { name: "Select all matching contacts" }));
+  const bulk = within(screen.getByRole("region", { name: "Bulk contact actions" }));
+  const deleteButton = bulk.getByRole("button", { name: "Delete" });
+  expect(deleteButton).toBeEnabled();
+
+  await user.click(deleteButton);
+  expect(screen.getByRole("dialog", { name: "Delete 2 contacts?" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Delete 2 contacts" }));
+
+  expect(bulkDelete).toHaveBeenCalledWith(contacts.map(({ id }) => id));
+  expect(await screen.findByText("Deleted 2 contact(s).")).toBeVisible();
+});

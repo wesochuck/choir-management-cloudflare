@@ -360,6 +360,70 @@ function applyContactSuppression(
   );
 }
 
+/**
+ * When an email has been delivered to a contact, transition any non-unsubscribed
+ * email preference status (e.g. "unknown" or absent) to "subscribed".
+ * Explicit "unsubscribed" preferences must never be overridden.
+ */
+function applyContactDelivery(
+  storage: DurableObjectStorage,
+  contactId: string,
+  input: z.infer<typeof providerFeedbackSchema>,
+): void {
+  const contact = storage.sql
+    .exec<{ readonly id: string }>("SELECT id FROM contacts WHERE id = ? LIMIT 1", contactId)
+    .toArray()
+    .at(0);
+  if (!contact) return;
+  storage.sql.exec(
+    `INSERT INTO contact_communication_preferences
+      (contact_id, channel, status, source, observed_at, updated_at)
+     VALUES (?, 'email', 'subscribed', 'email_delivered', ?, ?)
+     ON CONFLICT(contact_id, channel) DO UPDATE SET
+       status = CASE
+         WHEN contact_communication_preferences.status = 'unsubscribed' THEN 'unsubscribed'
+         ELSE 'subscribed'
+       END,
+       source = CASE
+         WHEN contact_communication_preferences.status = 'unsubscribed'
+           THEN contact_communication_preferences.source
+         WHEN contact_communication_preferences.source IS NULL
+           OR contact_communication_preferences.source = ''
+           OR contact_communication_preferences.source = 'import'
+           OR contact_communication_preferences.status != 'subscribed'
+           THEN 'email_delivered'
+         ELSE contact_communication_preferences.source
+       END,
+       observed_at = CASE
+         WHEN contact_communication_preferences.status != 'unsubscribed' THEN excluded.observed_at
+         ELSE contact_communication_preferences.observed_at
+       END,
+       updated_at = CASE
+         WHEN contact_communication_preferences.status != 'unsubscribed' THEN excluded.updated_at
+         ELSE contact_communication_preferences.updated_at
+       END`,
+    contact.id,
+    input.eventTimestamp,
+    input.eventTimestamp,
+  );
+  storage.sql.exec(
+    `INSERT OR IGNORE INTO audit_events
+      (id, actor_type, actor_id, action, target_type, target_id,
+       request_id, change_summary, occurred_at)
+     VALUES (?, 'provider', ?, 'organization.contact.email_provider_delivered', 'contact', ?, ?, ?, ?)`,
+    `email-provider-contact-delivered:${input.eventId}:${contact.id}`,
+    input.providerMessageId,
+    contact.id,
+    input.eventId,
+    JSON.stringify({
+      providerReason: input.providerReason,
+      providerStatus: input.providerStatus,
+      source: "email_delivered",
+    }),
+    input.eventTimestamp,
+  );
+}
+
 export async function recordProviderEmailFeedback(
   storage: DurableObjectStorage,
   request: Request,
@@ -379,6 +443,11 @@ export async function recordProviderEmailFeedback(
     const contactId = record.contactId;
     storage.transactionSync(() => {
       applyContactSuppression(storage, contactId, input);
+    });
+  } else if (input.providerStatus === "delivered" && record.contactId) {
+    const contactId = record.contactId;
+    storage.transactionSync(() => {
+      applyContactDelivery(storage, contactId, input);
     });
   } else if (input.shouldSuppress && record.profileId) {
     const profileId = record.profileId;

@@ -52,6 +52,7 @@ import type { z } from "zod";
 
 import {
   addContactsToListInStore,
+  bulkDeleteContactsInStore,
   createContactInStore,
   createContactListInStore,
   deleteContactInStore,
@@ -328,6 +329,15 @@ export class OrganizationStore extends DurableObject {
     readonly requestId: string;
   }) {
     return deleteContactInStore(this.ctx.storage, input);
+  }
+
+  bulkDeleteContacts(input: {
+    readonly actorUserId: string;
+    readonly contactIds: readonly string[];
+    readonly organizationId: string;
+    readonly requestId: string;
+  }) {
+    return bulkDeleteContactsInStore(this.ctx.storage, input);
   }
 
   listContactLists(input: { readonly organizationId: string | null }) {

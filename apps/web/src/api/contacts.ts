@@ -2,6 +2,7 @@ import {
   addContactsToListResponseSchema,
   CONTACT_BULK_OPERATION_MAX,
   CONTACT_RESPONSE_MAX,
+  contactBulkDeleteResponseSchema,
   contactCommunicationPreferenceSchema,
   contactDetailActivitySchema,
   contactDetailLinkedProfileSchema,
@@ -15,6 +16,7 @@ import {
   removeContactsFromListResponseSchema,
   type AddContactsToListResponse,
   type Contact,
+  type ContactBulkDeleteResponse,
   type ContactCommunicationPreference,
   type ContactCommunicationStatus,
   type ContactCreateRequest,
@@ -286,6 +288,15 @@ export async function removeContactsFromContactList(
   return requestJson(membershipPath(listId), removeContactsFromListResponseSchema, {
     body: JSON.stringify({ contactIds: [...contactIds] }),
     method: "DELETE",
+  });
+}
+
+export async function bulkDeleteOrganizationContacts(
+  contactIds: readonly string[],
+): Promise<ContactBulkDeleteResponse> {
+  return requestJson("/api/organization/contacts/bulk-delete", contactBulkDeleteResponseSchema, {
+    body: JSON.stringify({ contactIds: [...contactIds] }),
+    method: "POST",
   });
 }
 

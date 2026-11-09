@@ -14,7 +14,12 @@ export {
   type UpdateContactListInput,
 } from "./contracts";
 
-export { createContactInStore, deleteContactInStore, updateContactInStore } from "./contacts";
+export {
+  bulkDeleteContactsInStore,
+  createContactInStore,
+  deleteContactInStore,
+  updateContactInStore,
+} from "./contacts";
 
 export { getContactFromStore, listContactsFromStore } from "./queries";
 

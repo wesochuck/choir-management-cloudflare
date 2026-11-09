@@ -1,5 +1,6 @@
 import {
   CONTACT_BULK_OPERATION_MAX,
+  contactBulkDeleteResponseSchema,
   contactDeleteArchiveResponseSchema,
   contactDetailResponseSchema,
   contactListDeleteResponseSchema,
@@ -627,6 +628,37 @@ describe("Organization Contacts API", () => {
       ).json(),
     );
     expect(filtered.contacts.map((contact) => contact.displayName)).toEqual(["Searchable Sam"]);
+  });
+
+  it("bulk deletes contacts atomically via POST /api/organization/contacts/bulk-delete", async () => {
+    const cookie = await signInManager();
+    const createdIds: string[] = [];
+    for (const email of ["bulk1@example.test", "bulk2@example.test"]) {
+      const response = await jsonRequest("alpha.localhost", "/api/organization/contacts", cookie, {
+        email,
+      });
+      expect(response.status).toBe(201);
+      const body = contactResponseSchema.parse(await response.json());
+      createdIds.push(body.contact.id);
+    }
+
+    const bulkDeleteResponse = await jsonRequest(
+      "alpha.localhost",
+      "/api/organization/contacts/bulk-delete",
+      cookie,
+      { contactIds: createdIds },
+    );
+    expect(bulkDeleteResponse.status).toBe(200);
+    const parsed = contactBulkDeleteResponseSchema.parse(await bulkDeleteResponse.json());
+    expect(parsed.deletedCount).toBe(2);
+    expect(parsed.deletedIds.toSorted()).toEqual(createdIds.toSorted());
+
+    for (const id of createdIds) {
+      const check = await exports.default.fetch(
+        apiRequest("alpha.localhost", `/api/organization/contacts/${id}`, cookie),
+      );
+      expect(check.status).toBe(404);
+    }
   });
 
   it("rejects contact routes on an unknown hostname", async () => {

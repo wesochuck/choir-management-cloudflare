@@ -550,4 +550,113 @@ describe("Organization communications delivery, idempotency, and cancellation", 
     expect(testEmailResponse.status).toBe(202);
     expect(await testEmailResponse.json()).toMatchObject({ sent: true });
   });
+
+  it("transitions contact email status from unknown to subscribed when communication delivery succeeds", async () => {
+    const cookie = await signIn();
+    const contactResponse = await write("alpha.localhost", "/api/organization/contacts", cookie, {
+      displayName: "Unknown Recipient",
+      email: "unknown-delivery@example.test",
+      emailStatus: "unknown",
+    });
+    expect(contactResponse.status).toBe(201);
+    const contactId = z
+      .object({ contact: z.object({ id: z.uuid() }) })
+      .parse(await contactResponse.json()).contact.id;
+
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const initialPref = await runInDurableObject<
+      OrganizationStore,
+      { status: string | null; source: string | null }
+    >(stub, (_instance, state) => {
+      const row = state.storage.sql
+        .exec<{ status: string; source: string }>(
+          "SELECT status, source FROM contact_communication_preferences WHERE contact_id = ? AND channel = 'email' LIMIT 1",
+          contactId,
+        )
+        .toArray()
+        .at(0);
+      return { source: row?.source ?? null, status: row?.status ?? null };
+    });
+    expect(initialPref.status).toBe("unknown");
+
+    const sendResponse = await write(
+      "alpha.localhost",
+      "/api/organization/communications/send",
+      cookie,
+      {
+        audience: {
+          contactEmailStatus: null,
+          contactIds: [contactId],
+          contactListIds: [],
+          contactSmsStatus: null,
+          contactSource: null,
+          eventId: null,
+          excludeTicketBuyersForEventId: null,
+          globalStatuses: [],
+          profileIds: [],
+          rsvp: "All",
+          targetAudiences: ["Contacts"],
+          ticketBuyerMode: "marketing",
+          ticketBuyerPastEventsOnly: false,
+          voiceParts: [],
+        },
+        channel: "Email",
+        contentMarkdown: "Hello from Alpha choir!",
+        subject: "First Newsletter",
+      },
+    );
+    expect(sendResponse.status).toBe(202);
+    const message = communicationMessageResponseSchema.parse(await sendResponse.json());
+
+    const job = await runInDurableObject<OrganizationStore, DeliveryJob>(
+      stub,
+      (_instance, state) => {
+        const row = state.storage.sql
+          .exec<{
+            readonly idempotencyKey: string;
+            readonly jobId: string;
+            readonly kind: DeliveryJob["kind"];
+          }>(
+            `SELECT job_id AS jobId, idempotency_key AS idempotencyKey, kind
+             FROM scheduled_job_outbox WHERE idempotency_key = ? LIMIT 1`,
+            `communication:${message.id}:initial`,
+          )
+          .one();
+        return {
+          attempt: 1,
+          idempotencyKey: row.idempotencyKey,
+          jobId: row.jobId,
+          kind: row.kind,
+          organizationId: "organization-alpha",
+          version: 1,
+        };
+      },
+    );
+    const batch = createMessageBatch("choir-management-jobs-local", [
+      { attempts: 1, body: job, id: "contact-email-job", timestamp: new Date() },
+    ]);
+    await processDeliveryBatch(batch, {
+      EXTERNAL_EFFECTS_MODE: "fake",
+      ORGANIZATION_FILES: organizationFiles,
+      ORGANIZATION_STORE: stores,
+      PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
+      SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
+    });
+
+    const updatedPref = await runInDurableObject<
+      OrganizationStore,
+      { status: string | null; source: string | null }
+    >(stub, (_instance, state) => {
+      const row = state.storage.sql
+        .exec<{ status: string; source: string }>(
+          "SELECT status, source FROM contact_communication_preferences WHERE contact_id = ? AND channel = 'email' LIMIT 1",
+          contactId,
+        )
+        .toArray()
+        .at(0);
+      return { source: row?.source ?? null, status: row?.status ?? null };
+    });
+    expect(updatedPref.status).toBe("subscribed");
+    expect(updatedPref.source).toBe("email_delivered");
+  });
 });

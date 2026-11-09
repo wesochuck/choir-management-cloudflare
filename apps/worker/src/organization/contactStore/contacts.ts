@@ -1,4 +1,5 @@
 import {
+  CONTACT_BULK_OPERATION_MAX,
   contactCreateRequestSchema,
   type Contact,
   type ContactCommunicationPreference,
@@ -23,6 +24,7 @@ import {
   normalizePhoneForStorage,
   organizationIdSchema,
   parseContactRow,
+  placeholders,
   profileExists,
   readContactRow,
   readPreferences,
@@ -552,4 +554,118 @@ export function deleteContactInStore(
     });
   });
   return { contactId: input.contactId, deleted: true as const };
+}
+
+export function bulkDeleteContactsInStore(
+  storage: ContactStoreStorage,
+  input: {
+    readonly actorUserId: string;
+    readonly contactIds: readonly string[];
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+): { readonly deletedCount: number; readonly deletedIds: readonly string[] } {
+  if (!organizationIdSchema.safeParse(input.organizationId).success) {
+    throw new ContactStoreError("validation_failed", "Invalid organizationId.");
+  }
+  if (!actorUserIdSchema.safeParse(input.actorUserId).success) {
+    throw new ContactStoreError("validation_failed", "Invalid actorUserId.");
+  }
+  requireUuid(input.requestId);
+  assertOrganization(storage, input.organizationId);
+
+  if (input.contactIds.length === 0 || input.contactIds.length > CONTACT_BULK_OPERATION_MAX) {
+    throw new ContactStoreError(
+      "validation_failed",
+      `Contact IDs must contain 1-${String(CONTACT_BULK_OPERATION_MAX)} items.`,
+    );
+  }
+
+  for (const id of input.contactIds) {
+    requireUuid(id, "contact_not_found");
+  }
+  const rawIds = input.contactIds;
+  const uniqueIds = Array.from(new Set(rawIds));
+  if (uniqueIds.length !== rawIds.length) {
+    throw new ContactStoreError("validation_failed", "Contact IDs must be unique.");
+  }
+
+  // Pre-validate that all requested contacts exist
+  const existingSet = new Set<string>();
+  for (let offset = 0; offset < uniqueIds.length; offset += 100) {
+    const chunk = uniqueIds.slice(offset, offset + 100);
+    for (const row of storage.sql
+      .exec<{ readonly id: string }>(
+        `SELECT id FROM contacts WHERE id IN (${placeholders(chunk.length)})`,
+        ...chunk,
+      )
+      .toArray()) {
+      existingSet.add(row.id);
+    }
+  }
+  if (existingSet.size !== uniqueIds.length) {
+    throw new ContactStoreError("contact_not_found", "One or more contacts were not found.");
+  }
+
+  const now = new Date().toISOString();
+  storage.transactionSync(() => {
+    // 1. Remove list memberships
+    for (let offset = 0; offset < uniqueIds.length; offset += 100) {
+      const chunk = uniqueIds.slice(offset, offset + 100);
+      storage.sql.exec(
+        `DELETE FROM contact_list_memberships WHERE contact_id IN (${placeholders(chunk.length)})`,
+        ...chunk,
+      );
+    }
+
+    // 2. Remove communication preferences
+    for (let offset = 0; offset < uniqueIds.length; offset += 100) {
+      const chunk = uniqueIds.slice(offset, offset + 100);
+      storage.sql.exec(
+        `DELETE FROM contact_communication_preferences WHERE contact_id IN (${placeholders(chunk.length)})`,
+        ...chunk,
+      );
+    }
+
+    // 3. Nullify contact links in commerce tables if present
+    for (const table of ["ticket_purchases", "donations"] as const) {
+      const hasContactColumn = storage.sql
+        .exec<{ readonly name: string }>(`PRAGMA table_info(${table})`)
+        .toArray()
+        .some((column) => column.name === "contact_id");
+      if (hasContactColumn) {
+        for (let offset = 0; offset < uniqueIds.length; offset += 100) {
+          const chunk = uniqueIds.slice(offset, offset + 100);
+          storage.sql.exec(
+            `UPDATE ${table} SET contact_id = NULL WHERE contact_id IN (${placeholders(chunk.length)})`,
+            ...chunk,
+          );
+        }
+      }
+    }
+
+    // 4. Delete contacts
+    for (let offset = 0; offset < uniqueIds.length; offset += 100) {
+      const chunk = uniqueIds.slice(offset, offset + 100);
+      storage.sql.exec(
+        `DELETE FROM contacts WHERE id IN (${placeholders(chunk.length)})`,
+        ...chunk,
+      );
+    }
+
+    // 5. Write audit events for deleted contacts
+    for (const contactId of uniqueIds) {
+      writeAudit(storage, {
+        action: "contact.deleted",
+        actorUserId: input.actorUserId,
+        occurredAt: now,
+        requestId: input.requestId,
+        summary: { bulk: true, deletedCount: uniqueIds.length },
+        targetId: contactId,
+        targetType: "contact",
+      });
+    }
+  });
+
+  return { deletedCount: uniqueIds.length, deletedIds: uniqueIds };
 }
