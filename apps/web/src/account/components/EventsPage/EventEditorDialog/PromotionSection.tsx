@@ -239,16 +239,20 @@ function PromotionComposerPanel({
 
 function PromotionDeliveryDetailsPanel({
   busy,
+  events,
   message,
   onClose,
   onRetry,
   summary,
+  timezone,
 }: {
   readonly busy: boolean;
+  readonly events?: readonly OrganizationEvent[] | undefined;
   readonly message: CommunicationMessage | null;
   readonly onClose: () => void;
   readonly onRetry: () => Promise<void>;
   readonly summary: Awaited<ReturnType<typeof getOrganizationCommunicationDeliverySummary>> | null;
+  readonly timezone?: string | null | undefined;
 }) {
   if (!message || !summary) return null;
   return (
@@ -258,9 +262,11 @@ function PromotionDeliveryDetailsPanel({
       </button>
       <CommunicationDeliveryDetails
         busy={busy}
+        events={events}
         message={message}
         onRetry={onRetry}
         summary={summary}
+        timezone={timezone}
       />
     </div>
   );
@@ -371,6 +377,7 @@ export function PromotionSection({
         />
         <PromotionDeliveryDetailsPanel
           busy={controller.busy}
+          events={events}
           message={controller.deliveryMessage}
           onClose={() => {
             controller.setDeliveryMessage(null);
@@ -381,6 +388,7 @@ export function PromotionSection({
               : Promise.resolve();
           }}
           summary={controller.deliverySummary}
+          timezone={timezone}
         />
 
         <CommunicationReviewDialog

@@ -1,6 +1,6 @@
 import type { CommunicationMessage, CommunicationScheduledMessage } from "@choir/contracts";
 import { futureIsoDate } from "@choir/testkit";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi } from "vitest";
@@ -484,4 +484,110 @@ it("renders event navigation for event reminders", () => {
     "href",
     "/admin/rsvp?eventId=12345678-1234-4234-8234-123456789012",
   );
+});
+
+it("renders View delivery details for Sent, Failed, and Canceled manual messages", () => {
+  render(
+    <MessagesPanel
+      busy={false}
+      currentOrigin="all"
+      currentStatus="all"
+      deliveryDetailsMessage={null}
+      deliverySummary={null}
+      loadingDeliveryId={null}
+      onCancelQueued={vi.fn()}
+      onDeleteDraft={vi.fn()}
+      onNewMessage={vi.fn()}
+      onOpenDeliveryDetails={vi.fn()}
+      onOriginFilterChange={vi.fn()}
+      onResumeDraft={vi.fn()}
+      onRetryDeliveries={vi.fn()}
+      onStatusFilterChange={vi.fn()}
+      unifiedMessages={allUnifiedMessages}
+    />,
+  );
+
+  const deliveryButtons = screen.getAllByRole("button", { name: "View delivery details" });
+  // Sent, Failed, and Canceled each have "View delivery details"
+  expect(deliveryButtons).toHaveLength(3);
+});
+
+it("renders expanded delivery details with message snapshot open by default when deliveryDetailsMessage matches", async () => {
+  render(
+    <MessagesPanel
+      busy={false}
+      currentOrigin="all"
+      currentStatus="sent"
+      deliveryDetailsMessage={manualSentMsg}
+      deliverySummary={{
+        email: { failed: 0, processing: 0, queued: 0, sent: 1, suppressed: 0, total: 1 },
+        failures: [],
+        hasMoreFailures: false,
+        lastActivity: "2026-08-02T10:00:00Z",
+        messageId: manualSentMsg.id,
+        provider: {
+          accepted: 1,
+          bounced: 0,
+          complained: 0,
+          deferred: 0,
+          delivered: 1,
+          failed: 0,
+          rejected: 0,
+          total: 1,
+        },
+        recipients: [
+          {
+            channel: "email",
+            providerStatus: "delivered",
+            recipientName: "Ada Lovelace",
+            status: "sent",
+          },
+        ],
+        sms: { failed: 0, processing: 0, queued: 0, sent: 0, suppressed: 0, total: 0 },
+        state: "sent",
+        total: { failed: 0, processing: 0, queued: 0, sent: 1, suppressed: 0, total: 1 },
+      }}
+      loadingDeliveryId={null}
+      onCancelQueued={vi.fn()}
+      onDeleteDraft={vi.fn()}
+      onNewMessage={vi.fn()}
+      onOpenDeliveryDetails={vi.fn()}
+      onOriginFilterChange={vi.fn()}
+      onResumeDraft={vi.fn()}
+      onRetryDeliveries={vi.fn()}
+      onStatusFilterChange={vi.fn()}
+      unifiedMessages={[
+        {
+          automated: false,
+          channel: "Email",
+          id: manualSentMsg.id,
+          kind: "manual",
+          message: manualSentMsg,
+          recipientCount: 1,
+          status: "Sent",
+          timestamp: manualSentMsg.sentAt ?? "",
+          title: manualSentMsg.subject,
+        },
+      ]}
+    />,
+  );
+
+  const region = screen.getByRole("region", {
+    name: `Delivery details for ${manualSentMsg.subject}`,
+  });
+  expect(region).toBeVisible();
+
+  // Snapshot section is present and open by default
+  const snapshotSummary = screen.getByText("Message snapshot");
+  expect(snapshotSummary).toBeVisible();
+  expect(snapshotSummary.closest("details")).toHaveAttribute("open");
+
+  // Subject and snapshot content are rendered
+  expect(screen.getByText("Subject:")).toBeVisible();
+  expect(screen.getByText("Preview snapshot based on Ada Lovelace.")).toBeVisible();
+  expect(screen.getByText("Draft content")).toBeVisible();
+
+  await waitFor(() => {
+    expect(screen.getByText("Ada Lovelace", { selector: "strong" })).toBeVisible();
+  });
 });

@@ -112,6 +112,7 @@ export function communicationPreviewValues(
   event: OrganizationEvent | null,
   timezone: string | null,
   branding?: OrganizationBranding | null,
+  sampleRecipientName: string = SAMPLE_COMMUNICATION_RECIPIENT_NAME,
 ): Readonly<Record<string, string>> {
   const organizationName = branding?.organizationName ?? "Example Choir";
   const eventTitle = event?.title ?? "Example Performance";
@@ -131,7 +132,7 @@ export function communicationPreviewValues(
   const recipientNameValues = communicationRecipientNamePlaceholderKeys.reduce<
     Record<string, string>
   >((values, key) => {
-    values[`{${key}}`] = SAMPLE_COMMUNICATION_RECIPIENT_NAME;
+    values[`{${key}}`] = sampleRecipientName;
     return values;
   }, {});
 

@@ -153,4 +153,14 @@ describe("renderCommunicationMarkdownPreview", () => {
     expect(rendered).toContain("View order details");
     expect(rendered).not.toContain("{{TICKET_ORDER_LINK}}");
   });
+
+  it("uses custom sample recipient name when provided", () => {
+    const rendered = renderCommunicationMarkdownPreview(
+      "Hello {recipientName} and {singerName}!",
+      communicationPreviewValues(null, "UTC", null, "Ada Lovelace"),
+    );
+
+    expect(rendered).toContain("Hello Ada Lovelace and Ada Lovelace!");
+    expect(rendered).not.toContain(SAMPLE_COMMUNICATION_RECIPIENT_NAME);
+  });
 });

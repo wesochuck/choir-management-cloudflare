@@ -1,4 +1,9 @@
-import type { CommunicationDeliverySummary, CommunicationMessage } from "@choir/contracts";
+import type {
+  CommunicationDeliverySummary,
+  CommunicationMessage,
+  OrganizationBranding,
+  OrganizationEvent,
+} from "@choir/contracts";
 import { formatTimezoneName } from "@choir/domain";
 import { CommunicationDeliveryDetails } from "./CommunicationDeliveryDetails";
 import type { MessageOriginFilter, MessageStatusFilter, UnifiedCommunicationItem } from "./types";
@@ -10,11 +15,13 @@ import {
 } from "./utils";
 
 interface MessageListProps {
+  readonly branding?: OrganizationBranding | null | undefined;
   readonly busy: boolean;
   readonly currentOrigin: MessageOriginFilter;
   readonly currentStatus: MessageStatusFilter;
   readonly deliveryDetailsMessage: CommunicationMessage | null;
   readonly deliverySummary: CommunicationDeliverySummary | null;
+  readonly events?: readonly OrganizationEvent[] | undefined;
   readonly loadingDeliveryId: string | null;
   readonly onCancelQueued: (messageId: string) => Promise<void>;
   readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
@@ -22,13 +29,16 @@ interface MessageListProps {
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
   readonly onRetryDeliveries: (messageId: string) => Promise<void>;
+  readonly timezone?: string | null | undefined;
   readonly unifiedMessages: readonly UnifiedCommunicationItem[];
 }
 
 interface MessageCardProps {
+  readonly branding?: OrganizationBranding | null | undefined;
   readonly busy: boolean;
   readonly deliveryDetailsMessage: CommunicationMessage | null;
   readonly deliverySummary: CommunicationDeliverySummary | null;
+  readonly events?: readonly OrganizationEvent[] | undefined;
   readonly isLoadingThis: boolean;
   readonly item: UnifiedCommunicationItem;
   readonly onCancelQueued: (messageId: string) => Promise<void>;
@@ -37,6 +47,7 @@ interface MessageCardProps {
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
   readonly onRetryDeliveries: (messageId: string) => Promise<void>;
+  readonly timezone?: string | null | undefined;
 }
 
 function MessageCardActions({
@@ -120,71 +131,21 @@ function MessageCardActions({
     );
   }
 
-  if (item.status === "Sent" || item.status === "Failed") {
-    return (
-      <>
-        <button
-          className="button button--secondary button--sm"
-          disabled={busy || isLoadingThis}
-          onClick={() => void onOpenDeliveryDetails(item.message)}
-          type="button"
-        >
-          {isLoadingThis ? "Loading…" : "View delivery details"}
-        </button>
-        {item.message.eventPromotion && onCreateFollowUp ? (
-          <button
-            className="button button--secondary button--sm"
-            disabled={busy}
-            onClick={() => void onCreateFollowUp(item.message)}
-            type="button"
-          >
-            Create follow-up
-          </button>
-        ) : null}
-      </>
-    );
-  }
-
-  if (!item.message.eventPromotion) return null;
-  return (
-    <CanceledPromotionActions
-      busy={busy}
-      isLoadingThis={isLoadingThis}
-      message={item.message}
-      onCreateFollowUp={onCreateFollowUp}
-      onOpenDeliveryDetails={onOpenDeliveryDetails}
-    />
-  );
-}
-
-function CanceledPromotionActions({
-  busy,
-  isLoadingThis,
-  message,
-  onCreateFollowUp,
-  onOpenDeliveryDetails,
-}: {
-  readonly busy: boolean;
-  readonly isLoadingThis: boolean;
-  readonly message: CommunicationMessage;
-  readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
-  readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
-}) {
   return (
     <>
       <button
         className="button button--secondary button--sm"
         disabled={busy || isLoadingThis}
-        onClick={() => void onOpenDeliveryDetails(message)}
+        onClick={() => void onOpenDeliveryDetails(item.message)}
         type="button"
       >
         {isLoadingThis ? "Loading…" : "View delivery details"}
       </button>
-      {onCreateFollowUp ? (
+      {item.message.eventPromotion && onCreateFollowUp ? (
         <button
           className="button button--secondary button--sm"
           disabled={busy}
-          onClick={() => void onCreateFollowUp(message)}
+          onClick={() => void onCreateFollowUp(item.message)}
           type="button"
         >
           Create follow-up
@@ -243,9 +204,11 @@ function QueuedByMetadata({ item }: { readonly item: UnifiedCommunicationItem })
 }
 
 function MessageCard({
+  branding,
   busy,
   deliveryDetailsMessage,
   deliverySummary,
+  events,
   isLoadingThis,
   item,
   onCancelQueued,
@@ -254,6 +217,7 @@ function MessageCard({
   onOpenDeliveryDetails,
   onResumeDraft,
   onRetryDeliveries,
+  timezone,
 }: MessageCardProps) {
   const isDetailsOpen =
     item.kind === "manual" && deliveryDetailsMessage?.id === item.id && deliverySummary !== null;
@@ -330,10 +294,13 @@ function MessageCard({
       {isDetailsOpen ? (
         <div className="communication-message-card__details-panel">
           <CommunicationDeliveryDetails
+            branding={branding}
             busy={busy}
+            events={events}
             message={item.message}
             onRetry={() => onRetryDeliveries(item.id)}
             summary={deliverySummary}
+            timezone={timezone}
           />
         </div>
       ) : null}
@@ -342,11 +309,13 @@ function MessageCard({
 }
 
 export function MessageList({
+  branding,
   busy,
   currentOrigin,
   currentStatus,
   deliveryDetailsMessage,
   deliverySummary,
+  events,
   loadingDeliveryId,
   onCancelQueued,
   onCreateFollowUp,
@@ -354,6 +323,7 @@ export function MessageList({
   onOpenDeliveryDetails,
   onResumeDraft,
   onRetryDeliveries,
+  timezone,
   unifiedMessages,
 }: MessageListProps) {
   if (unifiedMessages.length === 0) {
@@ -368,9 +338,11 @@ export function MessageList({
     <div className="communication-message-list">
       {unifiedMessages.map((item) => (
         <MessageCard
+          branding={branding}
           busy={busy}
           deliveryDetailsMessage={deliveryDetailsMessage}
           deliverySummary={deliverySummary}
+          events={events}
           isLoadingThis={loadingDeliveryId === item.id}
           item={item}
           key={`${item.kind}:${item.id}`}
@@ -380,6 +352,7 @@ export function MessageList({
           onOpenDeliveryDetails={onOpenDeliveryDetails}
           onResumeDraft={onResumeDraft}
           onRetryDeliveries={onRetryDeliveries}
+          timezone={timezone}
         />
       ))}
     </div>

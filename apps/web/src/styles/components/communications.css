@@ -275,6 +275,42 @@
     margin: 0;
   }
 
+  .communication-delivery-preview {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .communication-delivery-preview summary {
+    cursor: pointer;
+    font-weight: var(--font-weight-bold);
+  }
+
+  .communication-delivery-preview__content {
+    display: grid;
+    gap: var(--spacing-xs);
+  }
+
+  .communication-delivery-preview__subject {
+    margin: 0;
+    color: var(--color-text);
+  }
+
+  .communication-delivery-preview__help {
+    margin: 0;
+  }
+
+  .communication-delivery-preview .preview-body {
+    max-height: 24rem;
+    overflow-y: auto;
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+  }
+
   .communication-delivery-recipients {
     display: grid;
     gap: var(--spacing-sm);

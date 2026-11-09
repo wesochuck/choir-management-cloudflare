@@ -1,14 +1,21 @@
-import type { CommunicationDeliverySummary, CommunicationMessage } from "@choir/contracts";
+import type {
+  CommunicationDeliverySummary,
+  CommunicationMessage,
+  OrganizationBranding,
+  OrganizationEvent,
+} from "@choir/contracts";
 import { CommunicationPagination } from "./CommunicationPagination";
 import { MessageList } from "./MessageList";
 import type { MessageOriginFilter, MessageStatusFilter, UnifiedCommunicationItem } from "./types";
 
 interface MessagesPanelProps {
+  readonly branding?: OrganizationBranding | null | undefined;
   readonly busy: boolean;
   readonly currentOrigin: MessageOriginFilter;
   readonly currentStatus: MessageStatusFilter;
   readonly deliveryDetailsMessage: CommunicationMessage | null;
   readonly deliverySummary: CommunicationDeliverySummary | null;
+  readonly events?: readonly OrganizationEvent[] | undefined;
   readonly hasNextPage?: boolean;
   readonly hasPreviousPage?: boolean;
   readonly loadingDeliveryId: string | null;
@@ -24,6 +31,7 @@ interface MessagesPanelProps {
   readonly onRetryDeliveries: (messageId: string) => Promise<void>;
   readonly onStatusFilterChange: (status: MessageStatusFilter) => void;
   readonly pageNumber?: number;
+  readonly timezone?: string | null | undefined;
   readonly unifiedMessages: readonly UnifiedCommunicationItem[];
 }
 
@@ -46,11 +54,13 @@ const originFilterOptions: readonly { readonly id: MessageOriginFilter; readonly
   ];
 
 export function MessagesPanel({
+  branding,
   busy,
   currentOrigin,
   currentStatus,
   deliveryDetailsMessage,
   deliverySummary,
+  events,
   hasNextPage,
   hasPreviousPage,
   loadingDeliveryId,
@@ -66,6 +76,7 @@ export function MessagesPanel({
   onRetryDeliveries,
   onStatusFilterChange,
   pageNumber,
+  timezone,
   unifiedMessages,
 }: MessagesPanelProps) {
   return (
@@ -143,17 +154,20 @@ export function MessagesPanel({
       ) : null}
       {/* Message List */}
       <MessageList
+        branding={branding}
         busy={busy}
         currentOrigin={currentOrigin}
         currentStatus={currentStatus}
         deliveryDetailsMessage={deliveryDetailsMessage}
         deliverySummary={deliverySummary}
+        events={events}
         loadingDeliveryId={loadingDeliveryId}
         onCancelQueued={onCancelQueued}
         onDeleteDraft={onDeleteDraft}
         onOpenDeliveryDetails={onOpenDeliveryDetails}
         onResumeDraft={onResumeDraft}
         onRetryDeliveries={onRetryDeliveries}
+        timezone={timezone}
         unifiedMessages={unifiedMessages}
       />
 

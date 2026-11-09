@@ -863,6 +863,9 @@ test("shows recipient names in message delivery details", async ({ page }) => {
     name: "Delivery details for Rehearsal update",
   });
   await expect(deliveryDetails).toBeVisible();
+  await expect(deliveryDetails.getByText("Message snapshot")).toBeVisible();
+  await expect(deliveryDetails.getByText("Preview snapshot based on Ada Alto.")).toBeVisible();
+  await expect(deliveryDetails.getByText("Hello Ada Alto")).toBeVisible();
   await expect(deliveryDetails.getByText("Recipients (2)", { exact: true })).toBeVisible();
   await expect(deliveryDetails.getByText("Ada Alto", { exact: true })).toBeVisible();
   await expect(deliveryDetails.getByText("Ben Bass", { exact: true })).toBeVisible();

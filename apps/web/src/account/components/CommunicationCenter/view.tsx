@@ -238,11 +238,13 @@ export function CommunicationCenterView({
               </div>
             ) : (
               <MessagesPanel
+                branding={branding}
                 busy={busy}
                 currentOrigin={originFilter}
                 currentStatus={statusFilter}
                 deliveryDetailsMessage={deliveryDetailsMessage}
                 deliverySummary={deliverySummary}
+                events={events}
                 hasNextPage={hasNextPage}
                 hasPreviousPage={hasPreviousPage}
                 loadingDeliveryId={loadingDeliveryId}
@@ -258,6 +260,7 @@ export function CommunicationCenterView({
                 onRetryDeliveries={retryDeliveries}
                 onStatusFilterChange={setStatusFilter}
                 pageNumber={pageNumber}
+                timezone={timezone}
                 unifiedMessages={unifiedMessages}
               />
             )
