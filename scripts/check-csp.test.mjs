@@ -35,6 +35,18 @@ const validHeaders = `/*
 `;
 
 describe("CSP verification check", () => {
+  it("retains baseline sources when runtime-only origins are appended", () => {
+    const router = sampleRouter.replace(
+      "\"connect-src 'self' https://cloudflareinsights.com https://challenges.cloudflare.com\",",
+      "\"connect-src 'self' https://cloudflareinsights.com https://challenges.cloudflare.com\" +\n      optionalOrigins,",
+    );
+    expect(validateStaticCsp(validHeaders, router).ok).toBe(true);
+    const stricterRouter = router.replace(
+      'https://challenges.cloudflare.com" +',
+      'https://challenges.cloudflare.com https://required.example.test" +',
+    );
+    expect(validateStaticCsp(validHeaders, stricterRouter).ok).toBe(false);
+  });
   it("parses directives properly into a map", () => {
     const directives = parseDirectives(
       "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://example.com",

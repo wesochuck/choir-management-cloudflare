@@ -58,7 +58,9 @@ export function extractBaselineFromRouter(routerSource) {
         "script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://challenges.cloudflare.com",
       );
     } else {
-      const stringMatch = line.match(/^"([^"]+)",?$/);
+      // Optional runtime sources may be appended to a literal baseline directive.
+      // Retain that baseline so static headers must still satisfy every source.
+      const stringMatch = line.match(/^"([^"]+)"(?:,|\s*\+)?$/);
       if (stringMatch && stringMatch[1]) {
         baselineDirectives.push(stringMatch[1]);
       }
