@@ -92,6 +92,7 @@ export function getEmptyStateText(
 }
 
 export interface InitialNavigationState {
+  readonly attendeeEventId?: string;
   readonly contactListId?: string;
   readonly rsvpRequest?: {
     readonly eventId: string;
@@ -185,8 +186,10 @@ export function parseCommunicationSearch(search: string): InitialNavigationState
 
   const { messageMode, section } = parseNavigationMode(tab);
   const contactListId = params.get("contactListId");
+  const attendeeEventId = params.get("attendeeEventId");
   const rsvpRequest = parseRsvpRequest(params, messageMode);
   return {
+    ...(messageMode === "compose" && attendeeEventId ? { attendeeEventId } : {}),
     ...(messageMode === "compose" && contactListId !== null ? { contactListId } : {}),
     ...(rsvpRequest ? { rsvpRequest } : {}),
     draftId: null,

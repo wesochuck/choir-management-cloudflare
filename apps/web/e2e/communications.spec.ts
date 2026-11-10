@@ -298,6 +298,29 @@ async function editRecipients(page: Page): Promise<void> {
   }
 }
 
+test("opens an attendee email with the event and Yes response selected", async ({ page }) => {
+  const previewBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+  await page.goto(`/admin/communications?tab=compose&attendeeEventId=${eventId}`);
+  const recipients = page.locator(".communication-recipient-panel");
+  await expect(recipients.getByLabel("Event (optional)")).toHaveValue(eventId);
+  await expect(recipients.getByLabel("Delivery channel")).toHaveValue("Email");
+  await expect(recipients.getByRole("checkbox", { name: "Members", exact: true })).toBeChecked();
+  await expect(
+    recipients.getByRole("checkbox", { name: "Contacts", exact: true }),
+  ).not.toBeChecked();
+  await recipients.getByText("More member filters", { exact: true }).click();
+  await expect(recipients.getByLabel("Member RSVP response")).toHaveValue("Yes");
+  await expect(page.getByLabel("Subject", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("textbox", { name: "Message body" })).toHaveValue("");
+  await expect
+    .poll(() => previewBodies.at(-1))
+    .toMatchObject({
+      channel: "Email",
+      audience: { eventId, rsvp: "Yes", targetAudiences: ["Members"] },
+    });
+});
+
 test("preserves all selected audiences and automatically computes reach preview", async ({
   page,
 }) => {

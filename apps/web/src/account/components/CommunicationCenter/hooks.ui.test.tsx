@@ -104,6 +104,37 @@ afterEach(() => {
 });
 
 describe("useCommunicationCenterController filters", () => {
+  it("opens a blank attendee email and clears its audience when starting another message", () => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(
+      null,
+      "",
+      "/admin/communications?tab=compose&attendeeEventId=event-1",
+    );
+    try {
+      const { result } = renderHook(() => useCommunicationCenterController({ enabled: false }));
+      expect(result.current.messageMode).toBe("compose");
+      expect(result.current.channel).toBe("Email");
+      expect(result.current.recipientsExpanded).toBe(true);
+      expect(result.current.audience).toMatchObject({
+        eventId: "event-1",
+        rsvp: "Yes",
+        targetAudiences: ["Members"],
+        globalStatuses: ["Active"],
+        voiceParts: [],
+        profileIds: [],
+      });
+      expect(result.current.subject).toBe("");
+      expect(result.current.contentMarkdown).toBe("");
+      act(() => {
+        result.current.openNewMessage();
+      });
+      expect(result.current.audience.eventId).toBeNull();
+      expect(result.current.audience.rsvp).toBe("All");
+    } finally {
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
   it.each([
     { query: "", statuses: ["Active"] },
     { query: "&rsvpStatus=Idle", statuses: ["Idle"] },

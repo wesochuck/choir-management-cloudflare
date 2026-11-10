@@ -617,6 +617,14 @@ export function RsvpManagerPage({
                       value={query}
                     />
                   </label>
+                  {selectedEvent ? (
+                    <a
+                      className="button button--secondary button--control-height"
+                      href={`/admin/communications?${new URLSearchParams({ tab: "compose", attendeeEventId: selectedEvent.id }).toString()}`}
+                    >
+                      Email attendees
+                    </a>
+                  ) : null}
                 </div>
                 <div className="rsvp-manager__table-heading">
                   <span>{rowsLoading ? "Loading…" : `${String(visibleRows.length)} shown`}</span>

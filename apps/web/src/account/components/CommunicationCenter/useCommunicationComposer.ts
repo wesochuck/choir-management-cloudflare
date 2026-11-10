@@ -105,18 +105,20 @@ export function useCommunicationComposer({
             initialNav.rsvpRequest.voiceParts,
             initialNav.rsvpRequest.globalStatuses,
           )
-        : initialNav.contactListId !== undefined
-          ? {
-              ...defaultAudience,
-              targetAudiences: ["Contacts"],
-              contactListIds: [initialNav.contactListId],
-            }
-          : defaultAudience,
-    [initialNav.contactListId, initialNav.rsvpRequest],
+        : initialNav.attendeeEventId
+          ? { ...defaultAudience, eventId: initialNav.attendeeEventId, rsvp: "Yes" }
+          : initialNav.contactListId !== undefined
+            ? {
+                ...defaultAudience,
+                targetAudiences: ["Contacts"],
+                contactListIds: [initialNav.contactListId],
+              }
+            : defaultAudience,
+    [initialNav.attendeeEventId, initialNav.contactListId, initialNav.rsvpRequest],
   );
   const [audience, setAudience] = useState<CommunicationAudienceRequest>(initialAudience);
   const audienceRef = useRef<CommunicationAudienceRequest>(initialAudience);
-  const [recipientsExpanded, setRecipientsExpanded] = useState(false);
+  const [recipientsExpanded, setRecipientsExpanded] = useState(Boolean(initialNav.attendeeEventId));
 
   const [channel, setChannel] = useState<CommunicationChannel>("Email");
   const [contentMarkdown, setContentMarkdown] = useState(

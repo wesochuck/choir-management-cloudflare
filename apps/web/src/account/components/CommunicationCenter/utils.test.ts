@@ -3,6 +3,19 @@ import type { CommunicationScheduledMessage } from "@choir/contracts";
 import { parseCommunicationSearch, scheduledMessageActionLink } from "./utils";
 
 describe("parseCommunicationSearch", () => {
+  it("only accepts the attendee event in compose mode and gives drafts precedence", () => {
+    expect(parseCommunicationSearch("?tab=compose&attendeeEventId=event-1")).toMatchObject({
+      attendeeEventId: "event-1",
+      messageMode: "compose",
+    });
+    for (const search of [
+      "?attendeeEventId=event-1",
+      "?tab=compose&attendeeEventId=",
+      "?tab=compose&draftId=draft-1&attendeeEventId=event-1",
+    ]) {
+      expect(parseCommunicationSearch(search).attendeeEventId).toBeUndefined();
+    }
+  });
   it("requires performer parts and compose mode for an RSVP request, and gives drafts precedence", () => {
     expect(
       parseCommunicationSearch("?tab=compose&rsvpEventId=event-1&rsvpPart=S1&rsvpPart=S1&rsvpPart=")

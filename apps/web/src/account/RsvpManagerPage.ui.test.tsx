@@ -181,6 +181,20 @@ beforeEach(() => {
 });
 
 describe("RsvpManagerPage profile editor (issue #137)", () => {
+  it("links to an attendee email for the selected event regardless of the roster filter", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const link = await screen.findByRole("link", { name: "Email attendees" });
+    expect(link).toHaveAttribute(
+      "href",
+      `/admin/communications?tab=compose&attendeeEventId=${eventId1}`,
+    );
+    await user.click(screen.getByRole("button", { name: "No response (1)" }));
+    expect(link).toHaveAttribute(
+      "href",
+      `/admin/communications?tab=compose&attendeeEventId=${eventId1}`,
+    );
+  });
   it("defaults to attending and lets administrators switch RSVP filters", async () => {
     const user = userEvent.setup();
     renderPage();
