@@ -1,3 +1,4 @@
+import { GoogleAdsTag } from "./GoogleAdsTag";
 import type { CheckoutRecoveryChoices } from "@choir/contracts";
 import type { PublishedOrganizationProjection } from "@choir/contracts";
 import { useEffect, useState } from "react";
@@ -138,13 +139,18 @@ export function PublicTickets({
     );
   const settings = state.projection.payload.settings;
   const content = (
-    <TicketsContent
-      recovery={recovery}
-      feeSettings={state.feeSettings}
-      nowMs={nowMs}
-      pathname={pathname}
-      projection={state.projection}
-    />
+    <>
+      {!recovering && pathname !== "/tickets/order/success" ? (
+        <GoogleAdsTag tagId={settings.googleAdsTagId} />
+      ) : null}
+      <TicketsContent
+        recovery={recovery}
+        feeSettings={state.feeSettings}
+        nowMs={nowMs}
+        pathname={pathname}
+        projection={state.projection}
+      />
+    </>
   );
 
   if (embedded) return content;

@@ -2532,6 +2532,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE public_website_settings ADD COLUMN google_ads_tag_id TEXT NOT NULL DEFAULT ''",
     ],
   },
+  {
+    version: 140,
+    statements: [
+      "ALTER TABLE public_website_settings ADD COLUMN google_ads_conversion_label TEXT NOT NULL DEFAULT ''",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

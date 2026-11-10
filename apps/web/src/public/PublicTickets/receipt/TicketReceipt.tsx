@@ -1,3 +1,4 @@
+import { GoogleAdsTag } from "../../GoogleAdsTag";
 import { useEffect, useState } from "react";
 import type {
   PublicTicketReceipt,
@@ -57,6 +58,32 @@ function resolveReceiptGraphicUrl(
     ? (matchingBundle?.graphicFileId ?? null)
     : (matchingPerformance?.graphicFileId ?? null);
   return graphicFileId ? mediaUrl(projection, graphicFileId) : null;
+}
+
+function TicketAdsConversion({
+  purchase,
+  projection,
+}: {
+  readonly purchase: PublicTicketReceipt;
+  readonly projection: PublishedOrganizationProjection | null | undefined;
+}) {
+  if (purchase.status !== "paid" || purchase.checkoutMode === "fake" || !projection) return null;
+  const { googleAdsTagId, googleAdsConversionLabel } = projection.payload.settings;
+  return (
+    <GoogleAdsTag
+      tagId={googleAdsTagId}
+      conversion={
+        googleAdsConversionLabel
+          ? {
+              label: googleAdsConversionLabel,
+              transactionId: `${projection.organizationId}:${purchase.id}`,
+              value: purchase.amountPaidCents / 100,
+              currency: purchase.currency.toUpperCase(),
+            }
+          : undefined
+      }
+    />
+  );
 }
 
 function TicketReceiptContent({
@@ -189,6 +216,7 @@ function TicketReceiptContent({
 
   return (
     <section className="public-section ticket-confirmation-section">
+      <TicketAdsConversion purchase={purchase} projection={projection} />
       <div className="ticket-confirmation-layout">
         {/* Left Column (Desktop) / Header & Secondary Details (Mobile) */}
         <div className="ticket-confirmation-hero">

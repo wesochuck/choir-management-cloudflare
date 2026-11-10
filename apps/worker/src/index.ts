@@ -101,7 +101,11 @@ const worker = {
       headers,
       "strict-origin-when-cross-origin",
       undefined,
-      pathname === "/" || pathname === "/performances" || contentStatus === 200,
+      pathname === "/" ||
+        pathname === "/performances" ||
+        pathname === "/tickets" ||
+        pathname.startsWith("/tickets/") ||
+        contentStatus === 200,
     );
     return new Response(assetResponse.body, {
       headers,

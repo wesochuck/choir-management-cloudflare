@@ -42,6 +42,7 @@ function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequ
     pages: normalizedPublicWebsitePages(settings),
     expectedDraftRevision: settings.draftRevision ?? 0,
     pageLabels: settings.pageLabels ?? {},
+    googleAdsConversionLabel: settings.googleAdsConversionLabel ?? "",
     googleAdsTagId: settings.googleAdsTagId ?? "",
     footerText: settings.footerText ?? "",
     footerEmbeds: settings.footerEmbeds ?? [],
@@ -68,6 +69,7 @@ function customWebsiteSettingsChanged(
     JSON.stringify(draft.pages) !== JSON.stringify(saved.pages) ||
     heroSettingsChanged(draft, saved) ||
     JSON.stringify(draft.pageLabels) !== JSON.stringify(saved.pageLabels) ||
+    draft.googleAdsConversionLabel !== saved.googleAdsConversionLabel ||
     draft.googleAdsTagId !== saved.googleAdsTagId ||
     draft.footerText !== saved.footerText ||
     JSON.stringify(draft.footerEmbeds) !== JSON.stringify(saved.footerEmbeds)
@@ -750,10 +752,22 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
                     aria-describedby="google-ads-help"
                   />
                 </label>
+                <label className="field">
+                  <span>Ticket purchase conversion label (optional)</span>
+                  <input
+                    disabled={busy}
+                    value={draft.googleAdsConversionLabel ?? ""}
+                    maxLength={100}
+                    onChange={(event) => {
+                      change("googleAdsConversionLabel", event.target.value);
+                    }}
+                  />
+                </label>
                 <p id="google-ads-help">
                   Enter your AW- ID, then save and publish to enable Google Ads on public website
-                  pages. Leave blank and publish to disable. The tag does not run in this preview or
-                  on account and signed-link pages. Purchase conversion events are not included.
+                  pages and ticket pages. Leave blank and publish to disable. Add a conversion label
+                  to report confirmed ticket purchases, including bundles. Preview, account, and
+                  recovery pages are excluded.
                 </p>
               </section>
             </TabsContent>

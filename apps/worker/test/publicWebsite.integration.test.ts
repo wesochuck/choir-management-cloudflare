@@ -547,6 +547,7 @@ describe("Organization public website", () => {
           "/api/organization/website",
           "PUT",
           {
+            googleAdsConversionLabel: "Ticket_purchase-1",
             googleAdsTagId: "AW-123456789",
             footerText: "**Alpha supporters**",
             footerEmbeds,
@@ -582,6 +583,7 @@ describe("Organization public website", () => {
         await exports.default.fetch(api("alpha.localhost", "/api/organization/website", cookie))
       ).json(),
     );
+    expect(reloaded.googleAdsConversionLabel).toBe("Ticket_purchase-1");
     expect(reloaded.googleAdsTagId).toBe("AW-123456789");
     expect(reloaded.footerText).toBe("**Alpha supporters**");
     expect(reloaded.heroPosition).toEqual({ x: 25.5, y: 80 });
@@ -609,6 +611,7 @@ describe("Organization public website", () => {
             { id: performance.id, title: "Winter Concert", ticketSlug: "winter-concert" },
           ],
           settings: {
+            googleAdsConversionLabel: "Ticket_purchase-1",
             googleAdsTagId: "AW-123456789",
             heroHeadline: "Alpha sings",
             heroPosition: { x: 25.5, y: 80 },

@@ -6,6 +6,7 @@ import { GoogleAdsTag } from "./GoogleAdsTag";
 afterEach(() => {
   cleanup();
   delete window.dataLayer;
+  sessionStorage.clear();
 });
 it("loads only a valid enabled Ads tag and avoids duplicate StrictMode configuration", () => {
   const view = render(
@@ -24,4 +25,25 @@ it("does not load a tag for omitted, cleared, or invalid IDs", () => {
     expect(document.querySelectorAll('script[src*="googletagmanager.com"]')).toHaveLength(0);
     view.unmount();
   }
+});
+
+it("reports confirmed conversions once across remounts using a stable transaction ID", () => {
+  const conversion = {
+    label: "ticket_label",
+    transactionId: "org:purchase",
+    value: 12.5,
+    currency: "USD",
+  };
+  const first = render(
+    <StrictMode>
+      <GoogleAdsTag tagId="AW-123456789" conversion={conversion} />
+    </StrictMode>,
+  );
+  first.unmount();
+  render(<GoogleAdsTag tagId="AW-123456789" conversion={conversion} />);
+  const events = (window.dataLayer ?? []).filter(
+    (entry) =>
+      typeof entry === "object" && entry !== null && "1" in entry && entry[1] === "conversion",
+  );
+  expect(events).toHaveLength(1);
 });

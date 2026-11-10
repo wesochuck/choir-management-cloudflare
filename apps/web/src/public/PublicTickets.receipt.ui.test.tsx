@@ -8,6 +8,7 @@ import {
   getPublicTicketConfirmationSettings,
   getPublicTicketPurchase,
 } from "../auth/api";
+import { checkoutProjection } from "./PublicTickets.ui.fixture";
 import { TicketReceipt } from "./PublicTickets";
 
 vi.mock("../auth/api", async (importOriginal) => {
@@ -58,7 +59,62 @@ describe("TicketReceipt", () => {
     venueName: "Symphony Hall",
   };
 
+  it.each([
+    { status: "pending", checkoutMode: "stripe", conversions: 0 },
+    { status: "expired", checkoutMode: "stripe", conversions: 0 },
+    { status: "refunded", checkoutMode: "stripe", conversions: 0 },
+    { status: "paid", checkoutMode: "fake", conversions: 0 },
+    { status: "paid", checkoutMode: "stripe", conversions: 1 },
+    { status: "paid", checkoutMode: "free", conversions: 1 },
+  ] as const)(
+    "reports $conversions conversion for $status / $checkoutMode",
+    async ({ status, checkoutMode, conversions }) => {
+      const base = checkoutProjection(2000, 3000);
+      const projection = {
+        ...base,
+        payload: {
+          ...base.payload,
+          settings: {
+            ...base.payload.settings,
+            googleAdsTagId: "AW-123456789",
+            googleAdsConversionLabel: "ticket_label",
+          },
+        },
+      };
+      vi.mocked(getPublicTicketPurchase).mockResolvedValue({
+        ...baseSampleReceipt,
+        status,
+        checkoutMode,
+      });
+      render(<TicketReceipt projection={projection} token="private.receipt.token" />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10);
+      });
+      const events = (window.dataLayer ?? []).filter(
+        (entry) =>
+          typeof entry === "object" && entry !== null && "1" in entry && entry[1] === "conversion",
+      );
+      expect(events).toHaveLength(conversions);
+      if (conversions) {
+        expect(events[0]).toEqual(
+          expect.objectContaining({
+            2: expect.objectContaining({
+              send_to: "AW-123456789/ticket_label",
+              transaction_id: `org-1:${baseSampleReceipt.id}`,
+              value: 20,
+              currency: "USD",
+            }),
+          }),
+        );
+        expect(JSON.stringify(events)).not.toContain("private.receipt.token");
+        expect(JSON.stringify(events)).not.toContain("Jane Doe");
+      }
+    },
+  );
+
   beforeEach(() => {
+    delete window.dataLayer;
+    sessionStorage.clear();
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     vi.mocked(getPublicTicketConfirmationSettings).mockResolvedValue({
       admissionInstructions: "Keep this confirmation available on your phone.",

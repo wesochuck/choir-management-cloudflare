@@ -131,6 +131,7 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     vi.mocked(authApi.updateOrganizationPublicWebsiteSettings).mockResolvedValue({
       ...defaultSettings,
       googleAdsTagId: "AW-123456789",
+      googleAdsConversionLabel: "Ticket_purchase-1",
       draftRevision: 1,
     });
     render(
@@ -142,13 +143,20 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     await screen.findByLabelText("Publication state");
     await user.click(screen.getByRole("tab", { name: "Tracking" }));
     await user.type(screen.getByLabelText("Google Ads tag ID"), "AW-123456789");
+    await user.type(
+      screen.getByLabelText("Ticket purchase conversion label (optional)"),
+      "Ticket_purchase-1",
+    );
     await user.click(screen.getByRole("tab", { name: "Appearance" }));
     await user.click(screen.getByRole("tab", { name: "Tracking" }));
     expect(screen.getByLabelText("Google Ads tag ID")).toHaveValue("AW-123456789");
     await user.click(screen.getByRole("button", { name: "Save draft" }));
     await waitFor(() => {
       expect(authApi.updateOrganizationPublicWebsiteSettings).toHaveBeenCalledWith(
-        expect.objectContaining({ googleAdsTagId: "AW-123456789" }),
+        expect.objectContaining({
+          googleAdsTagId: "AW-123456789",
+          googleAdsConversionLabel: "Ticket_purchase-1",
+        }),
       );
     });
     expect(document.querySelector('script[src*="googletagmanager.com"]')).toBeNull();

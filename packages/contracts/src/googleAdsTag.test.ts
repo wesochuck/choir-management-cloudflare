@@ -18,3 +18,16 @@ it("rejects script snippets, other tag types, null, and oversized IDs", () => {
     expect(publicWebsiteSettingsRequestSchema.safeParse({ googleAdsTagId }).success).toBe(false);
   }
 });
+
+it("validates the optional ticket conversion label", () => {
+  for (const googleAdsConversionLabel of [undefined, "", "AbC-D_efG-h12_34-567"]) {
+    expect(publicWebsiteSettingsRequestSchema.safeParse({ googleAdsConversionLabel }).success).toBe(
+      true,
+    );
+  }
+  for (const googleAdsConversionLabel of [null, "AW-123/label", "<script>", "x".repeat(101)]) {
+    expect(publicWebsiteSettingsRequestSchema.safeParse({ googleAdsConversionLabel }).success).toBe(
+      false,
+    );
+  }
+});

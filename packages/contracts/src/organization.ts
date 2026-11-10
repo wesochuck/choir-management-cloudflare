@@ -273,6 +273,12 @@ export const publicWebsiteSettingsRequestObjectSchema = z.object({
       auditions: publicPageLabelSchema.optional(),
     })
     .optional(),
+  googleAdsConversionLabel: z
+    .string()
+    .trim()
+    .max(100)
+    .regex(/^[A-Za-z0-9_-]*$/, "Enter the conversion label from Google Ads.")
+    .optional(),
   googleAdsTagId: z
     .string()
     .trim()
