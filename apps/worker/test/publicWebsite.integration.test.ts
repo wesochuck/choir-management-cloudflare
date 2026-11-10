@@ -590,6 +590,14 @@ describe("Organization public website", () => {
     expect(reloaded.pageLabels?.auditions?.navigationLabel).toBe("Join");
     expect(reloaded.footerEmbeds).toEqual(footerEmbeds);
 
+    const commerceBeforePublish = publishedOrganizationProjectionSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/public/commerce-projection"))
+      ).json(),
+    );
+    expect(commerceBeforePublish.payload.settings.googleAdsTagId).toBe("");
+    expect(commerceBeforePublish.payload.settings.googleAdsConversionLabel).toBe("");
+
     const publication = publicWebsitePublishResponseSchema.parse(
       await (
         await exports.default.fetch(

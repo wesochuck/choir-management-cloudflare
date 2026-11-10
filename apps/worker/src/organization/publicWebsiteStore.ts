@@ -288,6 +288,9 @@ export function readPublicCommerceProjectionFromStore(
     performances,
     settings: {
       ...settings,
+      // Tracking is activated only by the published website projection.
+      googleAdsTagId: "",
+      googleAdsConversionLabel: "",
       logoFileId: effectiveLogoFileId,
     },
     ticketBundles,
