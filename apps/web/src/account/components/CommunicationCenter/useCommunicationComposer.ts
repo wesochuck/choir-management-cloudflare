@@ -3,8 +3,14 @@ import type {
   CommunicationChannel,
   CommunicationHistoryItem,
   CommunicationMessage,
+  OrganizationEvent,
 } from "@choir/contracts";
-import { removeCommunicationPlaceholder, validateCommunicationContext } from "@choir/domain";
+import {
+  filterUpcomingPerformances,
+  removeCommunicationPlaceholder,
+  shouldIncludeUnpublishedUpcomingPerformances,
+  validateCommunicationContext,
+} from "@choir/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import {
@@ -57,6 +63,8 @@ export function useCommunicationComposer({
   confirm,
   currentCursor,
   enabled,
+  events,
+  eventsLoaded,
   initialNav,
   loadHistoryPage,
   messageMode,
@@ -79,6 +87,8 @@ export function useCommunicationComposer({
   }) => Promise<boolean>;
   readonly currentCursor: string | null;
   readonly enabled: boolean;
+  readonly events?: readonly OrganizationEvent[] | undefined;
+  readonly eventsLoaded?: boolean | undefined;
   readonly initialNav: ReturnType<typeof parseCommunicationSearch>;
   readonly loadHistoryPage: (
     targetStatus: MessageStatusFilter,
@@ -138,6 +148,7 @@ export function useCommunicationComposer({
   const [reviewSnapshot, setReviewSnapshot] = useState<string | null>(null);
   const [isTestEmailOpen, setIsTestEmailOpen] = useState(false);
   const [sendIdempotencyKey, setSendIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [nowMs] = useState(() => Date.now());
 
   const replaceAudience = useCallback((nextAudience: CommunicationAudienceRequest) => {
     audienceRef.current = nextAudience;
@@ -239,6 +250,14 @@ export function useCommunicationComposer({
     };
   }, [audience, channel, enabled, messageMode]);
 
+  const upcomingPerformanceCount = useMemo(() => {
+    if (!eventsLoaded || !events) return undefined;
+    return filterUpcomingPerformances(events, {
+      includeUnpublished: shouldIncludeUnpublishedUpcomingPerformances(audience.targetAudiences),
+      nowMs,
+    }).length;
+  }, [audience.targetAudiences, events, eventsLoaded, nowMs]);
+
   const contextIssues = useMemo(
     () =>
       validateCommunicationContext({
@@ -247,8 +266,9 @@ export function useCommunicationComposer({
         contentMarkdown,
         ...(eventPromotion ? { eventId: eventPromotion.eventId } : {}),
         subject,
+        upcomingPerformanceCount,
       }),
-    [audience, channel, contentMarkdown, eventPromotion, subject],
+    [audience, channel, contentMarkdown, eventPromotion, subject, upcomingPerformanceCount],
   );
 
   const removeConflictingPlaceholder = useCallback((tag: string) => {

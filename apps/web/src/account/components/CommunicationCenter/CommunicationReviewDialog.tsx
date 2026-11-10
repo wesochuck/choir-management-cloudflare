@@ -5,9 +5,10 @@ import type {
   OrganizationEvent,
   OrganizationBranding,
   OrganizationRosterConfiguration,
+  OrganizationVenue,
 } from "@choir/contracts";
 import { Dialog, DialogClose } from "@choir/ui";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   communicationPreviewValues,
   populateCommunicationPreview,
@@ -28,6 +29,7 @@ interface CommunicationReviewDialogProps {
   readonly contactLists: readonly ContactList[];
   readonly contentMarkdown: string;
   readonly error: string | null;
+  readonly events?: readonly OrganizationEvent[] | undefined;
   readonly onClose: () => void;
   readonly onSend: () => void;
   readonly open: boolean;
@@ -37,6 +39,47 @@ interface CommunicationReviewDialogProps {
   readonly subject: string;
   readonly timezone: string | null;
   readonly branding?: OrganizationBranding | null;
+  readonly venues?: readonly OrganizationVenue[] | undefined;
+}
+
+function reviewFilterSummary(
+  audience: CommunicationAudienceRequest,
+  contactLists: readonly ContactList[],
+  rosterConfiguration: OrganizationRosterConfiguration | null,
+): string {
+  const memberSummary = audience.targetAudiences.includes("Members")
+    ? memberFiltersSummary(audience, rosterConfiguration)
+    : "";
+  const contactSummary = audience.targetAudiences.includes("Contacts")
+    ? contactFiltersSummary(audience, new Map(contactLists.map((list) => [list.id, list.name])))
+    : "";
+  return [memberSummary, contactSummary].filter(Boolean).join(" · ");
+}
+
+function reviewPreviewValues({
+  audience,
+  branding,
+  events,
+  nowMs,
+  selectedEvent,
+  timezone,
+  venues,
+}: {
+  readonly audience: CommunicationAudienceRequest;
+  readonly branding?: OrganizationBranding | null | undefined;
+  readonly events?: readonly OrganizationEvent[] | undefined;
+  readonly nowMs: number;
+  readonly selectedEvent: OrganizationEvent | null;
+  readonly timezone: string | null;
+  readonly venues?: readonly OrganizationVenue[] | undefined;
+}) {
+  return communicationPreviewValues(
+    selectedEvent,
+    timezone,
+    branding,
+    undefined,
+    events ? { audience, events, nowMs, venues } : { audience, nowMs, venues },
+  );
 }
 
 export function CommunicationReviewDialog({
@@ -46,6 +89,7 @@ export function CommunicationReviewDialog({
   contactLists,
   contentMarkdown,
   error,
+  events,
   onClose,
   onSend,
   open,
@@ -55,18 +99,22 @@ export function CommunicationReviewDialog({
   timezone,
   branding,
   subject,
+  venues,
 }: CommunicationReviewDialogProps) {
   const recipientSummary = recipientTypeSummary(audience);
-  const memberSummary = audience.targetAudiences.includes("Members")
-    ? memberFiltersSummary(audience, rosterConfiguration)
-    : "";
-  const contactSummary = audience.targetAudiences.includes("Contacts")
-    ? contactFiltersSummary(audience, new Map(contactLists.map((list) => [list.id, list.name])))
-    : "";
-  const filterSummary = [memberSummary, contactSummary].filter(Boolean).join(" · ");
+  const filterSummary = reviewFilterSummary(audience, contactLists, rosterConfiguration);
 
+  const [nowMs] = useState(() => Date.now());
   const totalCount = reachState.data?.total ?? 0;
-  const previewValues = communicationPreviewValues(selectedEvent, timezone, branding);
+  const previewValues = reviewPreviewValues({
+    audience,
+    branding,
+    events,
+    nowMs,
+    selectedEvent,
+    timezone,
+    venues,
+  });
   const errorRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {

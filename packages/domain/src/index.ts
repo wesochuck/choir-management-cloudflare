@@ -439,6 +439,16 @@ export {
 } from "./websiteContentImages";
 export { isUnusualTime } from "./unusualTime";
 
+export {
+  UPCOMING_PERFORMANCES_EMPTY_FALLBACK,
+  UPCOMING_PERFORMANCES_PLACEHOLDER,
+  filterUpcomingPerformances,
+  formatUpcomingPerformancesList,
+  replaceUpcomingPerformancesPlaceholder,
+  shouldIncludeUnpublishedUpcomingPerformances,
+  usesUpcomingPerformancesPlaceholder,
+  type UpcomingPerformanceListItem,
+} from "./upcomingPerformances";
 export * from "./donationPublications";
 export * from "./checkoutReminders";
 export * from "./checkoutReminderTemplates";

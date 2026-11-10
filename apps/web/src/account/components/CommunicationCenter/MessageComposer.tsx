@@ -7,6 +7,7 @@ import type {
   OrganizationEvent,
   OrganizationBranding,
   OrganizationRosterConfiguration,
+  OrganizationVenue,
 } from "@choir/contracts";
 import {
   hasEventDependentCommunicationPlaceholders,
@@ -28,6 +29,7 @@ import type { CommunicationAudienceTarget, CommunicationReachState } from "./typ
 import { eventLabel } from "./utils";
 
 interface MessageComposerProps {
+  readonly allEvents?: readonly OrganizationEvent[] | undefined;
   readonly audience: CommunicationAudienceRequest;
   readonly audienceOptions: readonly CommunicationAudienceTarget[];
   readonly busy: boolean;
@@ -60,6 +62,7 @@ interface MessageComposerProps {
   readonly timezone: string | null;
   readonly branding?: OrganizationBranding | null;
   readonly templates: readonly CommunicationTemplate[];
+  readonly venues?: readonly OrganizationVenue[] | undefined;
 }
 
 function handlePlaceholderKeyDown(event: KeyboardEvent<HTMLDetailsElement>): void {
@@ -551,6 +554,7 @@ function ComposerActionBar({
 }
 
 export function MessageComposer({
+  allEvents,
   audience,
   audienceOptions,
   busy,
@@ -581,12 +585,14 @@ export function MessageComposer({
   branding,
   subject,
   templates,
+  venues,
 }: MessageComposerProps) {
   const [isTestOpen, setIsTestOpen] = useState(false);
   const [previewSize, setPreviewSize] = useState<"desktop" | "mobile">("desktop");
   const placeholderPickerRef = useRef<HTMLDetailsElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [nowMs] = useState(() => Date.now());
   const { confirm, confirmationDialog } = useConfirmation();
 
   // Filter templates compatible with current recipients and channel
@@ -596,7 +602,12 @@ export function MessageComposer({
       templateMatchesCommunicationContext(template, audience, channel, eventPromotion?.eventId),
   );
 
-  const previewValues = communicationPreviewValues(selectedEvent, timezone, branding);
+  const previewValues = communicationPreviewValues(selectedEvent, timezone, branding, undefined, {
+    audience,
+    events: allEvents ?? events,
+    nowMs,
+    venues,
+  });
   const placeholders = visibleCommunicationPlaceholders(
     audience,
     channel,

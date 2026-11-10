@@ -99,6 +99,7 @@ export function CommunicationCenterView({
     branding,
     unifiedMessages,
     updateAudience,
+    venues,
   } = model;
 
   const showProviderNotice =
@@ -234,6 +235,7 @@ export function CommunicationCenterView({
                   timezone={timezone}
                   branding={branding}
                   templates={templates}
+                  venues={venues}
                 />
               </div>
             ) : (
@@ -262,6 +264,7 @@ export function CommunicationCenterView({
                 pageNumber={pageNumber}
                 timezone={timezone}
                 unifiedMessages={unifiedMessages}
+                venues={venues}
               />
             )
           ) : null}
@@ -284,6 +287,7 @@ export function CommunicationCenterView({
           contactLists={contactLists}
           contentMarkdown={contentMarkdown}
           error={error}
+          events={events}
           onClose={() => {
             setIsReviewOpen(false);
           }}
@@ -295,6 +299,7 @@ export function CommunicationCenterView({
           subject={subject}
           timezone={timezone}
           branding={branding}
+          venues={venues}
         />
 
         <CommunicationTestDialog

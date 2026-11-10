@@ -334,6 +334,7 @@ export function PromotionSection({
           senderReady={controller.senderReady}
         />
         <PromotionComposerPanel
+          allEvents={events}
           audience={controller.audience}
           audienceOptions={audienceOptions.filter(
             (option) => option === "Ticket Buyers" || option === "Contacts",
@@ -398,6 +399,7 @@ export function PromotionSection({
           contactLists={controller.contactLists}
           contentMarkdown={controller.contentMarkdown}
           error={controller.error}
+          events={events}
           onClose={() => {
             controller.setReviewOpen(false);
             controller.setReviewSnapshot(null);

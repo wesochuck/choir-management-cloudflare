@@ -4,6 +4,7 @@ import type {
   CommunicationMessage,
   OrganizationBranding,
   OrganizationEvent,
+  OrganizationVenue,
 } from "@choir/contracts";
 import { useEffect, useState } from "react";
 import { getOrganizationCommunicationRecipients } from "../../../auth/api";
@@ -67,13 +68,16 @@ function MessageSnapshotPreview({
   message,
   sampleRecipientName,
   timezone,
+  venues,
 }: {
   readonly branding?: OrganizationBranding | null | undefined;
   readonly events?: readonly OrganizationEvent[] | undefined;
   readonly message: CommunicationMessage;
   readonly sampleRecipientName: string;
   readonly timezone?: string | null | undefined;
+  readonly venues?: readonly OrganizationVenue[] | undefined;
 }) {
+  const [nowMs] = useState(() => Date.now());
   const selectedEvent =
     events?.find(
       (e) =>
@@ -86,6 +90,7 @@ function MessageSnapshotPreview({
     timezone ?? null,
     branding,
     sampleRecipientName,
+    events ? { audience: message.audience, events, nowMs, venues } : undefined,
   );
 
   const populatedSubject =
@@ -191,6 +196,7 @@ interface CommunicationDeliveryDetailsProps {
   readonly onRetry: () => Promise<void>;
   readonly summary: CommunicationDeliverySummary;
   readonly timezone?: string | null | undefined;
+  readonly venues?: readonly OrganizationVenue[] | undefined;
 }
 
 export function CommunicationDeliveryDetails({
@@ -201,6 +207,7 @@ export function CommunicationDeliveryDetails({
   onRetry,
   summary,
   timezone,
+  venues,
 }: CommunicationDeliveryDetailsProps) {
   const [recipients, setRecipients] = useState<readonly CommunicationDeliveryRecipient[]>(
     summary.recipients.slice(0, 100),
@@ -299,6 +306,7 @@ export function CommunicationDeliveryDetails({
         message={message}
         sampleRecipientName={sampleRecipientName}
         timezone={timezone}
+        venues={venues}
       />
       <DeliveryRecipientsDetails
         loadingRecipients={loadingRecipients}

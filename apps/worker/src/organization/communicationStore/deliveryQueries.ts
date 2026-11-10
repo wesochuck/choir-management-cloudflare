@@ -6,7 +6,11 @@ import {
   communicationRecipientSubjectFromLegacy,
   communicationRecipientSubjectSchema,
 } from "@choir/contracts";
-import { summarizeCommunicationDeliveries } from "@choir/domain";
+import {
+  shouldIncludeUnpublishedUpcomingPerformances,
+  summarizeCommunicationDeliveries,
+  usesUpcomingPerformancesPlaceholder,
+} from "@choir/domain";
 import { z } from "zod";
 
 import {
@@ -14,7 +18,12 @@ import {
   MAX_COMMUNICATION_DELIVERIES,
   type DeliveryRow,
 } from "./contracts";
-import { eventCommunicationContext, identityMatches, readMessage } from "./shared";
+import {
+  eventCommunicationContext,
+  identityMatches,
+  queryUpcomingPerformancesForCommunication,
+  readMessage,
+} from "./shared";
 
 interface ProfileDeliveryRow {
   readonly [column: string]: SqlStorageValue;
@@ -319,6 +328,12 @@ export function readCommunicationJobFromStore(
     eventId,
     message.audience.ticketBuyerMode === "ticket_service" || message.eventPromotion !== null,
   );
+  const upcomingPerformancesContext = usesUpcomingPerformancesPlaceholder(message.contentMarkdown)
+    ? queryUpcomingPerformancesForCommunication(
+        storage,
+        shouldIncludeUnpublishedUpcomingPerformances(message.audience.targetAudiences),
+      )
+    : null;
   return Response.json({
     contentMarkdown: message.contentMarkdown,
     context,
@@ -326,5 +341,6 @@ export function readCommunicationJobFromStore(
     messageId,
     subject: message.subject,
     ticketServiceNotice: message.audience.ticketBuyerMode === "ticket_service",
+    upcomingPerformancesContext,
   });
 }

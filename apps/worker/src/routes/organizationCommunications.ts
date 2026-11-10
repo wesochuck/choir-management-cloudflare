@@ -6,7 +6,12 @@ import {
   communicationTemplateRequestSchema,
   type ProblemDetails,
 } from "@choir/contracts";
-import { validateCommunicationContext } from "@choir/domain";
+import {
+  shouldIncludeUnpublishedUpcomingPerformances,
+  usesUpcomingPerformancesPlaceholder,
+  validateCommunicationContext,
+} from "@choir/domain";
+import { organizationStoreStub } from "../organization/rpc/client";
 import { z } from "zod";
 import {
   CommunicationRepositoryError,
@@ -562,7 +567,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         } satisfies ProblemDetails,
         400,
       );
-    const validationIssues = validateCommunicationContext({
+    let validationIssues = validateCommunicationContext({
       audience: body.data.audience,
       channel: body.data.channel,
       contentMarkdown: body.data.contentMarkdown,
@@ -570,6 +575,38 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       eventPromotion: body.data.eventPromotion,
       subject: body.data.subject,
     });
+    if (
+      validationIssues.length === 0 &&
+      usesUpcomingPerformancesPlaceholder(body.data.contentMarkdown)
+    ) {
+      try {
+        const upcomingContext = await organizationStoreStub(
+          context.env,
+          authorization.organizationId,
+        ).readUpcomingPerformancesContext({
+          includeUnpublished: shouldIncludeUnpublishedUpcomingPerformances(
+            body.data.audience.targetAudiences,
+          ),
+          organizationId: authorization.organizationId,
+        });
+        validationIssues = validateCommunicationContext({
+          audience: body.data.audience,
+          channel: body.data.channel,
+          contentMarkdown: body.data.contentMarkdown,
+          eventId: body.data.eventPromotion?.eventId ?? body.data.audience.eventId,
+          eventPromotion: body.data.eventPromotion,
+          subject: body.data.subject,
+          upcomingPerformanceCount: upcomingContext.performances.length,
+        });
+      } catch (error: unknown) {
+        const result = communicationProblem(
+          error,
+          context.get("requestId"),
+          "The communication could not be queued.",
+        );
+        return context.json(result.problem, result.status);
+      }
+    }
     if (validationIssues.length > 0) {
       return context.json(
         {

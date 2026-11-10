@@ -29,10 +29,14 @@ import {
   communicationReach,
   dedupeCommunicationCandidates,
   extractCommunicationPlaceholders,
+  formatUpcomingPerformancesList,
   normalizeEmail,
   renderCommunicationTemplate,
   renderOrganizationLogoPlaceholder,
+  replaceUpcomingPerformancesPlaceholder,
+  shouldIncludeUnpublishedUpcomingPerformances,
   ticketSalesPath,
+  usesUpcomingPerformancesPlaceholder,
   type CommunicationRecipientCandidate,
 } from "@choir/domain";
 import { z } from "zod";
@@ -55,6 +59,7 @@ import {
   verifyPromotionReviewSnapshot,
 } from "../communications/promotionReviewSnapshot";
 import { listOrganizationProfileEmails } from "./profiles";
+import { organizationStoreStub } from "./rpc/client";
 import {
   mutateOrganizationStore,
   readOrganizationStore,
@@ -972,11 +977,20 @@ export async function handleTestEmailDelivery(
 ): Promise<void> {
   await assertEmailProviderRecipientAvailable(env.CONTROL_DB, data.email);
   const eventId = data.eventId ?? data.audience?.eventId ?? null;
-  const [senderConfig, branding, selectedEvent, timezone] = await Promise.all([
+  const includeUpcoming = usesUpcomingPerformancesPlaceholder(data.contentMarkdown);
+  const [senderConfig, branding, selectedEvent, timezone, upcomingContext] = await Promise.all([
     readOrganizationEmailSenderConfig(env, organizationId),
     readOrganizationBrandingConfig(env, organizationId),
     loadTestEmailEvent(env, organizationId, eventId),
     loadTestEmailTimezone(env, organizationId),
+    includeUpcoming
+      ? organizationStoreStub(env, organizationId).readUpcomingPerformancesContext({
+          includeUnpublished: data.audience
+            ? shouldIncludeUnpublishedUpcomingPerformances(data.audience.targetAudiences)
+            : false,
+          organizationId,
+        })
+      : Promise.resolve(null),
   ]);
 
   const { fromName, templatedContent, templatedSubject } = renderTestEmailPayload({
@@ -993,10 +1007,19 @@ export async function handleTestEmailDelivery(
     selectedEvent ? ticketSalesPath(selectedEvent) : null,
     canonicalOrigin,
   );
+  const contentWithUpcomingPerformances = upcomingContext
+    ? replaceUpcomingPerformancesPlaceholder(
+        contentWithEventTicketLink,
+        formatUpcomingPerformancesList(upcomingContext.performances, {
+          canonicalOrigin,
+          timezone: upcomingContext.timezone,
+        }),
+      )
+    : contentWithEventTicketLink;
 
   const unresolvedSubjectPlaceholders = extractCommunicationPlaceholders(templatedSubject);
   const unresolvedContentPlaceholders = extractCommunicationPlaceholders(
-    contentWithEventTicketLink,
+    contentWithUpcomingPerformances,
   );
   const unresolved = [
     ...new Set([...unresolvedSubjectPlaceholders, ...unresolvedContentPlaceholders]),
@@ -1009,7 +1032,7 @@ export async function handleTestEmailDelivery(
 
   const delivery = await deliverOrganizationCommunication(env, {
     channel: "email",
-    contentMarkdown: contentWithEventTicketLink,
+    contentMarkdown: contentWithUpcomingPerformances,
     deliveryId: crypto.randomUUID(),
     destination: data.email,
     fromName,

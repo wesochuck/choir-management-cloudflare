@@ -8,7 +8,12 @@ import type {
   OrganizationProviderStatusResponse,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { removeCommunicationPlaceholder, validateCommunicationContext } from "@choir/domain";
+import {
+  filterUpcomingPerformances,
+  removeCommunicationPlaceholder,
+  shouldIncludeUnpublishedUpcomingPerformances,
+  validateCommunicationContext,
+} from "@choir/domain";
 import { useConfirmation } from "@choir/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -236,6 +241,15 @@ export function useEventPromotionController({
     };
   }, [audience, channel, dirty, editingId, eligible, eventPromotion]);
 
+  const upcomingPerformanceCount = useMemo(
+    () =>
+      filterUpcomingPerformances(events, {
+        includeUnpublished: shouldIncludeUnpublishedUpcomingPerformances(audience.targetAudiences),
+        nowMs,
+      }).length,
+    [audience.targetAudiences, events, nowMs],
+  );
+
   const contextIssues = useMemo(
     () =>
       validateCommunicationContext({
@@ -244,8 +258,9 @@ export function useEventPromotionController({
         contentMarkdown,
         ...(eventPromotion ? { eventId: eventPromotion.eventId } : {}),
         subject,
+        upcomingPerformanceCount,
       }),
-    [audience, channel, contentMarkdown, eventPromotion, subject],
+    [audience, channel, contentMarkdown, eventPromotion, subject, upcomingPerformanceCount],
   );
 
   const historyItems = useMemo(() => toHistoryItems(messages), [messages]);

@@ -253,9 +253,93 @@ describe("communicationPlaceholders domain logic", () => {
       expect(tags).toContain("{eventDate}");
       expect(tags).not.toContain("{{TICKET_LINK}}");
     });
+
+    it("shows upcoming performances for all Email audiences without requiring an event and hides it on SMS or Both", () => {
+      for (const targetAudiences of [
+        ["Members"],
+        ["Contacts"],
+        ["Ticket Buyers"],
+        ["Donors"],
+        ["Members", "Contacts"],
+      ]) {
+        const emailTags = visibleCommunicationPlaceholders(
+          audience(targetAudiences, null),
+          "Email",
+          "standard",
+        ).map(({ tag }) => tag);
+        expect(emailTags).toContain("{{UPCOMING_PERFORMANCES}}");
+      }
+
+      for (const channel of ["SMS", "Both"] as const) {
+        const tags = visibleCommunicationPlaceholders(
+          audience(["Members", "Contacts"], null),
+          channel,
+          "standard",
+        ).map(({ tag }) => tag);
+        expect(tags).not.toContain("{{UPCOMING_PERFORMANCES}}");
+      }
+    });
   });
 
   describe("validateCommunicationContext", () => {
+    it("allows upcoming performances on Email without an event when upcoming performances exist", () => {
+      const issues = validateCommunicationContext({
+        audience: audience(["Members", "Contacts"], null),
+        channel: "Email",
+        contentMarkdown: "Here is our season:\n\n{{UPCOMING_PERFORMANCES}}",
+        subject: "Upcoming performances",
+        upcomingPerformanceCount: 2,
+      });
+      expect(issues).toEqual([]);
+    });
+
+    it("flags upcoming performances when no matching upcoming performances exist", () => {
+      const externalIssues = validateCommunicationContext({
+        audience: audience(["Members", "Contacts"], null),
+        channel: "Email",
+        contentMarkdown: "{{UPCOMING_PERFORMANCES}}",
+        subject: "Upcoming performances",
+        upcomingPerformanceCount: 0,
+      });
+      expect(externalIssues).toHaveLength(1);
+      expect(externalIssues[0]?.code).toBe("no_upcoming_performances");
+      expect(externalIssues[0]?.placeholder).toBe("{{UPCOMING_PERFORMANCES}}");
+      expect(externalIssues[0]?.message).toContain("Publish a performance");
+
+      const memberIssues = validateCommunicationContext({
+        audience: audience(["Members"], null),
+        channel: "Email",
+        contentMarkdown: "{{UPCOMING_PERFORMANCES}}",
+        subject: "Upcoming performances",
+        upcomingPerformanceCount: 0,
+      });
+      expect(memberIssues).toHaveLength(1);
+      expect(memberIssues[0]?.code).toBe("no_upcoming_performances");
+      expect(memberIssues[0]?.message).toContain("Add a performance");
+    });
+
+    it("flags upcoming performances when used in the subject line or on SMS/Both", () => {
+      const subjectIssues = validateCommunicationContext({
+        audience: audience(["Members"], null),
+        channel: "Email",
+        contentMarkdown: "See below.",
+        subject: "Season: {{UPCOMING_PERFORMANCES}}",
+        upcomingPerformanceCount: 2,
+      });
+      expect(subjectIssues).toHaveLength(1);
+      expect(subjectIssues[0]?.code).toBe("incompatible_context");
+      expect(subjectIssues[0]?.message).toContain("subject line");
+
+      const smsIssues = validateCommunicationContext({
+        audience: audience(["Members"], null),
+        channel: "SMS",
+        contentMarkdown: "{{UPCOMING_PERFORMANCES}}",
+        subject: "",
+        upcomingPerformanceCount: 2,
+      });
+      expect(smsIssues).toHaveLength(1);
+      expect(smsIssues[0]?.code).toBe("incompatible_channel");
+    });
     it("returns no issues for valid message with Members, event, and RSVP", () => {
       const issues = validateCommunicationContext({
         audience: audience(["Members"], "event-123"),

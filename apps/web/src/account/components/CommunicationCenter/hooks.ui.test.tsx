@@ -225,6 +225,41 @@ describe("useCommunicationCenterController filters", () => {
     expect(result.current.originFilter).toBe("all");
   });
 
+  it("blocks sending {{UPCOMING_PERFORMANCES}} when loaded events contain no matching upcoming performances", async () => {
+    vi.spyOn(apiModule, "getOrganizationCommunicationHistory").mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      requestId: "req-1",
+    });
+    vi.spyOn(apiModule, "getOrganizationCalendarSettings").mockResolvedValue({
+      timezone: "America/New_York",
+    });
+    vi.spyOn(apiModule, "listOrganizationEvents").mockResolvedValue([]);
+    vi.spyOn(apiModule, "listOrganizationCommunicationTemplates").mockResolvedValue([]);
+    vi.spyOn(apiModule, "getOrganizationProviderStatus").mockResolvedValue(mockProviderStatus);
+    vi.spyOn(apiModule, "getOrganizationEmailSettings").mockResolvedValue(mockEmailSettings);
+    vi.spyOn(apiModule, "getOrganizationRosterConfiguration").mockResolvedValue(mockRosterConfig);
+    vi.spyOn(apiModule, "listOrganizationVenues").mockResolvedValue([]);
+
+    const { result } = renderHook(() => useCommunicationCenterController({ enabled: true }));
+
+    await waitFor(() => {
+      expect(result.current.timezone).toBe("America/New_York");
+    });
+
+    act(() => {
+      result.current.setSubject("Season update");
+      result.current.setContentMarkdown("Lineup:\n\n{{UPCOMING_PERFORMANCES}}");
+    });
+
+    expect(result.current.contextIssues).toEqual([
+      expect.objectContaining({
+        code: "no_upcoming_performances",
+        placeholder: "{{UPCOMING_PERFORMANCES}}",
+      }),
+    ]);
+  });
+
   it("changing status filter preserves origin and resets pagination", async () => {
     const historySpy = vi
       .spyOn(apiModule, "getOrganizationCommunicationHistory")

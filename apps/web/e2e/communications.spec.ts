@@ -1567,3 +1567,134 @@ for (const entryPoint of ["table", "members"] as const) {
     expect(sendBodies).toEqual([]);
   });
 }
+
+test("inserts upcoming performances placeholder, filters by audience, and previews in composer and review dialog", async ({
+  page,
+}) => {
+  const venueId = "66666666-6666-4666-8666-666666666666";
+  const internalEventId = "77777777-7777-4777-8777-777777777771";
+  const publicEventId = "77777777-7777-4777-8777-777777777772";
+  const previewBodies: unknown[] = [];
+  const sendBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies, sendBodies));
+  await page.route("**/api/organization/venues", (route) =>
+    fulfillJson(route, {
+      requestId,
+      venues: [
+        {
+          address: "42 Harmony Ave",
+          createdAt: "2026-07-01T00:00:00.000Z",
+          id: venueId,
+          name: "Lyric Theater",
+          updatedAt: "2026-07-01T00:00:00.000Z",
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/organization/events", (route) =>
+    fulfillJson(route, {
+      events: [
+        {
+          advancePriceCents: 0,
+          callTime: "",
+          createdAt: "2026-07-20T20:00:00.000Z",
+          dayOfPriceCents: 0,
+          details: "",
+          doorsOpenTime: "",
+          durationMinutes: 90,
+          id: internalEventId,
+          isCanceled: false,
+          isTicketingEnabled: false,
+          location: "Rehearsal Studio",
+          parentPerformanceId: null,
+          publicDetails: "",
+          publicGraphicFileId: null,
+          publishOnWebsite: false,
+          rsvpDeadlineAt: null,
+          rsvpDeadlineDate: null,
+          rsvpDeadlinePassed: false,
+          rsvpFollowUpLeadHours: null,
+          rsvpFollowUpMode: "inherit",
+          rsvpSelfServiceOpen: true,
+          setList: [],
+          setListApproved: false,
+          startsAt: futureIsoDate({ days: 5 }),
+          ticketCapacity: null,
+          ticketSlug: null,
+          title: "Private School Outreach",
+          type: "Performance",
+          updatedAt: "2026-07-20T20:00:00.000Z",
+          venueId: null,
+        },
+        {
+          advancePriceCents: 2000,
+          callTime: "",
+          createdAt: "2026-07-20T20:00:00.000Z",
+          dayOfPriceCents: 2500,
+          details: "",
+          doorsOpenTime: "",
+          durationMinutes: 120,
+          id: publicEventId,
+          isCanceled: false,
+          isTicketingEnabled: true,
+          location: "",
+          parentPerformanceId: null,
+          publicDetails: "",
+          publicGraphicFileId: null,
+          publishOnWebsite: true,
+          rsvpDeadlineAt: null,
+          rsvpDeadlineDate: null,
+          rsvpDeadlinePassed: false,
+          rsvpFollowUpLeadHours: null,
+          rsvpFollowUpMode: "inherit",
+          rsvpSelfServiceOpen: true,
+          setList: [],
+          setListApproved: false,
+          startsAt: futureIsoDate({ days: 12 }),
+          ticketCapacity: 250,
+          ticketSlug: "season-gala",
+          title: "Season Gala Concert",
+          type: "Performance",
+          updatedAt: "2026-07-20T20:00:00.000Z",
+          venueId,
+        },
+      ],
+      requestId,
+    }),
+  );
+
+  await page.goto("/admin/communications?tab=compose");
+  await page.getByLabel("Subject", { exact: true }).fill("What is coming up this season");
+  await page.getByText("Insert placeholder", { exact: true }).click();
+  const personalize = page.getByRole("region", { name: "Personalize message" });
+  await personalize.getByRole("button", { name: /Upcoming performances/i }).click();
+
+  await expect(page.getByRole("textbox", { name: "Message body" })).toHaveValue(
+    "{{UPCOMING_PERFORMANCES}} ",
+  );
+  const preview = page.getByLabel("Live formatted message preview");
+  await expect(preview).toContainText("Private School Outreach");
+  await expect(preview).toContainText("Season Gala Concert");
+  await expect(preview).toContainText("Lyric Theater, 42 Harmony Ave");
+  await expect(preview.getByRole("link", { name: "Buy tickets" })).toHaveAttribute(
+    "href",
+    "/tickets/season-gala",
+  );
+
+  // Adding Contacts hides the unpublished Private School Outreach performance
+  await editRecipients(page);
+  await page
+    .locator(".communication-recipient-panel")
+    .getByRole("checkbox", { name: "Contacts", exact: true })
+    .click();
+  await expect(preview).not.toContainText("Private School Outreach");
+  await expect(preview).toContainText("Season Gala Concert");
+  await page.getByRole("button", { name: "Done editing", exact: true }).click();
+
+  await page.getByRole("button", { name: "Review & send", exact: true }).click();
+  const reviewDialog = page.getByRole("dialog", { name: "Review message" });
+  await expect(reviewDialog).toBeVisible();
+  await expect(reviewDialog).not.toContainText("Private School Outreach");
+  await expect(reviewDialog).toContainText("Season Gala Concert");
+  await expect(reviewDialog).toContainText("Lyric Theater, 42 Harmony Ave");
+});

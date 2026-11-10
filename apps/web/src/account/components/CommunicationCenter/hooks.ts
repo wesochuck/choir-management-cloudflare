@@ -5,6 +5,7 @@ import type {
   OrganizationEvent,
   OrganizationProviderStatusResponse,
   OrganizationRosterConfiguration,
+  OrganizationVenue,
 } from "@choir/contracts";
 import { useConfirmation } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
@@ -18,7 +19,7 @@ import {
   listOrganizationCommunications,
   listOrganizationEvents,
 } from "../../../auth/api";
-import { listOrganizationContactLists } from "../../../api";
+import { listOrganizationContactLists, listOrganizationVenues } from "../../../api";
 import type {
   CommunicationCenterControllerModel,
   CommunicationSection,
@@ -48,6 +49,8 @@ export function useCommunicationCenterController({
   const [timezone, setTimezone] = useState<string | null>(null);
   const [resourceAttempt, setResourceAttempt] = useState(0);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
+  const [venues, setVenues] = useState<readonly OrganizationVenue[]>([]);
   const [contactLists, setContactLists] = useState<readonly ContactList[]>([]);
   const [providerStatus, setProviderStatus] = useState<OrganizationProviderStatusResponse | null>(
     null,
@@ -77,6 +80,8 @@ export function useCommunicationCenterController({
     confirm,
     currentCursor: history.currentCursor,
     enabled,
+    events,
+    eventsLoaded,
     initialNav,
     loadHistoryPage: history.loadHistoryPage,
     messageMode,
@@ -128,6 +133,7 @@ export function useCommunicationCenterController({
       getOrganizationEmailSettings(controller.signal),
       getOrganizationRosterConfiguration(controller.signal),
       listOrganizationContactLists(controller.signal).catch(() => []),
+      listOrganizationVenues(controller.signal).catch(() => []),
     ])
       .then(
         ([
@@ -139,15 +145,18 @@ export function useCommunicationCenterController({
           loadedEmailSettings,
           loadedRosterConfig,
           loadedContactLists,
+          loadedVenues,
         ]) => {
           setTimezone(loadedCalendarSettings.timezone);
           setBranding(loadedBranding);
           setEvents(loadedEvents);
+          setEventsLoaded(true);
           setTemplates(loadedTemplates);
           setProviderStatus(loadedStatus);
           setEmailSettings(loadedEmailSettings);
           setRosterConfiguration(loadedRosterConfig);
           setContactLists(loadedContactLists);
+          setVenues(loadedVenues);
         },
       )
       .catch((err: unknown) => {
@@ -279,6 +288,7 @@ export function useCommunicationCenterController({
     },
     unifiedMessages: history.unifiedMessages,
     updateAudience: composer.updateAudience,
+    venues,
     voiceParts: composer.voiceParts,
   };
 }

@@ -1,9 +1,19 @@
 import type { SqlStorageValue } from "@cloudflare/workers-types";
 import { communicationScheduledMessageSchema } from "@choir/contracts";
-import { renderCommunicationTemplate } from "@choir/domain";
+import {
+  formatUpcomingPerformancesList,
+  renderCommunicationTemplate,
+  replaceUpcomingPerformancesPlaceholder,
+  shouldIncludeUnpublishedUpcomingPerformances,
+  usesUpcomingPerformancesPlaceholder,
+} from "@choir/domain";
 import { z } from "zod";
 
-import { eventCommunicationContext, identityMatches } from "./shared";
+import {
+  eventCommunicationContext,
+  identityMatches,
+  queryUpcomingPerformancesForCommunication,
+} from "./shared";
 import { upcomingCommunications } from "./upcoming";
 
 function bulletinPreview(value: string): string {
@@ -57,18 +67,29 @@ export function listMemberBulletinsFromStore(
     )
     .toArray();
 
+  const upcomingByVisibility = new Map<
+    boolean,
+    ReturnType<typeof queryUpcomingPerformancesForCommunication>
+  >();
+
   const bulletins = rawBulletins.map((raw) => {
     let eventId: string | null = null;
+    let targetAudiences: readonly string[] = [];
     try {
       const parsedAudience: unknown = JSON.parse(raw.audienceJson);
-      if (
-        typeof parsedAudience === "object" &&
-        parsedAudience !== null &&
-        "eventId" in parsedAudience &&
-        typeof parsedAudience.eventId === "string" &&
-        parsedAudience.eventId.length > 0
-      ) {
-        eventId = parsedAudience.eventId;
+      if (typeof parsedAudience === "object" && parsedAudience !== null) {
+        if (
+          "eventId" in parsedAudience &&
+          typeof parsedAudience.eventId === "string" &&
+          parsedAudience.eventId.length > 0
+        ) {
+          eventId = parsedAudience.eventId;
+        }
+        if ("targetAudiences" in parsedAudience && Array.isArray(parsedAudience.targetAudiences)) {
+          targetAudiences = parsedAudience.targetAudiences.filter(
+            (target): target is string => typeof target === "string",
+          );
+        }
       }
     } catch {
       // Ignore malformed audienceJson
@@ -84,7 +105,7 @@ export function listMemberBulletinsFromStore(
       raw.recipientName,
       context ?? undefined,
     );
-    const contentWithLinks = templatedContent
+    let contentWithLinks = templatedContent
       .replace(
         /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/gi,
         eventId ? "[Open RSVP](/schedule)" : "RSVP link unavailable",
@@ -96,6 +117,22 @@ export function listMemberBulletinsFromStore(
       .replace(/\{\{TICKET_LINK\}\}|\{ticketLink\}/gi, "[View ticket order](/tickets)")
       .replace(/\{\{TICKET_ORDER_LINK\}\}|\{ticketOrderLink\}/gi, "[View order details](/tickets)")
       .replace(/\{\{AUDITION_LINK\}\}|\{auditionLink\}/gi, "[Review audition details](/auditions)");
+
+    if (usesUpcomingPerformancesPlaceholder(contentWithLinks)) {
+      const includeUnpublished = shouldIncludeUnpublishedUpcomingPerformances(targetAudiences);
+      let upcoming = upcomingByVisibility.get(includeUnpublished);
+      if (!upcoming) {
+        upcoming = queryUpcomingPerformancesForCommunication(storage, includeUnpublished);
+        upcomingByVisibility.set(includeUnpublished, upcoming);
+      }
+      contentWithLinks = replaceUpcomingPerformancesPlaceholder(
+        contentWithLinks,
+        formatUpcomingPerformancesList(upcoming.performances, {
+          allowRelativeLinks: true,
+          timezone: upcoming.timezone,
+        }),
+      );
+    }
 
     return {
       contentMarkdown: contentWithLinks,

@@ -14,6 +14,14 @@ import { z } from "zod";
 export const MAX_COMMUNICATION_DELIVERIES = COMMUNICATION_RECIPIENTS_MAX * 2;
 export const COMMUNICATION_DELIVERY_BATCH_SIZE = 50;
 
+export const upcomingPerformancesContextInputSchema = z.object({
+  includeUnpublished: z.boolean(),
+  organizationId: z.string().min(1).max(128),
+});
+export type UpcomingPerformancesContextInput = z.infer<
+  typeof upcomingPerformancesContextInputSchema
+>;
+
 /**
  * Narrow storage surface for audience resolution (mirrors ContactStoreStorage).
  * Real Durable Object storage satisfies this structurally; tests implement it
@@ -316,4 +324,24 @@ export const deliveryJobResponseSchema = z.object({
     .max(COMMUNICATION_DELIVERY_BATCH_SIZE),
   messageId: z.uuid(),
   subject: z.string().max(300),
+  upcomingPerformancesContext: z
+    .object({
+      performances: z.array(
+        z.object({
+          id: z.uuid(),
+          isTicketingEnabled: z.boolean(),
+          location: z.string(),
+          publishOnWebsite: z.boolean(),
+          startsAt: z.iso.datetime(),
+          ticketSlug: z.string().nullable().optional(),
+          title: z.string(),
+          type: z.enum(["Performance", "Rehearsal", "Other"]),
+          venueAddress: z.string().default(""),
+          venueName: z.string().default(""),
+        }),
+      ),
+      timezone: z.string().min(1).max(100),
+    })
+    .nullable()
+    .optional(),
 });

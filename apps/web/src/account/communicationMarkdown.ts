@@ -2,10 +2,18 @@ import type {
   CommunicationChannel,
   OrganizationBranding,
   OrganizationEvent,
+  OrganizationVenue,
 } from "@choir/contracts";
 import {
+  UPCOMING_PERFORMANCES_PLACEHOLDER,
   communicationRecipientNamePlaceholderKeys,
+  filterUpcomingPerformances,
+  formatUpcomingPerformancesList,
   renderOrganizationLogoPlaceholder,
+  replaceUpcomingPerformancesPlaceholder,
+  shouldIncludeUnpublishedUpcomingPerformances,
+  type CommunicationAudienceLike,
+  type UpcomingPerformanceListItem,
 } from "@choir/domain";
 
 function escapeHtml(value: string): string {
@@ -108,11 +116,57 @@ function previewText(value: string | undefined, fallback: string): string {
 
 export const SAMPLE_COMMUNICATION_RECIPIENT_NAME = "Johann Sebastian Bach";
 
+export interface CommunicationPreviewOptions {
+  readonly audience?: CommunicationAudienceLike | undefined;
+  readonly events?: readonly OrganizationEvent[] | undefined;
+  readonly nowMs?: number | undefined;
+  readonly venues?: readonly OrganizationVenue[] | undefined;
+}
+
+function previewUpcomingPerformancesValue(
+  timezone: string | null,
+  options?: CommunicationPreviewOptions,
+): string {
+  if (!options?.events) {
+    return "- **Example Performance**\n  - **Date and time:** August 20, 2026 at 7:00 PM\n  - **Location:** Main Hall, 12 Main Street\n  - **Tickets:** [Buy tickets](/tickets/example-performance)";
+  }
+  const venueById = new Map((options.venues ?? []).map((venue) => [venue.id, venue]));
+  const items: UpcomingPerformanceListItem[] = options.events.map((eventItem) => {
+    const venue = eventItem.venueId ? venueById.get(eventItem.venueId) : undefined;
+    return {
+      id: eventItem.id,
+      isArchived: false,
+      isCanceled: eventItem.isCanceled,
+      isTicketingEnabled: eventItem.isTicketingEnabled,
+      location: eventItem.location,
+      publishOnWebsite: eventItem.publishOnWebsite,
+      startsAt: eventItem.startsAt,
+      ticketSlug: eventItem.ticketSlug,
+      title: eventItem.title,
+      type: eventItem.type,
+      venueAddress: venue?.address ?? "",
+      venueName: venue?.name ?? "",
+    };
+  });
+  const includeUnpublished = options.audience
+    ? shouldIncludeUnpublishedUpcomingPerformances(options.audience.targetAudiences)
+    : false;
+  const upcoming = filterUpcomingPerformances(items, {
+    includeUnpublished,
+    nowMs: options.nowMs ?? Date.now(),
+  });
+  return formatUpcomingPerformancesList(upcoming, {
+    allowRelativeLinks: true,
+    timezone: timezone ?? "UTC",
+  });
+}
+
 export function communicationPreviewValues(
   event: OrganizationEvent | null,
   timezone: string | null,
   branding?: OrganizationBranding | null,
   sampleRecipientName: string = SAMPLE_COMMUNICATION_RECIPIENT_NAME,
+  options?: CommunicationPreviewOptions,
 ): Readonly<Record<string, string>> {
   const organizationName = branding?.organizationName ?? "Example Choir";
   const eventTitle = event?.title ?? "Example Performance";
@@ -163,6 +217,7 @@ export function communicationPreviewValues(
     "{{TICKET_ORDER_LINK}}": "View order details",
     "{{TICKET_EVENT_LIST}}":
       "- **Example Performance**\n  - **Date and time:** August 20, 2026 at 7:00 PM\n  - **Location:** Main Hall, 12 Main Street",
+    [UPCOMING_PERFORMANCES_PLACEHOLDER]: previewUpcomingPerformancesValue(timezone, options),
     "{attendanceRate}": "85%",
     "{presentCount}": "17",
     "{totalCount}": "20",
@@ -182,6 +237,9 @@ export function populateCommunicationPreview(
   replacements: Readonly<Record<string, string>>,
 ): string {
   return Object.entries(replacements).reduce((message, [tag, replacement]) => {
+    if (tag === UPCOMING_PERFORMANCES_PLACEHOLDER) {
+      return replaceUpcomingPerformancesPlaceholder(message, replacement);
+    }
     const scalarTag = /^\{([^{}]+)\}$/.exec(tag)?.[1];
     return (scalarTag ? message.split(`{{${scalarTag}}}`).join(replacement) : message)
       .split(tag)

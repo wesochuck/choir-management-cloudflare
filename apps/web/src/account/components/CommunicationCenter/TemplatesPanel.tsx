@@ -1,4 +1,4 @@
-import { isCheckoutReminderTemplate } from "@choir/domain";
+import { isCheckoutReminderTemplate, usesUpcomingPerformancesPlaceholder } from "@choir/domain";
 import { CheckoutReminderTemplatePreview } from "./CheckoutReminderTemplatePreview";
 import type { CommunicationChannel, CommunicationTemplate } from "@choir/contracts";
 import { Dialog, DialogClose, useConfirmation } from "@choir/ui";
@@ -44,6 +44,12 @@ function getTemplatePlaceholderIssues(
     if (def.requiresEvent) {
       eventTags.push(tag);
     }
+  }
+
+  if (usesUpcomingPerformancesPlaceholder(subject)) {
+    issues.push(
+      "Upcoming performances ({{UPCOMING_PERFORMANCES}}) can only be used in the message body, not the subject line.",
+    );
   }
 
   if (eventTags.length > 0) {

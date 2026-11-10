@@ -1,3 +1,9 @@
+import {
+  UPCOMING_PERFORMANCES_PLACEHOLDER,
+  shouldIncludeUnpublishedUpcomingPerformances,
+  usesUpcomingPerformancesPlaceholder,
+} from "./upcomingPerformances";
+
 export type CommunicationAudienceTarget = "Members" | "Contacts" | "Ticket Buyers" | "Donors";
 export type CommunicationChannel = "Both" | "Email" | "SMS";
 
@@ -54,7 +60,11 @@ export function isCommunicationAudienceTarget(
 
 export interface CommunicationContextIssue {
   readonly code:
-    "incompatible_audience" | "incompatible_channel" | "event_required" | "incompatible_context";
+    | "event_required"
+    | "incompatible_audience"
+    | "incompatible_channel"
+    | "incompatible_context"
+    | "no_upcoming_performances";
   readonly message: string;
   readonly placeholder?: string;
 }
@@ -178,6 +188,15 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
     label: "Set list",
     requiresEvent: true,
     tag: "{setlist}",
+  },
+  {
+    category: "Event",
+    channels: ["Email"],
+    contexts: ["standard"],
+    description:
+      "A chronological list of upcoming performances with title, date and time, venue or location, and a ticket link when ticketing is enabled. Shows published performances when external recipients are included, and all active upcoming performances for Members-only.",
+    label: "Upcoming performances",
+    tag: UPCOMING_PERFORMANCES_PLACEHOLDER,
   },
   {
     audience: ["Ticket Buyers"],
@@ -622,6 +641,7 @@ export function validateCommunicationContext(request: {
   readonly eventId?: string | null | undefined;
   readonly eventPromotion?: CommunicationEventPromotionLike | null | undefined;
   readonly subject: string;
+  readonly upcomingPerformanceCount?: number | undefined;
 }): readonly CommunicationContextIssue[] {
   const { audience, channel, contentMarkdown, subject } = request;
   const fullText = `${subject}\n${contentMarkdown}`;
@@ -646,7 +666,32 @@ export function validateCommunicationContext(request: {
       context,
       hasEventContext,
     );
-    if (issue) issues.push(issue);
+    if (issue) {
+      issues.push(issue);
+      continue;
+    }
+
+    if (def.tag === UPCOMING_PERFORMANCES_PLACEHOLDER) {
+      if (usesUpcomingPerformancesPlaceholder(subject)) {
+        issues.push({
+          code: "incompatible_context",
+          message:
+            "Upcoming performances can only be used in the message body, not the subject line.",
+          placeholder: tag,
+        });
+      } else if (request.upcomingPerformanceCount === 0) {
+        const includeUnpublished = shouldIncludeUnpublishedUpcomingPerformances(
+          audience.targetAudiences,
+        );
+        issues.push({
+          code: "no_upcoming_performances",
+          message: includeUnpublished
+            ? `There are no upcoming non-canceled performances scheduled to insert. Add a performance or remove ${tag}.`
+            : `There are no upcoming published performances scheduled to insert. Publish a performance, target Members only, or remove ${tag}.`,
+          placeholder: tag,
+        });
+      }
+    }
   }
 
   return issues;

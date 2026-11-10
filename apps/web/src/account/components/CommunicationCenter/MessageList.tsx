@@ -3,6 +3,7 @@ import type {
   CommunicationMessage,
   OrganizationBranding,
   OrganizationEvent,
+  OrganizationVenue,
 } from "@choir/contracts";
 import { formatTimezoneName } from "@choir/domain";
 import { CommunicationDeliveryDetails } from "./CommunicationDeliveryDetails";
@@ -31,6 +32,7 @@ interface MessageListProps {
   readonly onRetryDeliveries: (messageId: string) => Promise<void>;
   readonly timezone?: string | null | undefined;
   readonly unifiedMessages: readonly UnifiedCommunicationItem[];
+  readonly venues?: readonly OrganizationVenue[] | undefined;
 }
 
 interface MessageCardProps {
@@ -48,6 +50,7 @@ interface MessageCardProps {
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
   readonly onRetryDeliveries: (messageId: string) => Promise<void>;
   readonly timezone?: string | null | undefined;
+  readonly venues?: readonly OrganizationVenue[] | undefined;
 }
 
 function MessageCardActions({
@@ -218,6 +221,7 @@ function MessageCard({
   onResumeDraft,
   onRetryDeliveries,
   timezone,
+  venues,
 }: MessageCardProps) {
   const isDetailsOpen =
     item.kind === "manual" && deliveryDetailsMessage?.id === item.id && deliverySummary !== null;
@@ -301,6 +305,7 @@ function MessageCard({
             onRetry={() => onRetryDeliveries(item.id)}
             summary={deliverySummary}
             timezone={timezone}
+            venues={venues}
           />
         </div>
       ) : null}
@@ -325,6 +330,7 @@ export function MessageList({
   onRetryDeliveries,
   timezone,
   unifiedMessages,
+  venues,
 }: MessageListProps) {
   if (unifiedMessages.length === 0) {
     return (
@@ -353,6 +359,7 @@ export function MessageList({
           onResumeDraft={onResumeDraft}
           onRetryDeliveries={onRetryDeliveries}
           timezone={timezone}
+          venues={venues}
         />
       ))}
     </div>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { communicationPlaceholderDefinitions } from "@choir/domain";
-import type { OrganizationBranding } from "@choir/contracts";
+import type { OrganizationBranding, OrganizationEvent, OrganizationVenue } from "@choir/contracts";
+import { futureIsoDate, pastIsoDate } from "@choir/testkit";
 import {
   SAMPLE_COMMUNICATION_RECIPIENT_NAME,
   communicationPreviewValues,
@@ -162,5 +163,119 @@ describe("renderCommunicationMarkdownPreview", () => {
 
     expect(rendered).toContain("Hello Ada Lovelace and Ada Lovelace!");
     expect(rendered).not.toContain(SAMPLE_COMMUNICATION_RECIPIENT_NAME);
+  });
+
+  it("renders upcoming performances filtered by audience visibility with venues and ticket links", () => {
+    const venueA: OrganizationVenue = {
+      address: "123 Symphony Way",
+      createdAt: pastIsoDate({ days: 30 }),
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "Symphony Hall",
+      updatedAt: pastIsoDate({ days: 30 }),
+    };
+    const baseEvent: OrganizationEvent = {
+      advancePriceCents: 2000,
+      callTime: "",
+      createdAt: pastIsoDate({ days: 20 }),
+      dayOfPriceCents: 2500,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 90,
+      id: "22222222-2222-4222-8222-222222222222",
+      isCanceled: false,
+      isTicketingEnabled: true,
+      location: "Old Location",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: true,
+      rsvpDeadlineAt: null,
+      rsvpDeadlineDate: null,
+      rsvpDeadlinePassed: false,
+      rsvpFollowUpLeadHours: null,
+      rsvpFollowUpMode: "inherit",
+      rsvpSelfServiceOpen: true,
+      setList: [],
+      setListApproved: false,
+      setListDefaultTransitionSeconds: 0,
+      startsAt: futureIsoDate({ days: 15 }),
+      ticketCapacity: 200,
+      ticketSlug: "winter-gala",
+      title: "Winter Gala",
+      type: "Performance",
+      updatedAt: pastIsoDate({ days: 10 }),
+      venueId: venueA.id,
+    };
+    const events: OrganizationEvent[] = [
+      {
+        ...baseEvent,
+        id: "33333333-3333-4333-8333-333333333333",
+        isTicketingEnabled: false,
+        location: "Community Center",
+        publishOnWebsite: false,
+        ticketSlug: null,
+        title: "Internal School Concert",
+        startsAt: futureIsoDate({ days: 5 }),
+        venueId: null,
+      },
+      baseEvent,
+      {
+        ...baseEvent,
+        id: "44444444-4444-4444-8444-444444444444",
+        isCanceled: true,
+        title: "Canceled Concert",
+        startsAt: futureIsoDate({ days: 20 }),
+      },
+      {
+        ...baseEvent,
+        id: "55555555-5555-4555-8555-555555555555",
+        startsAt: pastIsoDate({ days: 3 }),
+        title: "Past Concert",
+      },
+    ];
+
+    const membersHtml = renderCommunicationMarkdownPreview(
+      "{{UPCOMING_PERFORMANCES}}",
+      communicationPreviewValues(null, "America/New_York", branding, undefined, {
+        audience: { targetAudiences: ["Members"] },
+        events,
+        venues: [venueA],
+      }),
+      { branding },
+    );
+    expect(membersHtml).toContain("Internal School Concert");
+    expect(membersHtml).toContain("Community Center");
+    expect(membersHtml).toContain("Winter Gala");
+    expect(membersHtml).toContain("Symphony Hall, 123 Symphony Way");
+    expect(membersHtml).toContain('href="/tickets/winter-gala"');
+    expect(membersHtml).not.toContain("Canceled Concert");
+    expect(membersHtml).not.toContain("Past Concert");
+    expect(membersHtml.indexOf("Internal School Concert")).toBeLessThan(
+      membersHtml.indexOf("Winter Gala"),
+    );
+
+    const contactsHtml = renderCommunicationMarkdownPreview(
+      "{{UPCOMING_PERFORMANCES}}",
+      communicationPreviewValues(null, "America/New_York", branding, undefined, {
+        audience: { targetAudiences: ["Members", "Contacts"] },
+        events,
+        venues: [venueA],
+      }),
+      { branding },
+    );
+    expect(contactsHtml).not.toContain("Internal School Concert");
+    expect(contactsHtml).toContain("Winter Gala");
+
+    const internalEvent = events[0];
+    if (!internalEvent) throw new Error("Missing internal test event");
+    const emptyHtml = renderCommunicationMarkdownPreview(
+      "{{UPCOMING_PERFORMANCES}}",
+      communicationPreviewValues(null, "America/New_York", branding, undefined, {
+        audience: { targetAudiences: ["Contacts"] },
+        events: [internalEvent],
+      }),
+      { branding },
+    );
+    expect(emptyHtml).toContain("No upcoming performances scheduled.");
   });
 });

@@ -3,6 +3,7 @@ import type {
   CommunicationMessage,
   OrganizationBranding,
   OrganizationEvent,
+  OrganizationVenue,
 } from "@choir/contracts";
 import { CommunicationPagination } from "./CommunicationPagination";
 import { MessageList } from "./MessageList";
@@ -33,6 +34,7 @@ interface MessagesPanelProps {
   readonly pageNumber?: number;
   readonly timezone?: string | null | undefined;
   readonly unifiedMessages: readonly UnifiedCommunicationItem[];
+  readonly venues?: readonly OrganizationVenue[] | undefined;
 }
 
 const statusFilterOptions: readonly { readonly id: MessageStatusFilter; readonly label: string }[] =
@@ -78,6 +80,7 @@ export function MessagesPanel({
   pageNumber,
   timezone,
   unifiedMessages,
+  venues,
 }: MessagesPanelProps) {
   return (
     <div className="communication-messages-panel">
@@ -169,6 +172,7 @@ export function MessagesPanel({
         onRetryDeliveries={onRetryDeliveries}
         timezone={timezone}
         unifiedMessages={unifiedMessages}
+        venues={venues}
       />
 
       {pageNumber !== undefined && onNextPage && onPreviousPage ? (

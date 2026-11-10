@@ -12,6 +12,7 @@ import type {
   OrganizationEvent,
   OrganizationProviderStatusResponse,
   OrganizationRosterConfiguration,
+  OrganizationVenue,
 } from "@choir/contracts";
 import type { CommunicationContextIssue } from "@choir/domain";
 
@@ -134,5 +135,6 @@ export interface CommunicationCenterControllerModel {
   readonly updateAudience: (
     updater: (current: CommunicationMessage["audience"]) => CommunicationMessage["audience"],
   ) => void;
+  readonly venues?: readonly OrganizationVenue[] | undefined;
   readonly voiceParts: string;
 }

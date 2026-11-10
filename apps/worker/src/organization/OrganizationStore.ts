@@ -6,7 +6,15 @@ import {
   type CommunicationBatchInput,
 } from "./communicationStore/batches";
 import { readCommunicationJobFromStore } from "./communicationStore/deliveryQueries";
-import { deliveryJobResponseSchema } from "./communicationStore/contracts";
+import {
+  deliveryJobResponseSchema,
+  upcomingPerformancesContextInputSchema,
+  type UpcomingPerformancesContextInput,
+} from "./communicationStore/contracts";
+import {
+  identityMatches as communicationIdentityMatches,
+  queryUpcomingPerformancesForCommunication,
+} from "./communicationStore/shared";
 import {
   claimCheckoutReminder,
   confirmCheckoutReminderSend,
@@ -938,6 +946,16 @@ export class OrganizationStore extends DurableObject {
 
   async finishCommunicationDeliveryBatch(input: CommunicationBatchInput) {
     return finishCommunicationBatch(this.ctx.storage, input);
+  }
+
+  async readUpcomingPerformancesContext(input: UpcomingPerformancesContextInput) {
+    const parsed = upcomingPerformancesContextInputSchema.parse(input);
+    if (!communicationIdentityMatches(this.ctx.storage, parsed.organizationId)) {
+      throw new Error("organization_not_found");
+    }
+    return Promise.resolve(
+      queryUpcomingPerformancesForCommunication(this.ctx.storage, parsed.includeUnpublished),
+    );
   }
 
   private async dispatchRpcCall(call: OrganizationRpcCall): Promise<OrganizationRpcResult> {

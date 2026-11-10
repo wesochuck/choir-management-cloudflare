@@ -1,8 +1,11 @@
 import { organizationStoreStub } from "../../organization/rpc/client";
 import {
   extractCommunicationPlaceholders,
+  formatUpcomingPerformancesList,
   renderCommunicationTemplate,
   renderOrganizationLogoPlaceholder,
+  replaceUpcomingPerformancesPlaceholder,
+  usesUpcomingPerformancesPlaceholder,
 } from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
 import { recordCommunicationDeliveryResults } from "../../organization/organizationCommunications";
@@ -66,13 +69,48 @@ async function renderDeliveryContent(
     delivery,
     canonicalOrigin,
   );
-  return renderPollLinks(
+  const contentWithPollLinks = await renderPollLinks(
     env,
     job.organizationId,
     contentWithPlayerLinks,
     delivery,
     canonicalOrigin,
   );
+  return renderUpcomingPerformancesContent(
+    contentWithPollLinks,
+    deliveryJob.upcomingPerformancesContext,
+    canonicalOrigin,
+    delivery.unsubscribeUrl,
+  );
+}
+
+function safeOriginFromUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+function renderUpcomingPerformancesContent(
+  content: string,
+  upcomingContext: Awaited<
+    ReturnType<ReturnType<typeof organizationStoreStub>["claimCommunicationDeliveryBatch"]>
+  >["upcomingPerformancesContext"],
+  canonicalOrigin: string | null,
+  unsubscribeUrl: string | null,
+): string {
+  if (!usesUpcomingPerformancesPlaceholder(content) || !upcomingContext) {
+    return content;
+  }
+  const ticketOrigin = canonicalOrigin ?? safeOriginFromUrl(unsubscribeUrl);
+  const formattedList = formatUpcomingPerformancesList(upcomingContext.performances, {
+    canonicalOrigin: ticketOrigin,
+    timezone: upcomingContext.timezone,
+  });
+  return replaceUpcomingPerformancesPlaceholder(content, formattedList);
 }
 
 function checkUnresolvedPlaceholders(subject: string, content: string): string | null {
