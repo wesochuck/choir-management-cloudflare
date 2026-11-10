@@ -13,6 +13,7 @@ const settings = publicWebsiteSettingsResponseSchema.parse({
   requestId: "11111111-1111-4111-8111-111111111111",
   heroPosition: { x: 30, y: 75 },
   pageLabels: { history: { navigationLabel: "Our story", heading: "How we began" } },
+  googleAdsTagId: "AW-123456789",
   footerText: "Our supporters",
   footerEmbeds: [{ kind: "image", title: "Our badge", src: "https://example.org/badge.svg" }],
 });
@@ -23,6 +24,7 @@ it("round trips Organization footer content through the browser API parser", asy
     .mockImplementation(() => Promise.resolve(Response.json(settings)));
   vi.stubGlobal("fetch", mock);
   await expect(updateOrganizationPublicWebsiteSettings(settings)).resolves.toMatchObject({
+    googleAdsTagId: settings.googleAdsTagId,
     pageLabels: settings.pageLabels,
     heroPosition: settings.heroPosition,
     footerText: settings.footerText,
@@ -36,6 +38,7 @@ it("round trips Organization footer content through the browser API parser", asy
 });
 it("accepts older response payloads and rejects unsafe embed responses", async () => {
   const older = { ...settings };
+  delete older.googleAdsTagId;
   delete older.footerText;
   delete older.footerEmbeds;
   const mock = vi

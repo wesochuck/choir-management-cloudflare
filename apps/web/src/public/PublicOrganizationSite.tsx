@@ -1,3 +1,4 @@
+import { GoogleAdsTag } from "./GoogleAdsTag";
 import { WebsiteCopy } from "./WebsiteCopy";
 import { normalizedPublicWebsitePages } from "@choir/contracts";
 import { publicPageHeading, publicPageNavigationLabel } from "./publicPageLabels";
@@ -132,10 +133,12 @@ export function OrganizationLayout({
   pathname = "/",
   projection,
   signedIn = false,
+  tracking = false,
 }: {
   readonly children: ReactNode;
   readonly pathname?: string | undefined;
   readonly projection: PublishedOrganizationProjection;
+  readonly tracking?: boolean;
   readonly signedIn?: boolean | undefined;
 }) {
   const { performances, settings } = projection.payload;
@@ -214,6 +217,7 @@ export function OrganizationLayout({
           </a>
         </nav>
       </header>
+      {tracking ? <GoogleAdsTag tagId={settings.googleAdsTagId} /> : null}
       <main>{children}</main>
       <PublicWebsiteFooter
         settings={settings}
@@ -262,7 +266,7 @@ function OrganizationHome({
   const { performances, settings } = projection.payload;
   const { upcoming, past } = usePerformanceSchedule(performances);
   return (
-    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
+    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn} tracking>
       <PublicWebsiteHero
         position={settings.heroPosition}
         headline={settings.heroHeadline}
@@ -330,7 +334,7 @@ function OrganizationPerformances({
   const { contactEmail, enabledNavigation } = projection.payload.settings;
 
   return (
-    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
+    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn} tracking>
       <section className="public-section">
         <h1>{publicPageHeading(projection.payload.settings, "performances", "Performances")}</h1>
         <p className="public-performances-intro">
@@ -403,7 +407,7 @@ function OrganizationContentPage({
     (page) => pathname === `/${page.slug}` && page.body.trim(),
   );
   return (
-    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
+    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn} tracking>
       <section className="public-section public-section--narrow">
         <h1>{contentPage?.title ?? "Page not found"}</h1>
         {contentPage ? (

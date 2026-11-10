@@ -547,6 +547,7 @@ describe("Organization public website", () => {
           "/api/organization/website",
           "PUT",
           {
+            googleAdsTagId: "AW-123456789",
             footerText: "**Alpha supporters**",
             footerEmbeds,
             aboutUsText: "## About Alpha\nWe sing together.",
@@ -581,6 +582,7 @@ describe("Organization public website", () => {
         await exports.default.fetch(api("alpha.localhost", "/api/organization/website", cookie))
       ).json(),
     );
+    expect(reloaded.googleAdsTagId).toBe("AW-123456789");
     expect(reloaded.footerText).toBe("**Alpha supporters**");
     expect(reloaded.heroPosition).toEqual({ x: 25.5, y: 80 });
     expect(reloaded.pageLabels?.auditions?.navigationLabel).toBe("Join");
@@ -607,6 +609,7 @@ describe("Organization public website", () => {
             { id: performance.id, title: "Winter Concert", ticketSlug: "winter-concert" },
           ],
           settings: {
+            googleAdsTagId: "AW-123456789",
             heroHeadline: "Alpha sings",
             heroPosition: { x: 25.5, y: 80 },
             pageLabels: {

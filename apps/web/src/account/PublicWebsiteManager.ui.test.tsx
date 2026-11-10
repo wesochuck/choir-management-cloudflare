@@ -119,9 +119,39 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
       "Pages",
       "Appearance",
       "Labels & navigation",
+      "Tracking",
       "Footer",
       "Documents",
     ]);
+  });
+
+  it("saves Google Ads tracking and retains it across editor tabs", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
+    vi.mocked(authApi.updateOrganizationPublicWebsiteSettings).mockResolvedValue({
+      ...defaultSettings,
+      googleAdsTagId: "AW-123456789",
+      draftRevision: 1,
+    });
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+    await screen.findByLabelText("Publication state");
+    await user.click(screen.getByRole("tab", { name: "Tracking" }));
+    await user.type(screen.getByLabelText("Google Ads tag ID"), "AW-123456789");
+    await user.click(screen.getByRole("tab", { name: "Appearance" }));
+    await user.click(screen.getByRole("tab", { name: "Tracking" }));
+    expect(screen.getByLabelText("Google Ads tag ID")).toHaveValue("AW-123456789");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => {
+      expect(authApi.updateOrganizationPublicWebsiteSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ googleAdsTagId: "AW-123456789" }),
+      );
+    });
+    expect(document.querySelector('script[src*="googletagmanager.com"]')).toBeNull();
   });
 
   it("edits the public menu option under Labels & navigation and preserves it across tabs and saving", async () => {

@@ -2,9 +2,19 @@ import { healthResponseSchema } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
+import { buildContentSecurityPolicy } from "../src/router";
 import { MAX_JSON_BODY_BYTES } from "../src/routes/helpers";
 
 describe("Worker foundation", () => {
+  it("permits Google Ads only when the public content policy is selected", () => {
+    expect(buildContentSecurityPolicy("test")).not.toContain("googletagmanager.com");
+    const policy = buildContentSecurityPolicy("test", true);
+    expect(policy).toContain("https://www.googletagmanager.com");
+    expect(policy).toContain("https://www.googleadservices.com");
+    expect(policy).toContain("https://googleads.g.doubleclick.net");
+    expect(policy).not.toContain("'unsafe-inline'; script");
+    expect(policy).not.toContain("'unsafe-eval'");
+  });
   it("serves a validated health response through the Worker runtime with dynamic nonce CSP", async () => {
     const response1 = await exports.default.fetch(
       new Request("https://choir-management.local/api/health"),

@@ -47,6 +47,7 @@ interface SettingsRow {
   readonly aboutUsText: string;
   readonly bodyFont: string;
   readonly contactEmail: string;
+  readonly googleAdsTagId: string;
   readonly footerText: string;
   readonly footerEmbedsJson: string;
   readonly pageLabelsJson: string;
@@ -119,7 +120,7 @@ function settingsRow(storage: DurableObjectStorage): SettingsRow {
         hero_position_x AS heroPositionX, hero_position_y AS heroPositionY,
         about_us_text AS aboutUsText, history_text AS historyText,
         pages_json AS pagesJson, draft_revision AS draftRevision,
-        contact_email AS contactEmail, footer_text AS footerText, footer_embeds_json AS footerEmbedsJson, page_labels_json AS pageLabelsJson,
+        contact_email AS contactEmail, google_ads_tag_id AS googleAdsTagId, footer_text AS footerText, footer_embeds_json AS footerEmbedsJson, page_labels_json AS pageLabelsJson,
         show_branding_header_footer AS showBrandingHeaderFooter,
         header_font AS headerFont, body_font AS bodyFont,
         hero_file_id AS heroFileId, logo_file_id AS logoFileId,
@@ -142,6 +143,7 @@ function parsedSettings(row: SettingsRow, organizationName: string) {
   })();
   return publicWebsiteSettingsSchema.parse({
     pageLabels: JSON.parse(row.pageLabelsJson) as unknown,
+    googleAdsTagId: row.googleAdsTagId,
     footerText: row.footerText,
     footerEmbeds: JSON.parse(row.footerEmbedsJson) as unknown,
     aboutUsText: row.aboutUsText,
@@ -381,7 +383,7 @@ function updateSettings(
         hero_headline = ?, hero_subtitle = ?, about_us_text = ?, history_text = ?,
         contact_email = ?, show_branding_header_footer = ?, header_font = ?, body_font = ?,
         hero_file_id = ?, logo_file_id = ?, enabled_navigation_json = ?, updated_at = ?,
-        footer_text = ?, footer_embeds_json = ?, hero_position_x = ?, hero_position_y = ?, page_labels_json = ?, pages_json = ?, draft_revision = draft_revision + 1
+        google_ads_tag_id = ?, footer_text = ?, footer_embeds_json = ?, hero_position_x = ?, hero_position_y = ?, page_labels_json = ?, pages_json = ?, draft_revision = draft_revision + 1
        WHERE singleton = 1`,
       operation.settings.heroHeadline,
       operation.settings.heroSubtitle,
@@ -395,6 +397,7 @@ function updateSettings(
       operation.settings.logoFileId,
       JSON.stringify(operation.settings.enabledNavigation),
       updatedAt,
+      operation.settings.googleAdsTagId ?? "",
       operation.settings.footerText ?? "",
       JSON.stringify(operation.settings.footerEmbeds ?? []),
       operation.settings.heroPosition?.x ?? 50,
@@ -528,6 +531,7 @@ function beginPublication(
       performances,
       settings: {
         pageLabels: settings.pageLabels,
+        googleAdsTagId: settings.googleAdsTagId,
         footerText: settings.footerText,
         footerEmbeds: settings.footerEmbeds,
         aboutUsText: settings.aboutUsText,

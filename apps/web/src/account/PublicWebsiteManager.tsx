@@ -33,7 +33,7 @@ type LoadState =
   | { readonly status: "loading" }
   | { readonly settings: PublicWebsiteSettings; readonly status: "ready" };
 
-type EditorTab = "appearance" | "pages" | "navigation" | "footer" | "documents";
+type EditorTab = "appearance" | "pages" | "navigation" | "footer" | "documents" | "tracking";
 type PublicationVerificationStatus =
   "confirmed" | "idle" | "publishing" | "uncertain" | "verifying";
 
@@ -42,6 +42,7 @@ function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequ
     pages: normalizedPublicWebsitePages(settings),
     expectedDraftRevision: settings.draftRevision ?? 0,
     pageLabels: settings.pageLabels ?? {},
+    googleAdsTagId: settings.googleAdsTagId ?? "",
     footerText: settings.footerText ?? "",
     footerEmbeds: settings.footerEmbeds ?? [],
     aboutUsText: settings.aboutUsText,
@@ -67,6 +68,7 @@ function customWebsiteSettingsChanged(
     JSON.stringify(draft.pages) !== JSON.stringify(saved.pages) ||
     heroSettingsChanged(draft, saved) ||
     JSON.stringify(draft.pageLabels) !== JSON.stringify(saved.pageLabels) ||
+    draft.googleAdsTagId !== saved.googleAdsTagId ||
     draft.footerText !== saved.footerText ||
     JSON.stringify(draft.footerEmbeds) !== JSON.stringify(saved.footerEmbeds)
   );
@@ -650,6 +652,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
           <TabsTrigger value="pages">Pages</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
           <TabsTrigger value="navigation">Labels &amp; navigation</TabsTrigger>
+          <TabsTrigger value="tracking">Tracking</TabsTrigger>
           <TabsTrigger value="footer">Footer</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
         </TabsList>
@@ -731,6 +734,29 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
               />
             </TabsContent>
 
+            <TabsContent value="tracking">
+              <section className="surface-card">
+                <h2>Google Ads tracking</h2>
+                <label className="field">
+                  <span>Google Ads tag ID</span>
+                  <input
+                    disabled={busy}
+                    value={draft.googleAdsTagId ?? ""}
+                    placeholder="AW-123456789"
+                    maxLength={32}
+                    onChange={(event) => {
+                      change("googleAdsTagId", event.target.value);
+                    }}
+                    aria-describedby="google-ads-help"
+                  />
+                </label>
+                <p id="google-ads-help">
+                  Enter your AW- ID, then save and publish to enable Google Ads on public website
+                  pages. Leave blank and publish to disable. The tag does not run in this preview or
+                  on account and signed-link pages. Purchase conversion events are not included.
+                </p>
+              </section>
+            </TabsContent>
             <TabsContent value="footer">
               <FooterTabContent busy={busy} draft={draft} onChange={change} />
             </TabsContent>

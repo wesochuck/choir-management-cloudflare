@@ -273,6 +273,12 @@ export const publicWebsiteSettingsRequestObjectSchema = z.object({
       auditions: publicPageLabelSchema.optional(),
     })
     .optional(),
+  googleAdsTagId: z
+    .string()
+    .trim()
+    .max(32)
+    .regex(/^(AW-[0-9]+)?$/, "Enter a Google Ads ID such as AW-123456789, or leave blank.")
+    .optional(),
   footerText: z.string().max(10_000).optional(),
   footerEmbeds: z.array(footerEmbedSchema).max(6).optional(),
   aboutUsText: z.string().max(100_000).default(""),

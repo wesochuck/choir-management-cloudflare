@@ -97,7 +97,12 @@ const worker = {
     const contentStatus = await publicContentStatus(requestUrl, env);
     const assetResponse = await env.ASSETS.fetch(request);
     const headers = new Headers(assetResponse.headers);
-    setSecurityHeaders(headers);
+    setSecurityHeaders(
+      headers,
+      "strict-origin-when-cross-origin",
+      undefined,
+      pathname === "/" || pathname === "/performances" || contentStatus === 200,
+    );
     return new Response(assetResponse.body, {
       headers,
       status: contentStatus ?? assetResponse.status,

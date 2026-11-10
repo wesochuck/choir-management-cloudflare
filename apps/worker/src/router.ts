@@ -15,22 +15,29 @@ export function generateCspNonce(): string {
   return crypto.randomUUID().replace(/-/g, "");
 }
 
-export function buildContentSecurityPolicy(nonce?: string): string {
+export function buildContentSecurityPolicy(nonce?: string, googleAds = false): string {
   const scriptDirective = nonce
     ? `script-src 'self' 'wasm-unsafe-eval' 'nonce-${nonce}' https://static.cloudflareinsights.com https://challenges.cloudflare.com`
     : "script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://challenges.cloudflare.com";
 
+  const adsScripts = googleAds
+    ? " https://www.googletagmanager.com https://www.googleadservices.com https://www.google.com"
+    : "";
+  const adsConnections = googleAds
+    ? " https://www.googletagmanager.com https://www.googleadservices.com https://www.google.com https://googleads.g.doubleclick.net https://pagead2.googlesyndication.com https://ad.doubleclick.net"
+    : "";
   return [
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    scriptDirective,
+    scriptDirective + adsScripts,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "connect-src 'self' https://cloudflareinsights.com https://challenges.cloudflare.com",
+    "connect-src 'self' https://cloudflareinsights.com https://challenges.cloudflare.com" +
+      adsConnections,
     "frame-src 'self' https://challenges.cloudflare.com https:",
     "media-src 'self' blob:",
     "worker-src 'self' blob:",
@@ -42,11 +49,12 @@ export function setSecurityHeaders(
   headers: Headers,
   referrerPolicy = "strict-origin-when-cross-origin",
   nonce = generateCspNonce(),
+  googleAds = false,
 ): void {
   headers.set("referrer-policy", referrerPolicy);
   headers.set("x-content-type-options", "nosniff");
   headers.set("x-frame-options", "DENY");
-  headers.set("content-security-policy", buildContentSecurityPolicy(nonce));
+  headers.set("content-security-policy", buildContentSecurityPolicy(nonce, googleAds));
 }
 
 router.use("*", requestId());
