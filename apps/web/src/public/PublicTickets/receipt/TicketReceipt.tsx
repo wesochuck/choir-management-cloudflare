@@ -76,7 +76,7 @@ function TicketAdsConversion({
         googleAdsConversionLabel
           ? {
               label: googleAdsConversionLabel,
-              transactionId: `${projection.organizationId}:${purchase.id}`,
+              transactionId: purchase.id,
               value: purchase.amountPaidCents / 100,
               currency: purchase.currency.toUpperCase(),
             }

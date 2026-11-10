@@ -100,7 +100,7 @@ describe("TicketReceipt", () => {
           expect.objectContaining({
             2: expect.objectContaining({
               send_to: "AW-123456789/ticket_label",
-              transaction_id: `org-1:${baseSampleReceipt.id}`,
+              transaction_id: baseSampleReceipt.id,
               value: 20,
               currency: "USD",
             }),
