@@ -1,7 +1,9 @@
 import type { OrganizationEvent, OrganizationEventRequest } from "@choir/contracts";
 import { utcToZonedLocalDateTime, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
-import { useEffect, useMemo, useState } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { queryKeys } from "../../../api/queryKeys";
 import {
   AuthApiError,
   archiveOrganizationEvent,
@@ -21,6 +23,9 @@ import { AppLink } from "../AuthenticatedShell/navigation";
 import {
   emptyEvent,
   eventRequestFrom,
+  eventReturnLinkLabel,
+  isRsvpReturnTo,
+  isTicketingReturnTo,
   shouldShowPageError,
   rehearsalDatesBeforePerformance,
 } from "./utils";
@@ -39,17 +44,6 @@ function buildEventReturnUrl(returnTo: string, eventId: string): string {
   searchParams.set("eventId", eventId);
   const queryString = searchParams.toString();
   return queryString ? `${pathname}?${queryString}` : pathname;
-}
-
-function isTicketingReturnTo(returnTo: string): boolean {
-  return (
-    returnTo === "/admin/tickets" ||
-    returnTo === "/admin/ticketing" ||
-    returnTo.startsWith("/admin/tickets?") ||
-    returnTo.startsWith("/admin/tickets/") ||
-    returnTo.startsWith("/admin/ticketing?") ||
-    returnTo.startsWith("/admin/ticketing/")
-  );
 }
 
 // eslint-disable-next-line complexity -- the main events manager screen coordinates multiple modals, bulk actions, and filters.
@@ -72,6 +66,7 @@ export function EventsPage({
   readonly navigate?: ((href: string) => void) | undefined;
   readonly returnTo?: string | null | undefined;
 }) {
+  const queryClient = useContext(QueryClientContext);
   const [archiveCandidate, setArchiveCandidate] = useState<OrganizationEvent | null>(null);
   const [busy, setBusy] = useState(false);
   const [bulkRehearsalOpen, setBulkRehearsalOpen] = useState(false);
@@ -135,12 +130,22 @@ export function EventsPage({
           const candidate = sortedEvents.find((entry) => entry.id === initialEventId);
           if (!candidate) {
             setError(
-              "The requested performance could not be found. It may have been deleted or archived.",
+              initialSection === "rsvp"
+                ? "The requested event could not be found. It may have been deleted or archived."
+                : "The requested performance could not be found. It may have been deleted or archived.",
             );
-          } else if (candidate.type !== "Performance") {
-            setError("The requested event is not a performance.");
+          } else if (
+            initialSection === "rsvp"
+              ? candidate.type !== "Performance" && candidate.type !== "Other"
+              : candidate.type !== "Performance"
+          ) {
+            setError(
+              initialSection === "rsvp"
+                ? "Rehearsals do not have separate RSVP settings."
+                : "The requested event is not a performance.",
+            );
           } else {
-            setEventTab("performances");
+            setEventTab(candidate.type === "Other" ? "other" : "performances");
             setEditingId(candidate.id);
             setEvent(eventRequestFrom(candidate));
             setEventStart(utcToZonedLocalDateTime(candidate.startsAt, settings.timezone) ?? "");
@@ -159,7 +164,7 @@ export function EventsPage({
     return () => {
       controller.abort();
     };
-  }, [enabled, initialEventId]);
+  }, [enabled, initialEventId, initialSection]);
 
   const filteredEvents = useMemo(() => {
     if (state.status !== "ready") return [];
@@ -333,6 +338,12 @@ export function EventsPage({
       if (previousGraphicId && previousGraphicId !== saved.publicGraphicFileId) {
         await deletePrivateOrganizationFile(previousGraphicId).catch(() => undefined);
       }
+      void queryClient?.invalidateQueries({ queryKey: queryKeys.organization.rsvpBootstrap });
+      if (editingId) {
+        void queryClient?.invalidateQueries({
+          queryKey: queryKeys.organization.attendance(saved.id),
+        });
+      }
       setSuccess(editingId ? "Event updated." : "Event created.");
       setPromotionPromptEventId(newlyPromotionReady ? saved.id : null);
       setDialogOpen(false);
@@ -341,9 +352,13 @@ export function EventsPage({
       setEventStart("");
       setGraphicFile(null);
       // Create flows return for every returnTo origin (legacy behavior).
-      // Edit-save auto-return applies only to Ticketing deep-links so existing
+      // Edit-save auto-return applies to Ticketing and RSVP deep-links so existing
       // seating/setlist edit flows keep their stay-in-editor behavior.
-      if (returnTo && navigate && (!editingId || isTicketingReturnTo(returnTo))) {
+      if (
+        returnTo &&
+        navigate &&
+        (!editingId || isTicketingReturnTo(returnTo) || isRsvpReturnTo(returnTo))
+      ) {
         navigate(buildEventReturnUrl(returnTo, saved.id));
       }
     } catch (saveError: unknown) {
@@ -373,6 +388,7 @@ export function EventsPage({
             }
           : current,
       );
+      void queryClient?.invalidateQueries({ queryKey: queryKeys.organization.rsvpBootstrap });
       setArchiveCandidate(null);
       setSuccess("Event archived.");
     } catch (archiveError: unknown) {
@@ -405,6 +421,7 @@ export function EventsPage({
             }
           : current,
       );
+      void queryClient?.invalidateQueries({ queryKey: queryKeys.organization.rsvpBootstrap });
       setCancelCandidate(null);
       setSuccess("Event canceled.");
     } catch (cancelError: unknown) {
@@ -527,13 +544,7 @@ export function EventsPage({
               })
             }
           >
-            {returnTo.startsWith("/admin/setlists")
-              ? "← Back to set lists"
-              : returnTo.startsWith("/admin/seating")
-                ? "← Back to seating"
-                : returnTo.startsWith("/admin/tickets") || returnTo.startsWith("/admin/ticketing")
-                  ? "← Back to Ticketing"
-                  : "← Back"}
+            {eventReturnLinkLabel(returnTo)}
           </AppLink>
         </div>
       ) : null}

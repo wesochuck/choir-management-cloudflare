@@ -170,3 +170,33 @@ export function rehearsalDatesBeforePerformance(
   }
   return dates.reverse();
 }
+
+function matchesRoutePrefix(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}?`) || path.startsWith(`${prefix}/`);
+}
+
+export function isTicketingReturnTo(returnTo: string): boolean {
+  return (
+    matchesRoutePrefix(returnTo, "/admin/tickets") ||
+    matchesRoutePrefix(returnTo, "/admin/ticketing")
+  );
+}
+
+export function isRsvpReturnTo(returnTo: string): boolean {
+  return matchesRoutePrefix(returnTo, "/admin/rsvp");
+}
+
+export function eventReturnLinkLabel(returnTo: string): string {
+  if (matchesRoutePrefix(returnTo, "/admin/setlists")) return "← Back to set lists";
+  if (matchesRoutePrefix(returnTo, "/admin/seating")) return "← Back to seating";
+  if (isTicketingReturnTo(returnTo)) return "← Back to Ticketing";
+  if (isRsvpReturnTo(returnTo)) return "← Back to RSVPs";
+  return "← Back";
+}
+
+export function eventEditorReturnButtonLabel(returnTo: string | null | undefined): string | null {
+  if (!returnTo) return null;
+  if (isTicketingReturnTo(returnTo)) return "Back to Ticketing";
+  if (isRsvpReturnTo(returnTo)) return "Back to RSVPs";
+  return null;
+}

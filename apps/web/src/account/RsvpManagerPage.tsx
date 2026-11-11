@@ -45,14 +45,18 @@ import { RsvpAutomationSettings } from "./RsvpAutomationSettings";
 // eslint-disable-next-line complexity -- the RSVP manager coordinates filters, per-row updates, and bulk selection in one screen state.
 export function RsvpManagerPage({
   canEditProfiles = true,
+  canManageEvents = true,
   enabled,
   eventId: initialEventId = null,
   initialTab = "events",
+  navigate,
 }: {
   readonly canEditProfiles?: boolean;
+  readonly canManageEvents?: boolean;
   readonly enabled: boolean;
   readonly eventId?: string | null;
   readonly initialTab?: "events" | "automation";
+  readonly navigate?: ((href: string) => void) | undefined;
 }) {
   const { partLabel } = useOrganizationTerminology();
   const [activeTab, setActiveTab] = useState<"events" | "automation">(initialTab);
@@ -570,10 +574,12 @@ export function RsvpManagerPage({
               ) : null}
               <RsvpManagerFilters
                 assignmentFilter={assignmentFilter}
+                canManageEvents={canManageEvents}
                 counts={counts}
                 eventId={eventId}
                 events={state.events}
                 filter={filter}
+                navigate={navigate}
                 onEventChange={(nextEventId) => {
                   setEventId(nextEventId);
                   setFeedback(null);

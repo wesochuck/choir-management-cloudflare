@@ -1042,3 +1042,146 @@ describe("EventEditorDialog RSVP response summary and navigation", () => {
     expect(listOrganizationEventAttendance).not.toHaveBeenCalled();
   });
 });
+
+describe("EventEditorDialog RSVP section deep-link and returnTo navigation", () => {
+  it("selects RSVPs & reminders section and focuses deadline when initialSection is rsvp for Performance", async () => {
+    vi.useFakeTimers();
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    const performanceEvent: OrganizationEventRequest = {
+      ...emptyEvent,
+      rsvpDeadlineDate: "2026-10-10",
+      title: "Holiday Concert",
+      type: "Performance",
+      venueId: venueHall.id,
+    };
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-perf-1"
+        error={null}
+        event={performanceEvent}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        initialSection="rsvp"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    vi.advanceTimersByTime(100);
+    expect(screen.getByRole("tab", { name: /RSVPs & reminders/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(document.activeElement).toBe(document.getElementById("events-page-rsvp-deadline"));
+    vi.useRealTimers();
+    expect(await screen.findByText("Total: 0")).toBeInTheDocument();
+  });
+
+  it("selects RSVPs & reminders section and focuses RSVP mode when initialSection is rsvp for Other events", async () => {
+    vi.useFakeTimers();
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    const otherEvent: OrganizationEventRequest = {
+      ...emptyEvent,
+      otherEventRsvpMode: "optional",
+      title: "Social Gathering",
+      type: "Other",
+      venueId: venueHall.id,
+    };
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-other-1"
+        error={null}
+        event={otherEvent}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        initialSection="rsvp"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    vi.advanceTimersByTime(100);
+    expect(screen.getByRole("tab", { name: /RSVPs & reminders/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(document.activeElement).toBe(document.getElementById("events-page-other-rsvp-mode"));
+    vi.useRealTimers();
+    expect(await screen.findByText("Total: 0")).toBeInTheDocument();
+  });
+
+  it("renders Back to RSVPs when clean and returnTo points to /admin/rsvp, switching to Save event when dirty", async () => {
+    const onClose = vi.fn();
+    const initialEvent: OrganizationEventRequest = {
+      ...emptyEvent,
+      rsvpDeadlineDate: "2026-10-10",
+      title: "Holiday Concert",
+      type: "Performance",
+      venueId: venueHall.id,
+    };
+
+    const { rerender } = render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-perf-1"
+        error={null}
+        event={initialEvent}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        initialSection="rsvp"
+        onClose={onClose}
+        onSubmit={vi.fn()}
+        returnTo="/admin/rsvp?eventId=event-perf-1"
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    const backButton = await screen.findByRole("button", { name: "Back to RSVPs" });
+    expect(await screen.findByText("Total: 0")).toBeInTheDocument();
+    expect(backButton).toBeInTheDocument();
+    fireEvent.click(backButton);
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-perf-1"
+        error={null}
+        event={{ ...initialEvent, rsvpDeadlineDate: "2026-10-15" }}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        initialSection="rsvp"
+        onClose={onClose}
+        onSubmit={vi.fn()}
+        returnTo="/admin/rsvp?eventId=event-perf-1"
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Back to RSVPs" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save event" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+});

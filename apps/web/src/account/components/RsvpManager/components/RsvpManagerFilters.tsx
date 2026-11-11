@@ -1,6 +1,7 @@
 import type { OrganizationEvent, OrganizationRosterConfiguration } from "@choir/contracts";
 import { type CSSProperties, type ReactNode, useMemo } from "react";
 
+import { AppLink } from "../../AuthenticatedShell/navigation";
 import { buildRosterBalanceLayout } from "../../../rosterBalanceLayout";
 import { reportableSections, reportableVoiceParts } from "../historyUtils";
 import { displayEventDate } from "../rsvpFormat";
@@ -9,10 +10,12 @@ import { RsvpDeadlineNotice } from "./RsvpDeadlineNotice";
 
 export interface RsvpManagerFiltersProps {
   readonly assignmentFilter: RsvpAssignmentFilter | null;
+  readonly canManageEvents?: boolean | undefined;
   readonly counts: RsvpCounts;
   readonly eventId: string;
   readonly events: readonly OrganizationEvent[];
   readonly filter: RsvpFilter;
+  readonly navigate?: ((href: string) => void) | undefined;
   readonly onEventChange: (id: string) => void;
   readonly notificationFooter?: ReactNode | undefined;
   readonly partLabel: string;
@@ -28,10 +31,12 @@ export interface RsvpManagerFiltersProps {
 
 export function RsvpManagerFilters({
   assignmentFilter,
+  canManageEvents = true,
   counts,
   eventId,
   events,
   filter,
+  navigate,
   onEventChange,
   notificationFooter,
   partLabel,
@@ -57,6 +62,17 @@ export function RsvpManagerFilters({
         }
       : undefined;
 
+  const editRsvpSettingsHref =
+    canManageEvents &&
+    selectedEvent &&
+    (selectedEvent.type === "Performance" || selectedEvent.type === "Other")
+      ? `/admin/events?${new URLSearchParams({
+          eventId: selectedEvent.id,
+          section: "rsvp",
+          returnTo: `/admin/rsvp?${new URLSearchParams({ eventId: selectedEvent.id }).toString()}`,
+        }).toString()}`
+      : null;
+
   return (
     <fieldset className="surface-card roster-balance rsvp-manager__balance">
       <legend id="rsvp-balance-title">{partLabel} RSVP balance</legend>
@@ -65,30 +81,6 @@ export function RsvpManagerFilters({
           <p className="field-help">
             Select a section or {partLabel.toLowerCase()} to filter the roster below.
           </p>
-          <div className="rsvp-manager__performance-row">
-            <label className="field rsvp-manager__performance">
-              <span>Performance</span>
-              <select
-                onChange={(event) => {
-                  onEventChange(event.target.value);
-                }}
-                value={eventId}
-              >
-                <option value="">Choose performance or event</option>
-                {events
-                  .filter((event) => event.type === "Performance" || event.type === "Other")
-                  .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
-                  .map((event) => (
-                    <option key={event.id} value={event.id}>
-                      {event.title}
-                      {event.type === "Other" ? " (Other)" : ""} ·{" "}
-                      {displayEventDate(event.startsAt)}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <RsvpDeadlineNotice event={selectedEvent} />
-          </div>
         </div>
         <div className="rsvp-manager__summary-actions">
           <span className="status-pill">Total: {counts.active} active</span>
@@ -101,6 +93,46 @@ export function RsvpManagerFilters({
             </a>
           ) : null}
         </div>
+      </div>
+      <div className="rsvp-manager__performance-row">
+        <div className="field rsvp-manager__performance">
+          <label htmlFor="rsvp-manager-select-event">Performance</label>
+          <div className="rsvp-manager__performance-control-row">
+            <select
+              id="rsvp-manager-select-event"
+              onChange={(event) => {
+                onEventChange(event.target.value);
+              }}
+              value={eventId}
+            >
+              <option value="">Choose performance or event</option>
+              {events
+                .filter((event) => event.type === "Performance" || event.type === "Other")
+                .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
+                .map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
+                    {event.type === "Other" ? " (Other)" : ""} · {displayEventDate(event.startsAt)}
+                  </option>
+                ))}
+            </select>
+            {editRsvpSettingsHref ? (
+              <AppLink
+                className="button button--secondary button--control-height rsvp-manager__edit-settings-button"
+                href={editRsvpSettingsHref}
+                onNavigate={
+                  navigate ??
+                  ((href) => {
+                    window.location.assign(href);
+                  })
+                }
+              >
+                Edit RSVP settings →
+              </AppLink>
+            ) : null}
+          </div>
+        </div>
+        <RsvpDeadlineNotice event={selectedEvent} />
       </div>
       <div aria-label="RSVP filters and views" className="rsvp-status-filters" role="group">
         {(

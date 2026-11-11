@@ -157,6 +157,19 @@ describe("renderOrganizationPage routing and aliases", () => {
     });
   });
 
+  it("allows opening an event directly to its RSVP section with sanitized returnTo", () => {
+    const props = eventsPagePropsFromSearch(
+      "?eventId=event-456&section=rsvp&returnTo=%2Fadmin%2Frsvp%3FeventId%3Devent-456",
+    );
+    expect(props).toEqual({
+      initialAction: null,
+      initialEventId: "event-456",
+      initialSection: "rsvp",
+      initialType: null,
+      returnTo: "/admin/rsvp?eventId=event-456",
+    });
+  });
+
   it("sanitizes returnTo to recognized internal routes and rejects open redirects", () => {
     expect(sanitizeEventsReturnTo("/admin/tickets")).toBe("/admin/tickets");
     expect(sanitizeEventsReturnTo("/admin/ticketing?eventId=123")).toBe(
@@ -164,12 +177,15 @@ describe("renderOrganizationPage routing and aliases", () => {
     );
     expect(sanitizeEventsReturnTo("/admin/setlists")).toBe("/admin/setlists");
     expect(sanitizeEventsReturnTo("/admin/seating")).toBe("/admin/seating");
+    expect(sanitizeEventsReturnTo("/admin/rsvp")).toBe("/admin/rsvp");
+    expect(sanitizeEventsReturnTo("/admin/rsvp?eventId=123")).toBe("/admin/rsvp?eventId=123");
 
     // Rejects external/open-redirect attempts
     expect(sanitizeEventsReturnTo("https://evil.com")).toBeNull();
     expect(sanitizeEventsReturnTo("//evil.com")).toBeNull();
     expect(sanitizeEventsReturnTo("/\\evil.com")).toBeNull();
     expect(sanitizeEventsReturnTo("/admin/other")).toBeNull();
+    expect(sanitizeEventsReturnTo("/admin/rsvp-evil")).toBeNull();
     expect(sanitizeEventsReturnTo("")).toBeNull();
     expect(sanitizeEventsReturnTo(null)).toBeNull();
   });

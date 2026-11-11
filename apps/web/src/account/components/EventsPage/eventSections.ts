@@ -62,6 +62,7 @@ export function sectionFromInitialSection(
   value: string | null | undefined,
   type: OrganizationEventRequest["type"],
 ): EventEditorSection | null {
+  if (value === "rsvp" && (type === "Performance" || type === "Other")) return "rsvp";
   if (value === "tickets" && type === "Performance") return "tickets";
   if (value === "promotion" && type === "Performance") return "promotion";
   return null;
@@ -338,7 +339,7 @@ export function getTbdVenueForEvent(
 
 export function firstFieldIdForSection(
   section: EventEditorSection,
-  event: OrganizationEventRequest,
+  event: Pick<OrganizationEventRequest, "type">,
 ): string {
   switch (section) {
     case "basics":

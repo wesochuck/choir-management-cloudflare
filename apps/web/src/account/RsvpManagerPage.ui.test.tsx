@@ -158,6 +158,7 @@ function renderPage(
   canEditProfiles = true,
   targetEventId = eventId1,
   initialTab: "events" | "automation" = "events",
+  navigate?: (href: string) => void,
 ) {
   const queryClient = createTestQueryClient();
   const result = render(
@@ -167,6 +168,7 @@ function renderPage(
         enabled
         eventId={targetEventId}
         initialTab={initialTab}
+        navigate={navigate}
       />
     </QueryClientProvider>,
   );
@@ -181,6 +183,17 @@ beforeEach(() => {
 });
 
 describe("RsvpManagerPage profile editor (issue #137)", () => {
+  it("links to the Event Editor RSVP section for the selected event", async () => {
+    const user = userEvent.setup();
+    const navigate = vi.fn();
+    renderPage(true, eventId1, "events", navigate);
+    const link = await screen.findByRole("link", { name: /Edit RSVP settings/i });
+    const expectedHref = `/admin/events?eventId=${eventId1}&section=rsvp&returnTo=%2Fadmin%2Frsvp%3FeventId%3D${eventId1}`;
+    expect(link).toHaveAttribute("href", expectedHref);
+    await user.click(link);
+    expect(navigate).toHaveBeenCalledWith(expectedHref);
+  });
+
   it("links to an attendee email for the selected event regardless of the roster filter", async () => {
     const user = userEvent.setup();
     renderPage();

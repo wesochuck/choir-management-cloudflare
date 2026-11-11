@@ -4,6 +4,7 @@ import {
   computeSectionErrors,
   firstInvalidSection,
   isSectionRequired,
+  sectionFromInitialSection,
   totalErrorCount,
   visibleEditorSections,
 } from "./eventSections";
@@ -103,5 +104,16 @@ describe("event section validation", () => {
     });
     expect(firstInvalidSection(withTitle, visibleEditorSections("Rehearsal"))).toBe("schedule");
     expect(totalErrorCount(withTitle)).toBe(1);
+  });
+
+  it("resolves initialSection against supported event types", () => {
+    expect(sectionFromInitialSection("rsvp", "Performance")).toBe("rsvp");
+    expect(sectionFromInitialSection("rsvp", "Other")).toBe("rsvp");
+    expect(sectionFromInitialSection("rsvp", "Rehearsal")).toBeNull();
+    expect(sectionFromInitialSection("tickets", "Performance")).toBe("tickets");
+    expect(sectionFromInitialSection("tickets", "Other")).toBeNull();
+    expect(sectionFromInitialSection("promotion", "Performance")).toBe("promotion");
+    expect(sectionFromInitialSection("promotion", "Other")).toBeNull();
+    expect(sectionFromInitialSection("unknown", "Performance")).toBeNull();
   });
 });

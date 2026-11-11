@@ -87,6 +87,7 @@ const ALLOWED_RETURN_PREFIXES = [
   "/admin/ticketing",
   "/admin/setlists",
   "/admin/seating",
+  "/admin/rsvp",
 ] as const;
 
 export function sanitizeEventsReturnTo(returnTo: string | null | undefined): string | null {
@@ -175,8 +176,10 @@ export function eventsPagePropsFromSearch(search: string) {
   const sectionParam = routeParams.get("section")?.trim() ?? null;
   const initialType: "Performance" | "Rehearsal" | null =
     eventsTypeParam === "Performance" || eventsTypeParam === "Rehearsal" ? eventsTypeParam : null;
-  const initialSection: "promotion" | "tickets" | null =
-    sectionParam === "tickets" || sectionParam === "promotion" ? sectionParam : null;
+  const initialSection: "promotion" | "rsvp" | "tickets" | null =
+    sectionParam === "tickets" || sectionParam === "promotion" || sectionParam === "rsvp"
+      ? sectionParam
+      : null;
   return {
     initialAction:
       eventsAction === "create" || routeParams.get("create") === "true"
@@ -277,6 +280,67 @@ function resolveOrganizationRouteKey(pathname: string): string {
   return pathname;
 }
 
+function eventsPageElement({
+  canManageSetLists,
+  focusedEnabled,
+  navigate,
+  search,
+}: {
+  readonly canManageSetLists: boolean;
+  readonly focusedEnabled: boolean;
+  readonly navigate: (href: string) => void;
+  readonly search: string;
+}): ReactNode {
+  const eventsProps = eventsPagePropsFromSearch(search);
+  const key = [
+    "events",
+    eventsProps.initialAction ?? "list",
+    eventsProps.initialEventId ?? "none",
+    eventsProps.initialType ?? "default",
+    eventsProps.initialSection ?? "default",
+  ].join(":");
+  return (
+    <EventsPage
+      canManageSetLists={canManageSetLists}
+      enabled={focusedEnabled}
+      initialAction={eventsProps.initialAction}
+      initialEventId={eventsProps.initialEventId}
+      initialSection={eventsProps.initialSection}
+      initialType={eventsProps.initialType}
+      key={key}
+      navigate={navigate}
+      returnTo={eventsProps.returnTo}
+    />
+  );
+}
+
+function rsvpManagerElement({
+  canEditProfiles,
+  canManageEvents,
+  eventId,
+  focusedEnabled,
+  initialTab = "events",
+  navigate,
+}: {
+  readonly canEditProfiles: boolean;
+  readonly canManageEvents: boolean;
+  readonly eventId: string | null;
+  readonly focusedEnabled: boolean;
+  readonly initialTab?: "events" | "automation";
+  readonly navigate: (href: string) => void;
+}): ReactNode {
+  return (
+    <RsvpManagerPage
+      canEditProfiles={canEditProfiles}
+      canManageEvents={canManageEvents}
+      enabled={focusedEnabled}
+      eventId={eventId}
+      initialTab={initialTab}
+      navigate={navigate}
+    />
+  );
+}
+
 export function renderOrganizationPage(
   routeState: RouteState,
   enabled: boolean,
@@ -286,6 +350,7 @@ export function renderOrganizationPage(
   canEditProfiles = true,
   canReviewRsvps = false,
   canManageSetLists = true,
+  canManageEvents = true,
 ) {
   const focusedEnabled = enabled && manager;
   const { pathname } = routeState;
@@ -299,7 +364,6 @@ export function renderOrganizationPage(
   const rsvpTab = rsvpTabFromSearch(routeState.search);
   const attendanceTab = attendanceTabFromSearch(routeState.search);
   const ticketingTab = ticketingTabFromSearch(routeState.search);
-  const eventsProps = eventsPagePropsFromSearch(routeState.search);
   const reportTab = reportTabFromSearch(routeState.search);
   const route = resolveOrganizationRouteKey(pathname);
   const pages: Record<string, ReactNode> = {
@@ -374,19 +438,12 @@ export function renderOrganizationPage(
     ),
     "/admin/venues": <VenuesPage enabled={focusedEnabled} />,
     "/admin/website": <PublicWebsiteManager enabled={focusedEnabled} />,
-    "/admin/events": (
-      <EventsPage
-        canManageSetLists={canManageSetLists}
-        enabled={focusedEnabled}
-        initialAction={eventsProps.initialAction}
-        initialEventId={eventsProps.initialEventId}
-        initialSection={eventsProps.initialSection}
-        initialType={eventsProps.initialType}
-        key={`events:${eventsProps.initialAction ?? "list"}:${eventsProps.initialEventId ?? "none"}:${eventsProps.initialType ?? "default"}:${eventsProps.initialSection ?? "default"}`}
-        navigate={navigate}
-        returnTo={eventsProps.returnTo}
-      />
-    ),
+    "/admin/events": eventsPageElement({
+      canManageSetLists,
+      focusedEnabled,
+      navigate,
+      search: routeState.search,
+    }),
     "/admin/roster": (
       <RosterPage
         enabled={focusedEnabled}
@@ -395,14 +452,14 @@ export function renderOrganizationPage(
         initialProfileTab={rosterProfileTabFromSearch(routeState.search)}
       />
     ),
-    "/admin/rsvp": (
-      <RsvpManagerPage
-        canEditProfiles={canEditProfiles}
-        enabled={focusedEnabled}
-        eventId={rsvpEventId}
-        initialTab={rsvpTab}
-      />
-    ),
+    "/admin/rsvp": rsvpManagerElement({
+      canEditProfiles,
+      canManageEvents,
+      eventId: rsvpEventId,
+      focusedEnabled,
+      initialTab: rsvpTab,
+      navigate,
+    }),
     "/admin/settings": (
       <OrganizationSettingsPage
         key={`settings:${routeState.search}:${typeof window === "undefined" ? "" : window.location.hash}`}
@@ -416,13 +473,13 @@ export function renderOrganizationPage(
     "/admin/settings/setup-checklist": <SetupChecklistView />,
   };
   if (route === "event-roster") {
-    return (
-      <RsvpManagerPage
-        canEditProfiles={canEditProfiles}
-        enabled={focusedEnabled}
-        eventId={pathname.split("/")[3] ?? null}
-      />
-    );
+    return rsvpManagerElement({
+      canEditProfiles,
+      canManageEvents,
+      eventId: pathname.split("/")[3] ?? null,
+      focusedEnabled,
+      navigate,
+    });
   }
   if (pathname === "/admin") return null;
   return pages[pathname] ?? notFoundPage(navigate);

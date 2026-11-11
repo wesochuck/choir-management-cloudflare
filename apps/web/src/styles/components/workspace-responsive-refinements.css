@@ -131,6 +131,26 @@
       flex-basis: auto;
     }
 
+    .rsvp-manager__performance {
+      width: 100%;
+      flex-basis: auto;
+    }
+
+    .rsvp-manager__performance-control-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .rsvp-manager__performance-control-row select {
+      flex-basis: auto;
+      max-width: none;
+      width: 100%;
+    }
+
+    .rsvp-manager__edit-settings-button {
+      width: 100%;
+    }
+
     .rsvp-manager__controls {
       grid-template-columns: 1fr;
     }

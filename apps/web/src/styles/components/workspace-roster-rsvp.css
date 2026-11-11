@@ -481,6 +481,10 @@
     overflow-wrap: anywhere;
   }
 
+  .rsvp-manager__balance .roster-balance__header {
+    margin-bottom: var(--spacing-sm);
+  }
+
   .rsvp-manager__balance .roster-balance__header > div:first-child {
     min-width: 0;
     flex: 1;
@@ -490,21 +494,34 @@
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: var(--spacing-md);
-    margin: var(--spacing-sm) 0;
+    gap: var(--spacing-sm) var(--spacing-md);
+    margin: 0 0 var(--spacing-md);
   }
 
   .rsvp-manager__performance {
     min-width: 0;
-    width: min(100%, 32rem);
+    width: min(100%, 46rem);
+    flex: 0 1 46rem;
     margin: 0;
   }
 
-  .rsvp-manager__performance select {
-    width: 100%;
+  .rsvp-manager__performance-control-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-wrap: wrap;
+  }
+
+  .rsvp-manager__performance-control-row select {
+    flex: 1 1 18rem;
     min-width: 0;
-    max-width: 100%;
+    max-width: 32rem;
     text-overflow: ellipsis;
+  }
+
+  .rsvp-manager__edit-settings-button {
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .signed-in-main .rsvp-manager__performance-row .rsvp-manager__deadline-notice,

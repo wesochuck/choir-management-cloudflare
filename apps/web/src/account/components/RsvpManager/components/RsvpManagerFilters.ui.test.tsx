@@ -287,4 +287,126 @@ describe("RsvpManagerFilters", () => {
     fireEvent.change(select, { target: { value: otherEventId } });
     expect(onEventChange).toHaveBeenCalledWith(otherEventId);
   });
+
+  it("renders Edit RSVP settings link for Performance and Other events and navigates on click", () => {
+    const navigate = vi.fn();
+    const otherEventId = "33333333-3333-4333-8333-333333333333";
+    const mockOtherEvent: OrganizationEvent = organizationEventSchema.parse({
+      callTime: "",
+      createdAt: "2026-08-01T00:00:00Z",
+      details: "Summer Social Gathering",
+      id: otherEventId,
+      location: "Park Pavilion",
+      otherEventRsvpMode: "optional",
+      rsvpDeadlineDate: null,
+      rsvpDeadlinePassed: false,
+      startsAt: "2026-12-20T18:00:00Z",
+      title: "Summer Social",
+      type: "Other",
+      updatedAt: "2026-08-01T00:00:00Z",
+    });
+
+    const { rerender } = render(
+      <RsvpManagerFilters
+        assignmentFilter={null}
+        counts={mockCounts}
+        eventId={mockEventId}
+        events={[mockEvent, mockOtherEvent]}
+        filter="active"
+        navigate={navigate}
+        onEventChange={vi.fn()}
+        partLabel="Voice Part"
+        roster={baseRoster}
+        sectionCounts={new Map()}
+        selectedEvent={mockEvent}
+        setFilter={vi.fn()}
+        setView={vi.fn()}
+        toggleAssignmentFilter={vi.fn()}
+        view="roster"
+        voicePartCounts={new Map()}
+      />,
+    );
+
+    const perfLink = screen.getByRole("link", { name: /Edit RSVP settings/i });
+    const expectedPerfHref = `/admin/events?eventId=${mockEventId}&section=rsvp&returnTo=%2Fadmin%2Frsvp%3FeventId%3D${mockEventId}`;
+    expect(perfLink).toHaveAttribute("href", expectedPerfHref);
+    expect(perfLink).toHaveClass("button--control-height");
+
+    fireEvent.click(perfLink);
+    expect(navigate).toHaveBeenCalledWith(expectedPerfHref);
+
+    rerender(
+      <RsvpManagerFilters
+        assignmentFilter={null}
+        counts={mockCounts}
+        eventId={otherEventId}
+        events={[mockEvent, mockOtherEvent]}
+        filter="active"
+        navigate={navigate}
+        onEventChange={vi.fn()}
+        partLabel="Voice Part"
+        roster={baseRoster}
+        sectionCounts={new Map()}
+        selectedEvent={mockOtherEvent}
+        setFilter={vi.fn()}
+        setView={vi.fn()}
+        toggleAssignmentFilter={vi.fn()}
+        view="roster"
+        voicePartCounts={new Map()}
+      />,
+    );
+
+    const otherLink = screen.getByRole("link", { name: /Edit RSVP settings/i });
+    expect(otherLink).toHaveAttribute(
+      "href",
+      `/admin/events?eventId=${otherEventId}&section=rsvp&returnTo=%2Fadmin%2Frsvp%3FeventId%3D${otherEventId}`,
+    );
+
+    rerender(
+      <RsvpManagerFilters
+        assignmentFilter={null}
+        counts={mockCounts}
+        eventId=""
+        events={[mockEvent, mockOtherEvent]}
+        filter="active"
+        navigate={navigate}
+        onEventChange={vi.fn()}
+        partLabel="Voice Part"
+        roster={baseRoster}
+        sectionCounts={new Map()}
+        selectedEvent={null}
+        setFilter={vi.fn()}
+        setView={vi.fn()}
+        toggleAssignmentFilter={vi.fn()}
+        view="roster"
+        voicePartCounts={new Map()}
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: /Edit RSVP settings/i })).not.toBeInTheDocument();
+
+    rerender(
+      <RsvpManagerFilters
+        assignmentFilter={null}
+        canManageEvents={false}
+        counts={mockCounts}
+        eventId={mockEventId}
+        events={[mockEvent, mockOtherEvent]}
+        filter="active"
+        navigate={navigate}
+        onEventChange={vi.fn()}
+        partLabel="Voice Part"
+        roster={baseRoster}
+        sectionCounts={new Map()}
+        selectedEvent={mockEvent}
+        setFilter={vi.fn()}
+        setView={vi.fn()}
+        toggleAssignmentFilter={vi.fn()}
+        view="roster"
+        voicePartCounts={new Map()}
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: /Edit RSVP settings/i })).not.toBeInTheDocument();
+  });
 });

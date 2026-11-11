@@ -237,6 +237,7 @@ function PlatformScopedWorkspacePage({
 }
 
 function readyAccessFlags(access: Extract<AccessState, { readonly status: "ready" }>): {
+  readonly canManageEvents: boolean;
   readonly canManageSetLists: boolean;
   readonly canReviewRsvps: boolean;
   readonly enabled: boolean;
@@ -248,6 +249,7 @@ function readyAccessFlags(access: Extract<AccessState, { readonly status: "ready
     access.context.mfaSatisfied ||
     Boolean(access.context.mfaVerifiedUntil);
   return {
+    canManageEvents: routeHasModule({ module: "events" }, access.modules),
     canManageSetLists: routeHasModule({ module: "setlists" }, access.modules),
     canReviewRsvps: routeHasModule({ module: "rsvp" }, access.modules),
     enabled,
@@ -311,7 +313,8 @@ function OrganizationWorkspacePage({
   if (access.context.role === "member") {
     return <AccessDeniedPage workspace="Organization Admin" />;
   }
-  const { canManageSetLists, canReviewRsvps, enabled, manager } = readyAccessFlags(access);
+  const { canManageEvents, canManageSetLists, canReviewRsvps, enabled, manager } =
+    readyAccessFlags(access);
   const requiredModule = routeModule(route.pathname);
   if (requiredModule !== undefined && !routeHasModule({ module: requiredModule }, access.modules)) {
     return <AccessDeniedPage workspace={`${requiredModule} module`} />;
@@ -326,6 +329,7 @@ function OrganizationWorkspacePage({
     canEditProfiles,
     canReviewRsvps,
     canManageSetLists,
+    canManageEvents,
   );
   return (
     page ?? (

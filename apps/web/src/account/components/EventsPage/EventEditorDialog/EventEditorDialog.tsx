@@ -17,6 +17,7 @@ import { createOrganizationVenue, listOrganizationVenues } from "../../../../aut
 import {
   eventDialogDescription,
   eventDialogTitle,
+  eventEditorReturnButtonLabel,
   currencyCentsFromDraft,
   currencyDraftFromCents,
 } from "../utils";
@@ -31,6 +32,7 @@ import {
   getTbdVenueForEvent,
   isSectionRequired,
   resolveEventPrimaryAction,
+  sectionFromInitialSection,
   totalErrorCount,
   visibleEditorSections,
   EVENT_EDITOR_SECTION_META,
@@ -122,11 +124,9 @@ export function EventEditorDialog({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const previewUrlRef = useRef<string | null>(null);
 
-  const [activeSection, setActiveSection] = useState<EventEditorSection>(() => {
-    if (initialSection === "promotion" && event.type === "Performance") return "promotion";
-    if (initialSection === "tickets" && event.type === "Performance") return "tickets";
-    return "basics";
-  });
+  const [activeSection, setActiveSection] = useState<EventEditorSection>(
+    () => sectionFromInitialSection(initialSection, event.type) ?? "basics",
+  );
   const [promotionOpened, setPromotionOpened] = useState(
     () => initialSection === "promotion" && event.type === "Performance",
   );
@@ -136,6 +136,7 @@ export function EventEditorDialog({
   const [tbdError, setTbdError] = useState<string | null>(null);
   const [promotionDraftDirty, setPromotionDraftDirty] = useState(false);
   const errorSummaryRef = useRef<HTMLDivElement | null>(null);
+  const rsvpFocusAppliedRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -235,10 +236,28 @@ export function EventEditorDialog({
   );
   const existingTbd = useMemo(() => findTbdVenue(venues), [venues]);
 
-  // Ticketing deep-link: the initial section state already selects Ticket Sales;
-  // this effect only moves focus to the first ticketing control.
+  // Deep-link focus: the initial section state already selects the requested section;
+  // this effect moves focus to the primary control in that section on open.
   useEffect(() => {
-    if (!dialogOpen || initialSection !== "tickets") return;
+    if (!dialogOpen) {
+      rsvpFocusAppliedRef.current = false;
+      return;
+    }
+    if (initialSection === "rsvp" && activeSection === "rsvp" && !rsvpFocusAppliedRef.current) {
+      if (event.type !== "Performance" && event.type !== "Other") return;
+      const targetId = firstFieldIdForSection("rsvp", { type: event.type });
+      const focusTimer = window.setTimeout(() => {
+        rsvpFocusAppliedRef.current = true;
+        const targetElement = document.getElementById(targetId);
+        if (targetElement instanceof HTMLElement && typeof targetElement.focus === "function") {
+          targetElement.focus({ preventScroll: true });
+        }
+      }, 60);
+      return () => {
+        window.clearTimeout(focusTimer);
+      };
+    }
+    if (initialSection !== "tickets") return;
     if (event.type !== "Performance") return;
     if (activeSection === "promotion") {
       const focusTimer = window.setTimeout(() => {
@@ -480,10 +499,8 @@ export function EventEditorDialog({
         : "No unsaved changes";
 
   const saveDisabled = busy || (primaryAction.mode === "save" && !dirty && editingId !== null);
-  const showBackToTicketing =
-    !dirty &&
-    returnTo &&
-    (returnTo.startsWith("/admin/tickets") || returnTo.startsWith("/admin/ticketing"));
+  const returnButtonLabel = eventEditorReturnButtonLabel(returnTo);
+  const showBackToReturn = !dirty && !promotionDraftDirty && returnButtonLabel !== null;
 
   const timezoneLabel = state.status === "ready" ? state.timezone : null;
 
@@ -778,9 +795,9 @@ export function EventEditorDialog({
                     {footerStatus}
                   </span>
                   <div className="event-editor-footer__actions">
-                    {showBackToTicketing ? (
+                    {showBackToReturn && returnButtonLabel ? (
                       <button className="button button--secondary" onClick={onClose} type="button">
-                        Back to Ticketing
+                        {returnButtonLabel}
                       </button>
                     ) : (
                       <>
@@ -804,21 +821,6 @@ export function EventEditorDialog({
                         </button>
                       </>
                     )}
-                    {dirty && showBackToTicketing ? (
-                      <button
-                        aria-label={primaryAction.accessibleLabel}
-                        className="button button--primary"
-                        disabled={saveDisabled}
-                        type="submit"
-                      >
-                        <span className="event-editor-primary-action__text--full">
-                          {primaryAction.label}
-                        </span>
-                        <span className="event-editor-primary-action__text--short">
-                          {primaryAction.shortLabel}
-                        </span>
-                      </button>
-                    ) : null}
                   </div>
                 </div>
               </form>
