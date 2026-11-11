@@ -70,7 +70,46 @@ describe("Worker foundation", () => {
     const csp = response.headers.get("content-security-policy") ?? "";
     expect(csp).toMatch(/script-src 'self' 'wasm-unsafe-eval' 'nonce-[0-9a-f]{32}'/);
     expect(response.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
+    expect(response.headers.get("cache-control")).toBe("no-cache");
     expect(response.headers.get("content-type")).toContain("text/html");
+  });
+
+  it("applies route-specific CSP and referrer headers across public, ticket, login, and checkout HTML routes", async () => {
+    for (const path of ["/", "/performances", "/tickets", "/tickets/order/success"]) {
+      const response = await exports.default.fetch(
+        new Request(`https://${env.PRODUCT_BASE_DOMAIN}${path}`, {
+          headers: { "sec-fetch-mode": "navigate" },
+        }),
+      );
+      expect(response.status, path).toBe(200);
+      expect(response.headers.get("cache-control"), path).toBe("no-cache");
+      const csp = response.headers.get("content-security-policy") ?? "";
+      expect(csp, path).toContain("https://www.googletagmanager.com");
+      expect(csp, path).toContain("https://www.googleadservices.com");
+      expect(csp, path).toContain("https://googleads.g.doubleclick.net");
+    }
+
+    const donateResponse = await exports.default.fetch(
+      new Request(`https://${env.PRODUCT_BASE_DOMAIN}/donate`, {
+        headers: { "sec-fetch-mode": "navigate" },
+      }),
+    );
+    expect(donateResponse.status).toBe(200);
+    expect(donateResponse.headers.get("content-security-policy") ?? "").not.toContain(
+      "googletagmanager.com",
+    );
+
+    const checkoutResponse = await exports.default.fetch(
+      new Request(`https://${env.PRODUCT_BASE_DOMAIN}/checkout/return`, {
+        headers: { "sec-fetch-mode": "navigate" },
+      }),
+    );
+    expect(checkoutResponse.status).toBe(200);
+    expect(checkoutResponse.headers.get("cache-control")).toBe("no-cache");
+    expect(checkoutResponse.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(checkoutResponse.headers.get("content-security-policy") ?? "").not.toContain(
+      "googletagmanager.com",
+    );
   });
 
   it("rejects oversized JSON request bodies before route parsing", async () => {

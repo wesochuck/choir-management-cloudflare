@@ -29,6 +29,7 @@ export const reservedPublicWebsiteSlugs: ReadonlySet<string> = new Set([
   "donate",
   "donations",
   "auditions",
+  "checkout",
   "join",
   "rsvp",
   "poll",

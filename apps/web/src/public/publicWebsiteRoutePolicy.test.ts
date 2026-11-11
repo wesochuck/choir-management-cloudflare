@@ -16,6 +16,7 @@ describe("website page route ownership", () => {
       "assets",
       "tickets",
       "donate",
+      "checkout",
       "auditions",
       "join",
       "rsvp",

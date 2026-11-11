@@ -22,10 +22,12 @@ supplied in the event. Enhanced conversions are disabled. A bounded sessionStora
 suppresses repeat reports in the same tab; Google receives a stable transaction_id for deduplication
 across reloads/devices. This is browser-based reporting, so blockers, missing receipt visits, and
 cleared storage can affect measurement; no server-side Google delivery pipeline is introduced. The
-configured page location excludes query strings and fragments, and the configured referrer is empty.
-Installing the Google tag enables Google's standard advertising measurement behavior; an
-Organization choosing to enable it is responsible for its visitor disclosures and consent setup. No
-consent-management interface is introduced by this feature.
+configured page location excludes fragments and strips all query parameters except Google Ads
+click-attribution and Tag Assistant debug parameters (`gclid`, `gbraid`, `wbraid`, `gclsrc`,
+`gtm_debug`), and the configured referrer is empty. Installing the Google tag enables Google's
+standard advertising measurement behavior; an Organization choosing to enable it is responsible for
+its visitor disclosures and consent setup. No consent-management interface is introduced by this
+feature.
 
 Google script and connection origins are permitted only in public content and ticket HTML responses,
 retaining nonce and existing Cloudflare allowances without enabling unsafe inline scripts or eval.

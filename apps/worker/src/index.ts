@@ -42,6 +42,7 @@ function deniesPublicHostShell(url: URL, baseDomain: string): boolean {
     "performances",
     "tickets",
     "donate",
+    "checkout",
     "auditions",
     "join",
     "rsvp",
@@ -71,6 +72,35 @@ async function publicContentStatus(url: URL, env: Env): Promise<200 | 404 | unde
     : 404;
 }
 
+function allowsPublicGoogleAds(pathname: string, contentStatus: number | undefined): boolean {
+  return (
+    pathname === "/" ||
+    pathname === "/performances" ||
+    pathname === "/tickets" ||
+    pathname.startsWith("/tickets/") ||
+    contentStatus === 200
+  );
+}
+
+function applyAssetResponseHeaders(
+  headers: Headers,
+  pathname: string,
+  contentStatus: number | undefined,
+): void {
+  if (
+    !headers.has("cache-control") ||
+    (headers.get("content-type") ?? "").toLowerCase().includes("text/html")
+  ) {
+    headers.set("cache-control", "no-cache");
+  }
+  setSecurityHeaders(
+    headers,
+    pathname.startsWith("/checkout/") ? "no-referrer" : "strict-origin-when-cross-origin",
+    undefined,
+    allowsPublicGoogleAds(pathname, contentStatus),
+  );
+}
+
 const worker = {
   async fetch(request: Request, env: Env, executionContext: ExecutionContext): Promise<Response> {
     const loginRedirect = await customDomainLoginRedirect(request, env);
@@ -97,16 +127,7 @@ const worker = {
     const contentStatus = await publicContentStatus(requestUrl, env);
     const assetResponse = await env.ASSETS.fetch(request);
     const headers = new Headers(assetResponse.headers);
-    setSecurityHeaders(
-      headers,
-      "strict-origin-when-cross-origin",
-      undefined,
-      pathname === "/" ||
-        pathname === "/performances" ||
-        pathname === "/tickets" ||
-        pathname.startsWith("/tickets/") ||
-        contentStatus === 200,
-    );
+    applyAssetResponseHeaders(headers, pathname, contentStatus);
     return new Response(assetResponse.body, {
       headers,
       status: contentStatus ?? assetResponse.status,
