@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import { MessageFilters } from "./MessageFilters";
 import type {
   CommunicationDeliverySummary,
   CommunicationMessage,
@@ -10,6 +12,14 @@ import { MessageList } from "./MessageList";
 import type { MessageOriginFilter, MessageStatusFilter, UnifiedCommunicationItem } from "./types";
 
 interface MessagesPanelProps {
+  readonly searchQuery?: string;
+  readonly onFiltersChange?: (
+    status: MessageStatusFilter,
+    origin: MessageOriginFilter,
+    search: string,
+  ) => void;
+  readonly historyError?: string | null;
+  readonly onRetryHistory?: () => void;
   readonly showNewMessage?: boolean;
   readonly branding?: OrganizationBranding | null | undefined;
   readonly busy: boolean;
@@ -39,25 +49,80 @@ interface MessagesPanelProps {
   readonly venues?: readonly OrganizationVenue[] | undefined;
 }
 
-const statusFilterOptions: readonly { readonly id: MessageStatusFilter; readonly label: string }[] =
-  [
-    { id: "all", label: "All" },
-    { id: "draft", label: "Drafts" },
-    { id: "scheduled", label: "Scheduled" },
-    { id: "queued", label: "Queued" },
-    { id: "sent", label: "Sent" },
-    { id: "failed", label: "Failed" },
-    { id: "skipped", label: "Skipped" },
-  ];
+function HistoryResults({
+  error,
+  loading,
+  emptySearch,
+  hasItems,
+  retry,
+  children,
+}: {
+  readonly error: string | null;
+  readonly loading: boolean | undefined;
+  readonly emptySearch: boolean;
+  readonly hasItems: boolean;
+  readonly retry: (() => void) | undefined;
+  readonly children: ReactNode;
+}) {
+  return (
+    <>
+      {error ? (
+        <div role="alert" className="notice notice--error">
+          <p>{error}</p>
+          {hasItems ? <p>Showing previous results.</p> : null}
+          <button type="button" className="button button--secondary" onClick={retry}>
+            Try again
+          </button>
+        </div>
+      ) : loading ? (
+        <p role="status">Loading messages…</p>
+      ) : null}
+      {!error && !loading && emptySearch ? (
+        <p className="field-help">No messages match this search.</p>
+      ) : null}
+      {hasItems || (!loading && !error && !emptySearch) ? children : null}
+    </>
+  );
+}
 
-const originFilterOptions: readonly { readonly id: MessageOriginFilter; readonly label: string }[] =
-  [
-    { id: "all", label: "All messages" },
-    { id: "manual", label: "Manual" },
-    { id: "automated", label: "Automated" },
-  ];
+function HistoryPages({
+  pageNumber,
+  next,
+  previous,
+  busy,
+  loading,
+  error,
+  hasNext,
+  hasPrevious,
+}: {
+  readonly pageNumber: number | undefined;
+  readonly next: (() => void) | undefined;
+  readonly previous: (() => void) | undefined;
+  readonly busy: boolean;
+  readonly loading: boolean | undefined;
+  readonly error: string | null;
+  readonly hasNext: boolean | undefined;
+  readonly hasPrevious: boolean | undefined;
+}) {
+  if (pageNumber === undefined || !next || !previous) return null;
+  return (
+    <CommunicationPagination
+      disabled={busy || Boolean(loading) || Boolean(error)}
+      hasNextPage={Boolean(hasNext)}
+      hasPreviousPage={Boolean(hasPrevious)}
+      label="Messages history pagination"
+      onNextPage={next}
+      onPreviousPage={previous}
+      pageNumber={pageNumber}
+    />
+  );
+}
 
 export function MessagesPanel({
+  searchQuery = "",
+  onFiltersChange,
+  historyError = null,
+  onRetryHistory,
   showNewMessage = true,
   branding,
   busy,
@@ -90,10 +155,24 @@ export function MessagesPanel({
     draftCount ?? unifiedMessages.filter((m) => !m.automated && m.status === "Draft").length;
 
   return (
-    <div className="communication-messages-panel">
+    <div className="communication-messages-panel" aria-busy={loadingHistory ?? false}>
       <div className="communication-messages-panel__header">
         <div>
-          <h2>Messages</h2>
+          <div className="communication-messages-panel__title">
+            <h2>Messages</h2>
+            {effectiveDraftCount > 0 ? (
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => {
+                  if (onFiltersChange) onFiltersChange("draft", "all", "");
+                  else onStatusFilterChange("draft");
+                }}
+              >
+                {String(effectiveDraftCount)} {effectiveDraftCount === 1 ? "draft" : "drafts"}
+              </button>
+            ) : null}
+          </div>
           <p className="field-help">
             Manage drafts, scheduled sends, delivery history, and active messages.
           </p>
@@ -105,80 +184,18 @@ export function MessagesPanel({
         ) : null}
       </div>
 
-      {/* Filter Groups */}
-      <div aria-label="Message filter options" className="communication-filter-groups">
-        <div className="communication-filter-group communication-filter-group--status">
-          <span className="communication-filter-group__label" id="status-filter-label">
-            Status
-          </span>
-          <div
-            aria-labelledby="status-filter-label"
-            className="communication-filter-group__chips"
-            role="toolbar"
-          >
-            {statusFilterOptions.map((opt) => {
-              const isDraft = opt.id === "draft";
-              const hasPendingDrafts = isDraft && effectiveDraftCount > 0;
-              return (
-                <button
-                  aria-label={
-                    hasPendingDrafts
-                      ? `Drafts (${String(effectiveDraftCount)} pending ${effectiveDraftCount === 1 ? "draft" : "drafts"})`
-                      : undefined
-                  }
-                  aria-pressed={currentStatus === opt.id}
-                  className={`filter-chip ${currentStatus === opt.id ? "is-active" : ""} ${hasPendingDrafts ? "filter-chip--has-pending" : ""}`}
-                  key={opt.id}
-                  onClick={() => {
-                    onStatusFilterChange(opt.id);
-                  }}
-                  title={
-                    hasPendingDrafts
-                      ? `${String(effectiveDraftCount)} pending ${effectiveDraftCount === 1 ? "draft" : "drafts"}`
-                      : undefined
-                  }
-                  type="button"
-                >
-                  {hasPendingDrafts ? (
-                    <span className="filter-chip__indicator" aria-hidden="true" />
-                  ) : null}
-                  <span>{opt.label}</span>
-                  {hasPendingDrafts ? (
-                    <span className="filter-chip__badge" aria-hidden="true">
-                      {effectiveDraftCount}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="communication-filter-group communication-filter-group--type">
-          <span className="communication-filter-group__label" id="type-filter-label">
-            Type
-          </span>
-          <div
-            aria-labelledby="type-filter-label"
-            className="communication-filter-group__chips"
-            role="toolbar"
-          >
-            {originFilterOptions.map((opt) => (
-              <button
-                aria-pressed={currentOrigin === opt.id}
-                className={`filter-chip ${currentOrigin === opt.id ? "is-active" : ""}`}
-                key={opt.id}
-                onClick={() => {
-                  onOriginFilterChange(opt.id);
-                }}
-                type="button"
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      <MessageFilters
+        search={searchQuery}
+        status={currentStatus}
+        origin={currentOrigin}
+        onChange={(status, origin, query) => {
+          if (onFiltersChange) onFiltersChange(status, origin, query);
+          else {
+            if (status !== currentStatus) onStatusFilterChange(status);
+            if (origin !== currentOrigin) onOriginFilterChange(origin);
+          }
+        }}
+      />
 
       {currentStatus === "scheduled" && currentOrigin !== "manual" ? (
         <p className="field-help">
@@ -186,37 +203,44 @@ export function MessagesPanel({
           also included.
         </p>
       ) : null}
-      {/* Message List */}
-      <MessageList
-        branding={branding}
-        busy={busy}
-        currentOrigin={currentOrigin}
-        currentStatus={currentStatus}
-        deliveryDetailsMessage={deliveryDetailsMessage}
-        deliverySummary={deliverySummary}
-        events={events}
-        loadingDeliveryId={loadingDeliveryId}
-        onCancelQueued={onCancelQueued}
-        onDeleteDraft={onDeleteDraft}
-        onOpenDeliveryDetails={onOpenDeliveryDetails}
-        onResumeDraft={onResumeDraft}
-        onRetryDeliveries={onRetryDeliveries}
-        timezone={timezone}
-        unifiedMessages={unifiedMessages}
-        venues={venues}
-      />
-
-      {pageNumber !== undefined && onNextPage && onPreviousPage ? (
-        <CommunicationPagination
-          disabled={busy || loadingHistory}
-          hasNextPage={Boolean(hasNextPage)}
-          hasPreviousPage={Boolean(hasPreviousPage)}
-          label="Messages history pagination"
-          onNextPage={onNextPage}
-          onPreviousPage={onPreviousPage}
-          pageNumber={pageNumber}
+      <HistoryResults
+        error={historyError}
+        loading={loadingHistory}
+        emptySearch={Boolean(searchQuery) && unifiedMessages.length === 0}
+        hasItems={unifiedMessages.length > 0}
+        retry={onRetryHistory}
+      >
+        {/* Message List */}
+        <MessageList
+          branding={branding}
+          busy={busy}
+          currentOrigin={currentOrigin}
+          currentStatus={currentStatus}
+          deliveryDetailsMessage={deliveryDetailsMessage}
+          deliverySummary={deliverySummary}
+          events={events}
+          loadingDeliveryId={loadingDeliveryId}
+          onCancelQueued={onCancelQueued}
+          onDeleteDraft={onDeleteDraft}
+          onOpenDeliveryDetails={onOpenDeliveryDetails}
+          onResumeDraft={onResumeDraft}
+          onRetryDeliveries={onRetryDeliveries}
+          timezone={timezone}
+          unifiedMessages={unifiedMessages}
+          venues={venues}
         />
-      ) : null}
+      </HistoryResults>
+
+      <HistoryPages
+        pageNumber={pageNumber}
+        next={onNextPage}
+        previous={onPreviousPage}
+        busy={busy}
+        loading={loadingHistory}
+        error={historyError}
+        hasNext={hasNextPage}
+        hasPrevious={hasPreviousPage}
+      />
     </div>
   );
 }

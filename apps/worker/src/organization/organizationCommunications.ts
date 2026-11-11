@@ -662,6 +662,7 @@ export async function listCommunicationHistory(
   env: Env,
   organizationId: string,
   options?: {
+    search?: string;
     cursor?: string | null;
     limit?: string | number | null;
     origin?: string | null;
@@ -672,25 +673,12 @@ export async function listCommunicationHistory(
   readonly items: readonly CommunicationHistoryItem[];
   readonly nextCursor: string | null;
 }> {
-  const parameters: Record<string, string> = {};
-  if (options?.includePreviews !== undefined)
-    parameters.includePreviews = String(options.includePreviews);
-  if (options?.cursor) parameters.cursor = options.cursor;
-  if (options?.limit != null) {
-    parameters.limit = String(options.limit);
-  }
-  if (options?.origin) parameters.origin = options.origin;
-  if (options?.status) parameters.status = options.status;
-  const response = await readOrganizationStore(
-    env,
+  const page = await organizationStoreStub(env, organizationId).readCommunicationHistory({
     organizationId,
-    "/internal/communications/history",
-    parameters,
-  );
-  if (!response.ok) throw await failure(response);
-  return communicationHistoryPageResponseSchema
-    .omit({ requestId: true })
-    .parse(await response.json());
+    ...options,
+  });
+  if (!page) throw new Error("Organization not found.");
+  return communicationHistoryPageResponseSchema.omit({ requestId: true }).parse(page);
 }
 
 export async function listCommunicationRecipients(

@@ -104,6 +104,8 @@ test("reviews and cancels a stale ticket notification through the interface", as
       await dialog.getByRole("button", { name: "Close", exact: true }).last().click();
   }
   await dialog.getByLabel("Cancellation reason").fill("Refunded test order");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(dialog.getByLabel("Cancellation reason")).toHaveValue("Refunded test order");
   await dialog.getByRole("button", { name: "Cancel notification" }).click();
   const confirmation = page.getByRole("dialog", {
     name: "Cancel ticket notification",
@@ -1409,15 +1411,10 @@ test("filters communication messages by separate Status and Type controls", asyn
 
   await page.goto("/admin/communications?tab=history");
 
-  // Verify group labels and initial aria-pressed
-  await expect(page.getByText("Status", { exact: true })).toBeVisible();
-  await expect(page.getByText("Type", { exact: true })).toBeVisible();
-
-  const statusAllBtn = page.getByRole("button", { name: "All", exact: true });
-  const typeAllBtn = page.getByRole("button", { name: "All messages", exact: true });
-  await expect(statusAllBtn).toHaveAttribute("aria-pressed", "true");
-  await expect(typeAllBtn).toHaveAttribute("aria-pressed", "true");
-
+  const statusSelect = page.getByRole("combobox", { name: "Status", exact: true });
+  const typeSelect = page.getByRole("combobox", { name: "Type", exact: true });
+  await expect(statusSelect).toHaveValue("all");
+  await expect(typeSelect).toHaveValue("all");
   // Initial: all visible
   await expect(page.getByText("Gala Draft Notice")).toBeVisible();
   await expect(page.getByText("Sent Rehearsal Update")).toBeVisible();
@@ -1427,33 +1424,29 @@ test("filters communication messages by separate Status and Type controls", asyn
   await expect(page.getByText("Failed Attendance Report")).toBeVisible();
 
   // Filter: Sent + All messages
-  const sentBtn = page.getByRole("button", { name: "Sent", exact: true });
-  await sentBtn.click();
-  await expect(sentBtn).toHaveAttribute("aria-pressed", "true");
+  await statusSelect.selectOption("sent");
+  await expect(statusSelect).toHaveValue("sent");
   await expect(page.getByText("Sent Rehearsal Update")).toBeVisible();
   await expect(page.getByText("Sent Audition Notice")).toBeVisible();
   await expect(page.getByText("Gala Draft Notice")).toHaveCount(0);
   await expect(page.getByText("Failed Member Blast")).toHaveCount(0);
 
   // Filter: Sent + Automated
-  const automatedBtn = page.getByRole("button", { name: "Automated", exact: true });
-  await automatedBtn.click();
-  await expect(sentBtn).toHaveAttribute("aria-pressed", "true");
-  await expect(automatedBtn).toHaveAttribute("aria-pressed", "true");
+  await typeSelect.selectOption("automated");
+  await expect(statusSelect).toHaveValue("sent");
+  await expect(typeSelect).toHaveValue("automated");
   await expect(page.getByText("Sent Audition Notice")).toBeVisible();
   await expect(page.getByText("Sent Rehearsal Update")).toHaveCount(0);
 
   // Filter: Sent + Manual
-  const manualBtn = page.getByRole("button", { name: "Manual", exact: true });
-  await manualBtn.click();
-  await expect(sentBtn).toHaveAttribute("aria-pressed", "true");
-  await expect(manualBtn).toHaveAttribute("aria-pressed", "true");
+  await typeSelect.selectOption("manual");
+  await expect(statusSelect).toHaveValue("sent");
+  await expect(typeSelect).toHaveValue("manual");
   await expect(page.getByText("Sent Rehearsal Update")).toBeVisible();
   await expect(page.getByText("Sent Audition Notice")).toHaveCount(0);
 
   // Filter: Failed + Manual
-  const failedBtn = page.getByRole("button", { name: "Failed", exact: true });
-  await failedBtn.click();
+  await statusSelect.selectOption("failed");
   await expect(page.getByText("Failed Member Blast")).toBeVisible();
   await expect(page.getByText("Sent Rehearsal Update")).toHaveCount(0);
 });
@@ -2148,4 +2141,171 @@ test("overview creates, saves, and resumes a composer draft without losing its c
   await expect(page.getByRole("textbox", { name: "Message body", exact: true })).toHaveValue(
     "Keep these concert details.",
   );
+});
+
+test("search and dropdown filters keep server pagination, reset the page, and restore with Back", async ({
+  page,
+}, testInfo) => {
+  if (testInfo.project.name === "chromium")
+    await page.setViewportSize({ width: 1671, height: 1164 });
+  const rows = Array.from({ length: 70 }, (_, index) => ({
+    ...communicationMessageSchema.parse({
+      ...queuedMessage,
+      id: `70000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      status: "Sent",
+      subject: `Christmas concert update ${String(index)}`,
+      sentAt: queuedMessage.createdAt,
+    }),
+    automatic: index >= 60,
+  }));
+  rows.push({
+    ...communicationMessageSchema.parse({
+      ...queuedMessage,
+      id: "70000000-0000-4000-8000-000000000070",
+      status: "Draft",
+      subject: "Christmas announcement draft",
+    }),
+    automatic: false,
+  });
+  const queries: URLSearchParams[] = [];
+  let fail = false;
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/communications/history")) {
+      const query = url.searchParams;
+      queries.push(query);
+      if (fail && query.get("q")) {
+        await fulfillJson(
+          route,
+          { requestId, code: "temporarily_unavailable", message: "History unavailable" },
+          503,
+        );
+        return;
+      }
+      const search = (query.get("q") ?? "").toLowerCase();
+      const matches = rows.filter((row) => {
+        if (query.get("status") && query.get("status") !== row.status.toLowerCase()) return false;
+        if (query.get("origin") === "manual" && row.automatic) return false;
+        if (query.get("origin") === "automated" && !row.automatic) return false;
+        return search
+          .split(/\s+/)
+          .every((term) =>
+            `${row.subject} Sent ${row.automatic ? "automated" : "manual"}`
+              .toLowerCase()
+              .includes(term),
+          );
+      });
+      const offset = Number(query.get("cursor") ?? 0);
+      const limit = Number(query.get("limit") ?? 50);
+      const items = matches.slice(offset, offset + limit).map((row) => ({
+        kind: "manual",
+        message: row,
+        automatic: row.automatic,
+        sortTimestamp: row.createdAt,
+      }));
+      await fulfillJson(route, {
+        requestId,
+        items,
+        nextCursor: matches.length > offset + limit ? String(offset + limit) : null,
+      });
+    } else await handleRoute(route, []);
+  });
+  await page.goto("/admin/communications?tab=messages");
+  const search = page.getByRole("searchbox", { name: "Search messages", exact: true });
+  const status = page.getByRole("combobox", { name: "Status", exact: true });
+  const type = page.getByRole("combobox", { name: "Type", exact: true });
+  const paging = page.getByRole("navigation", { name: "Messages history pagination", exact: true });
+  await search.fill("Christmas");
+  await search.press("Enter");
+  await expect(page).toHaveURL(/q=Christmas/);
+  await expect(
+    page.getByRole("heading", { name: "Christmas concert update 0", exact: true }),
+  ).toBeVisible();
+  await paging.getByRole("button", { name: "Next page" }).click();
+  await expect(paging.getByText("Page 2", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Christmas concert update 50", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Christmas concert update 0", exact: true }),
+  ).toHaveCount(0);
+  await expect
+    .poll(() =>
+      queries.some((query) => query.get("q") === "Christmas" && query.get("cursor") === "50"),
+    )
+    .toBe(true);
+  const pageTwoReads = () =>
+    queries.filter((query) => query.get("q") === "Christmas" && query.get("cursor") === "50")
+      .length;
+  const beforeFocus = pageTwoReads();
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(pageTwoReads).toBeGreaterThan(beforeFocus);
+  await expect(paging.getByText("Page 2", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Christmas concert update 50", exact: true }),
+  ).toBeVisible();
+  await paging.getByRole("button", { name: "Previous page" }).click();
+  await expect(paging.getByText("Page 1", { exact: true })).toBeVisible();
+  await paging.getByRole("button", { name: "Next page" }).click();
+  await type.selectOption("automated");
+  await expect(paging.getByText("Page 1", { exact: true })).toBeVisible();
+  await expect(paging.getByRole("button", { name: "Next page" })).toBeDisabled();
+  await expect(
+    page.getByRole("heading", { name: "Christmas concert update 60", exact: true }),
+  ).toBeVisible();
+  await expect(search).toHaveValue("Christmas");
+  await status.selectOption("failed");
+  await expect(page.getByText("No messages match this search.", { exact: true })).toBeVisible();
+  await status.selectOption("sent");
+  await expect(
+    page.getByRole("heading", { name: "Christmas concert update 60", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+  await expect(search).toHaveValue("");
+  await expect(status).toHaveValue("all");
+  await expect(type).toHaveValue("all");
+  await expect(paging.getByRole("button", { name: "Next page" })).toBeEnabled();
+  await page.goBack();
+  await expect(search).toHaveValue("Christmas");
+  await expect(status).toHaveValue("sent");
+  await expect(type).toHaveValue("automated");
+  await expect(
+    page.getByRole("heading", { name: "Christmas concert update 60", exact: true }),
+  ).toBeVisible();
+  await page.addStyleTag({
+    content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
+  });
+  for (const theme of ["dark", "light"]) {
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await toggle.count()) await toggle.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    const heights = await Promise.all(
+      [search, status, type].map(async (control) => (await control.boundingBox())?.height),
+    );
+    expect(new Set(heights).size).toBe(1);
+    const accessibility = await new AxeBuilder({ page })
+      .include(".communication-messages-panel")
+      .analyze();
+    expect(accessibility.violations).toEqual([]);
+    await page.locator(".communication-history-filters").evaluate((element) => {
+      element.scrollIntoView({ block: "center", behavior: "instant" });
+    });
+    await page.screenshot({
+      path: `/tmp/communications-search-${testInfo.project.name}-${theme}.png`,
+    });
+    await page.locator(".communication-history-filters").screenshot({
+      path: `/tmp/communications-search-controls-${testInfo.project.name}-${theme}.png`,
+    });
+  }
+  fail = true;
+  await search.fill("offline");
+  await expect(page.getByRole("button", { name: "Try again", exact: true })).toBeVisible();
+  await expect(paging.getByRole("button", { name: "Next page" })).toBeDisabled();
+  await expect(page.getByText("No messages match this search.", { exact: true })).toHaveCount(0);
+  fail = false;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(page.getByText("No messages match this search.", { exact: true })).toBeVisible();
 });

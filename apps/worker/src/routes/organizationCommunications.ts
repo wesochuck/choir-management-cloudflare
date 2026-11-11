@@ -1,3 +1,4 @@
+import { communicationHistorySearchSchema } from "@choir/contracts";
 import { communicationOverviewSchema } from "@choir/contracts";
 import {
   ticketNotificationCancelSchema,
@@ -293,6 +294,18 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const limit = url.searchParams.get("limit");
       const origin = url.searchParams.get("origin");
       const status = url.searchParams.get("status");
+      const searchInput = communicationHistorySearchSchema.safeParse(
+        url.searchParams.get("q") ?? "",
+      );
+      if (!searchInput.success)
+        return context.json(
+          {
+            code: "invalid_communication_search",
+            message: "Search must be at most 200 characters and 12 words.",
+            requestId: context.get("requestId"),
+          },
+          400,
+        );
       const previewInput = z
         .enum(["true", "false"])
         .nullable()
@@ -311,6 +324,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         limit,
         origin,
         status,
+        search: searchInput.data,
         includePreviews: previewInput.data !== "false",
       });
       return context.json({

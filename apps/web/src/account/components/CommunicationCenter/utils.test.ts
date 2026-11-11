@@ -46,6 +46,7 @@ describe("parseCommunicationSearch", () => {
   it("defaults to the overview for empty search", () => {
     const res = parseCommunicationSearch("");
     expect(res).toEqual({
+      searchQuery: "",
       draftId: null,
       messageMode: "list",
       originFilter: "all",
@@ -123,6 +124,7 @@ describe("parseCommunicationSearch", () => {
   it("handles draftId by switching to compose mode", () => {
     const res = parseCommunicationSearch("?draftId=draft-123");
     expect(res).toEqual({
+      searchQuery: "",
       draftId: "draft-123",
       messageMode: "compose",
       originFilter: "all",
@@ -241,5 +243,23 @@ describe("scheduledMessageActionLink", () => {
       href: "/admin/rsvp",
       label: "View event",
     });
+  });
+});
+
+describe("history search links", () => {
+  it("opens Messages for bare search links and preserves the query with dropdown filters", () => {
+    expect(
+      parseCommunicationSearch("?q=Christmas+confirmation&status=sent&type=automated"),
+    ).toMatchObject({
+      section: "messages",
+      messageMode: "list",
+      searchQuery: "Christmas confirmation",
+      statusFilter: "sent",
+      originFilter: "automated",
+    });
+    expect(parseCommunicationSearch("?tab=messages&q=%20November%202026%20").searchQuery).toBe(
+      "November 2026",
+    );
+    expect(parseCommunicationSearch("?draftId=example&q=ignored").searchQuery).toBe("");
   });
 });

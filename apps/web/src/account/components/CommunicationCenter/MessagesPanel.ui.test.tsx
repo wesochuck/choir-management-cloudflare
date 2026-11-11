@@ -164,7 +164,7 @@ const allUnifiedMessages: readonly UnifiedCommunicationItem[] = [
 ];
 
 describe("MessagesPanel UI", () => {
-  it("renders distinct Status and Type filter groups with accessible labels and aria-pressed attributes", () => {
+  it("renders a search box and labeled Status and Type dropdowns", () => {
     render(
       <MessagesPanel
         busy={false}
@@ -189,15 +189,9 @@ describe("MessagesPanel UI", () => {
     expect(screen.getByText("Status")).toBeInTheDocument();
     expect(screen.getByText("Type")).toBeInTheDocument();
 
-    // Check aria-pressed
-    const statusAllBtn = screen.getByRole("button", { name: "All" });
-    const typeAllBtn = screen.getByRole("button", { name: "All messages" });
-    expect(statusAllBtn).toHaveAttribute("aria-pressed", "true");
-    expect(typeAllBtn).toHaveAttribute("aria-pressed", "true");
-
-    const sentBtn = screen.getByRole("button", { name: "Sent" });
-    expect(sentBtn).toHaveAttribute("aria-pressed", "false");
-
+    expect(screen.getByRole("combobox", { name: "Status" })).toHaveValue("all");
+    expect(screen.getByRole("combobox", { name: "Type" })).toHaveValue("all");
+    expect(screen.getByRole("searchbox", { name: "Search messages" })).toBeInTheDocument();
     // All messages visible
     expect(screen.getByText("Annual Gala Draft")).toBeInTheDocument();
     expect(screen.getByText("Rehearsal Update")).toBeInTheDocument();
@@ -208,7 +202,7 @@ describe("MessagesPanel UI", () => {
     expect(screen.getByText("Automated Attendance Report")).toBeInTheDocument();
   });
 
-  it("handles filter button clicks independently and preserves counterpart filter", async () => {
+  it("handles dropdown changes independently and preserves counterpart filter", async () => {
     const user = userEvent.setup();
     const onStatusFilterChange = vi.fn();
     const onOriginFilterChange = vi.fn();
@@ -233,23 +227,15 @@ describe("MessagesPanel UI", () => {
       />,
     );
 
-    const sentBtn = screen.getByRole("button", { name: "Sent" });
-    const manualBtn = screen.getByRole("button", { name: "Manual" });
-    expect(sentBtn).toHaveAttribute("aria-pressed", "true");
-    expect(manualBtn).toHaveAttribute("aria-pressed", "true");
-
-    // Click Scheduled
-    const scheduledBtn = screen.getByRole("button", { name: "Scheduled" });
-    await user.click(scheduledBtn);
+    expect(screen.getByRole("combobox", { name: "Status" })).toHaveValue("sent");
+    expect(screen.getByRole("combobox", { name: "Type" })).toHaveValue("manual");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Status" }), "scheduled");
     expect(onStatusFilterChange).toHaveBeenCalledWith("scheduled");
-
-    // Click Automated
-    const automatedBtn = screen.getByRole("button", { name: "Automated" });
-    await user.click(automatedBtn);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Type" }), "automated");
     expect(onOriginFilterChange).toHaveBeenCalledWith("automated");
   });
 
-  it("renders a number badge and callout indicator on the draft filter button when there is a pending draft", async () => {
+  it("keeps the draft shortcut visible beside the Messages heading", async () => {
     const user = userEvent.setup();
     const onStatusFilterChange = vi.fn();
 
@@ -274,11 +260,7 @@ describe("MessagesPanel UI", () => {
       />,
     );
 
-    const draftBtn = screen.getByRole("button", { name: "Drafts (1 pending draft)" });
-    expect(draftBtn).toHaveClass("filter-chip--has-pending");
-    expect(draftBtn).toHaveAttribute("title", "1 pending draft");
-    expect(draftBtn.querySelector(".filter-chip__indicator")).toBeInTheDocument();
-    expect(draftBtn.querySelector(".filter-chip__badge")).toHaveTextContent("1");
+    const draftBtn = screen.getByRole("button", { name: "1 draft" });
 
     await user.click(draftBtn);
     expect(onStatusFilterChange).toHaveBeenCalledWith("draft");
@@ -305,12 +287,9 @@ describe("MessagesPanel UI", () => {
       />,
     );
 
-    const multiDraftBtn = screen.getByRole("button", { name: "Drafts (3 pending drafts)" });
-    expect(multiDraftBtn).toHaveClass("filter-chip--has-pending");
-    expect(multiDraftBtn).toHaveAttribute("title", "3 pending drafts");
-    expect(multiDraftBtn.querySelector(".filter-chip__badge")).toHaveTextContent("3");
+    expect(screen.getByRole("button", { name: "3 drafts" })).toBeVisible();
 
-    // Zero drafts test - no callout or badge
+    // No draft shortcut when the known draft count is zero.
     rerender(
       <MessagesPanel
         busy={false}
@@ -332,11 +311,7 @@ describe("MessagesPanel UI", () => {
       />,
     );
 
-    const normalDraftBtn = screen.getByRole("button", { name: "Drafts" });
-    expect(normalDraftBtn).not.toHaveClass("filter-chip--has-pending");
-    expect(normalDraftBtn).not.toHaveAttribute("title");
-    expect(normalDraftBtn.querySelector(".filter-chip__indicator")).toBeNull();
-    expect(normalDraftBtn.querySelector(".filter-chip__badge")).toBeNull();
+    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).toBeNull();
   });
 
   it("displays customized empty state for combinations", () => {

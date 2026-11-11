@@ -529,6 +529,12 @@ export const communicationUnsubscribeResponseSchema = z.object({
   success: z.literal(true),
 });
 
+export const communicationHistorySearchSchema = z
+  .string()
+  .trim()
+  .max(200)
+  .refine((value) => value.split(/\s+/).filter(Boolean).length <= 12, "Use up to 12 search terms.");
+
 export const communicationHistoryItemSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("manual"),

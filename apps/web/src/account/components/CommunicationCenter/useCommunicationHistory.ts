@@ -2,7 +2,6 @@ import type {
   CommunicationDeliverySummary,
   CommunicationHistoryItem,
   CommunicationMessage,
-  CommunicationScheduledMessage,
 } from "@choir/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
@@ -12,52 +11,44 @@ import {
   getOrganizationCommunicationDeliverySummary,
   getOrganizationCommunicationHistory,
   listOrganizationCommunications,
-  listOrganizationScheduledMessages,
   retryOrganizationCommunicationDeliveries,
 } from "../../../auth/api";
 import type { MessageOriginFilter, MessageStatusFilter, UnifiedCommunicationItem } from "./types";
 import { failureMessage, unifiedItemSortTimestamp } from "./utils";
 
-function filterFallbackHistory(
-  items: CommunicationHistoryItem[],
+function historyQuery(
   status: MessageStatusFilter,
   origin: MessageOriginFilter,
-): CommunicationHistoryItem[] {
-  let res = items;
-  if (origin === "manual") {
-    res = res.filter((i) => i.kind === "manual" && !i.automatic);
-  } else if (origin === "automated") {
-    res = res.filter((i) => i.kind === "automated" || i.automatic);
-  }
-  if (status === "draft") {
-    res = res.filter((i) => i.kind === "manual" && i.message.status === "Draft");
-  } else if (status === "scheduled") {
-    res = res.filter((i) => i.kind === "automated" && i.scheduledMessage.status === "Scheduled");
-  } else if (status === "queued") {
-    res = res.filter(
-      (i) =>
-        (i.kind === "automated" && i.scheduledMessage.status === "Queued") ||
-        (i.kind === "manual" && i.message.status === "Queued"),
-    );
-  } else if (status === "sent") {
-    res = res.filter(
-      (i) =>
-        (i.kind === "automated" && i.scheduledMessage.status === "Sent") ||
-        (i.kind === "manual" && i.message.status === "Sent"),
-    );
-  } else if (status === "failed") {
-    res = res.filter(
-      (i) =>
-        (i.kind === "automated" && i.scheduledMessage.status === "Failed") ||
-        (i.kind === "manual" && i.message.status === "Failed"),
-    );
-  }
-  return res;
+  cursor: string | null,
+  search: string,
+) {
+  return {
+    cursor,
+    includePreviews: status === "scheduled",
+    limit: 50,
+    ...(search ? { search } : {}),
+    ...(origin !== "all" ? { origin } : {}),
+    ...(status !== "all" ? { status } : {}),
+  };
+}
+function firstPageDraftCount(
+  page: Awaited<ReturnType<typeof getOrganizationCommunicationHistory>>,
+  status: MessageStatusFilter,
+  cursor: string | null,
+  search: string,
+) {
+  if (search || cursor !== null) return null;
+  if (status === "draft") return page.items.length;
+  if (status === "all" && !page.nextCursor)
+    return page.items.filter((item) => item.kind === "manual" && item.message.status === "Draft")
+      .length;
+  return null;
 }
 
 export function useCommunicationHistory({
   confirm,
   enabled,
+  initialSearchQuery = "",
   initialOriginFilter,
   initialStatusFilter,
   setBusy,
@@ -71,20 +62,21 @@ export function useCommunicationHistory({
     readonly title: string;
   }) => Promise<boolean>;
   readonly enabled: boolean;
+  readonly initialSearchQuery?: string;
   readonly initialOriginFilter: MessageOriginFilter;
   readonly initialStatusFilter: MessageStatusFilter;
   readonly setBusy: Dispatch<SetStateAction<boolean>>;
   readonly setError: Dispatch<SetStateAction<string | null>>;
   readonly setSuccessNotice: Dispatch<SetStateAction<string | null>>;
 }) {
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  const searchRef = useRef(initialSearchQuery);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<MessageStatusFilter>(initialStatusFilter);
   const [originFilter, setOriginFilter] = useState<MessageOriginFilter>(initialOriginFilter);
   const historyAbortControllerRef = useRef<AbortController | null>(null);
 
   const [messages, setMessages] = useState<readonly CommunicationMessage[]>([]);
-  const [scheduledMessages, setScheduledMessages] = useState<
-    readonly CommunicationScheduledMessage[]
-  >([]);
   const [historyItems, setHistoryItems] = useState<readonly CommunicationHistoryItem[]>([]);
   const [draftCount, setDraftCount] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
@@ -99,6 +91,13 @@ export function useCommunicationHistory({
   );
   const [loadingDeliveryId, setLoadingDeliveryId] = useState<string | null>(null);
 
+  useEffect(
+    () => () => {
+      historyAbortControllerRef.current?.abort();
+    },
+    [],
+  );
+
   const loadHistoryPage = useCallback(
     async (
       targetStatus: MessageStatusFilter,
@@ -106,76 +105,34 @@ export function useCommunicationHistory({
       cursor: string | null,
       signal?: AbortSignal,
     ): Promise<void> => {
-      if (cursor !== null) setLoadingHistory(true);
+      historyAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      historyAbortControllerRef.current = controller;
+      const abort = () => {
+        controller.abort();
+      };
+      if (signal?.aborted) controller.abort();
+      signal?.addEventListener("abort", abort, { once: true });
+      const requestSignal = controller.signal;
+      const requestSearch = searchRef.current;
+      setLoadingHistory(true);
+      setHistoryError(null);
       try {
-        const query: {
-          cursor: string | null;
-          includePreviews: boolean;
-          limit: number;
-          origin?: "manual" | "automated";
-          status?: "draft" | "scheduled" | "queued" | "sent" | "failed" | "skipped";
-        } = {
-          cursor,
-          includePreviews: targetStatus === "scheduled",
-          limit: 50,
-        };
-        if (targetOrigin !== "all") {
-          query.origin = targetOrigin;
-        }
-        if (targetStatus !== "all") {
-          query.status = targetStatus;
-        }
-        const page = await getOrganizationCommunicationHistory(query, signal);
+        const query = historyQuery(targetStatus, targetOrigin, cursor, requestSearch);
+        const page = await getOrganizationCommunicationHistory(query, requestSignal);
+        if (requestSignal.aborted) return;
         setHistoryItems(page.items);
         setNextCursor(page.nextCursor);
-        if (targetStatus === "draft" && cursor === null) {
-          setDraftCount(page.items.length);
-        } else if (targetStatus === "all" && cursor === null && !page.nextCursor) {
-          const draftsInPage = page.items.filter(
-            (item) => item.kind === "manual" && item.message.status === "Draft",
-          );
-          setDraftCount(draftsInPage.length);
-        }
+        const count = firstPageDraftCount(page, targetStatus, cursor, requestSearch);
+        if (count !== null) setDraftCount(count);
       } catch (err: unknown) {
-        if (!signal?.aborted) {
-          try {
-            const [manual, scheduled] = await Promise.all([
-              listOrganizationCommunications(signal),
-              listOrganizationScheduledMessages(signal),
-            ]);
-            setMessages(manual);
-            setScheduledMessages(scheduled);
-            const manualDrafts = manual.filter((m) => m.status === "Draft");
-            setDraftCount(manualDrafts.length);
-            const manualItems: CommunicationHistoryItem[] = manual.map((m) => ({
-              kind: "manual",
-              message: m,
-              sortTimestamp: m.sentAt ?? m.createdAt,
-            }));
-            const scheduledItems: CommunicationHistoryItem[] = scheduled
-              .filter((s) => targetStatus === "scheduled" || !s.projected)
-              .map((s) => ({
-                kind: "automated",
-                scheduledMessage: s,
-                sortTimestamp: s.scheduledAt,
-              }));
-            const merged = [...manualItems, ...scheduledItems].sort(
-              (a, b) =>
-                (targetStatus === "scheduled" ? 1 : -1) *
-                (Date.parse(a.sortTimestamp) - Date.parse(b.sortTimestamp)),
-            );
-            const filtered = filterFallbackHistory(merged, targetStatus, targetOrigin);
-            setHistoryItems(filtered.slice(0, 50));
-            setNextCursor(null);
-          } catch {
-            setError(failureMessage(err));
-          }
-        }
+        if (!requestSignal.aborted) setHistoryError(failureMessage(err));
       } finally {
-        if (!signal?.aborted) setLoadingHistory(false);
+        signal?.removeEventListener("abort", abort);
+        if (!requestSignal.aborted) setLoadingHistory(false);
       }
     },
-    [setError],
+    [],
   );
 
   const refreshDraftCount = useCallback(async (signal?: AbortSignal): Promise<void> => {
@@ -210,10 +167,8 @@ export function useCommunicationHistory({
     const controller = new AbortController();
     const refresh = () => {
       if (document.visibilityState === "visible") {
-        void loadHistoryPage(statusFilter, originFilter, null, controller.signal);
+        void loadHistoryPage(statusFilter, originFilter, currentCursor, controller.signal);
         void refreshDraftCount(controller.signal);
-        setHistoryCursorStack([]);
-        setCurrentCursor(null);
       }
     };
     window.addEventListener("focus", refresh);
@@ -221,10 +176,10 @@ export function useCommunicationHistory({
       controller.abort();
       window.removeEventListener("focus", refresh);
     };
-  }, [enabled, loadHistoryPage, originFilter, refreshDraftCount, statusFilter]);
+  }, [currentCursor, enabled, loadHistoryPage, originFilter, refreshDraftCount, statusFilter]);
 
   const unifiedMessages: readonly UnifiedCommunicationItem[] = useMemo(() => {
-    if (historyItems.length > 0) {
+    if (historyItems.length > 0 || searchQuery) {
       return historyItems.map((item): UnifiedCommunicationItem => {
         if (item.kind === "manual") {
           return {
@@ -269,19 +224,7 @@ export function useCommunicationHistory({
       title: message.subject.length > 0 ? message.subject : `${message.channel} message`,
     }));
 
-    const scheduledItems: UnifiedCommunicationItem[] = scheduledMessages.map((scheduled) => ({
-      automated: true,
-      channel: "Email",
-      id: scheduled.id,
-      kind: "scheduled",
-      recipientCount: null,
-      scheduledMessage: scheduled,
-      status: scheduled.status,
-      timestamp: scheduled.scheduledAt,
-      title: scheduled.subject || scheduled.eventTitle || "Automated send",
-    }));
-
-    let all = [...manualItems, ...scheduledItems].sort(
+    let all = [...manualItems].sort(
       (a, b) => unifiedItemSortTimestamp(b) - unifiedItemSortTimestamp(a),
     );
 
@@ -308,13 +251,12 @@ export function useCommunicationHistory({
       default:
         return all;
     }
-  }, [historyItems, messages, scheduledMessages, originFilter, statusFilter]);
+  }, [historyItems, messages, searchQuery, originFilter, statusFilter]);
 
   const applyFilters = useCallback(
-    (status: MessageStatusFilter, origin: MessageOriginFilter) => {
-      historyAbortControllerRef.current?.abort();
-      const controller = new AbortController();
-      historyAbortControllerRef.current = controller;
+    (status: MessageStatusFilter, origin: MessageOriginFilter, search = searchRef.current) => {
+      searchRef.current = search;
+      setSearchQuery(search);
       setStatusFilter(status);
       setOriginFilter(origin);
       setPageNumber(1);
@@ -324,46 +266,21 @@ export function useCommunicationHistory({
       setLoadingHistory(true);
       setDeliveryDetailsMessage(null);
       setDeliverySummary(null);
-      void loadHistoryPage(status, origin, null, controller.signal);
+      void loadHistoryPage(status, origin, null);
     },
     [loadHistoryPage],
   );
   const changeStatusFilter = useCallback(
-    (nextStatus: MessageStatusFilter) => {
-      historyAbortControllerRef.current?.abort();
-      const controller = new AbortController();
-      historyAbortControllerRef.current = controller;
-
-      setStatusFilter(nextStatus);
-      setPageNumber(1);
-      setCurrentCursor(null);
-      setNextCursor(null);
-      setHistoryCursorStack([]);
-      setDeliveryDetailsMessage(null);
-      setDeliverySummary(null);
-      setLoadingHistory(true);
-      void loadHistoryPage(nextStatus, originFilter, null, controller.signal);
+    (status: MessageStatusFilter) => {
+      applyFilters(status, originFilter);
     },
-    [loadHistoryPage, originFilter],
+    [applyFilters, originFilter],
   );
-
   const changeOriginFilter = useCallback(
-    (nextOrigin: MessageOriginFilter) => {
-      historyAbortControllerRef.current?.abort();
-      const controller = new AbortController();
-      historyAbortControllerRef.current = controller;
-
-      setOriginFilter(nextOrigin);
-      setPageNumber(1);
-      setCurrentCursor(null);
-      setNextCursor(null);
-      setHistoryCursorStack([]);
-      setDeliveryDetailsMessage(null);
-      setDeliverySummary(null);
-      setLoadingHistory(true);
-      void loadHistoryPage(statusFilter, nextOrigin, null, controller.signal);
+    (origin: MessageOriginFilter) => {
+      applyFilters(statusFilter, origin);
     },
-    [loadHistoryPage, statusFilter],
+    [applyFilters, statusFilter],
   );
 
   const nextPage = useCallback(async () => {
@@ -499,6 +416,11 @@ export function useCommunicationHistory({
     hasNextPage: Boolean(nextCursor),
     hasPreviousPage: pageNumber > 1,
     historyCursorStack,
+    historyError,
+    searchQuery,
+    retryHistory: () => {
+      void loadHistoryPage(statusFilter, originFilter, currentCursor);
+    },
     loadHistoryPage,
     loadingDeliveryId,
     loadingHistory,

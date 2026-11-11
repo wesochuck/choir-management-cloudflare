@@ -25,6 +25,8 @@ import { listOrganizationContactLists, listOrganizationVenues } from "../../../a
 import type {
   CommunicationCenterControllerModel,
   CommunicationSection,
+  MessageStatusFilter,
+  MessageOriginFilter,
   MessageWorkspaceMode,
 } from "./types";
 import { useCommunicationComposer } from "./useCommunicationComposer";
@@ -92,6 +94,7 @@ export function useCommunicationCenterController({
   const history = useCommunicationHistory({
     confirm,
     enabled: enabled && activeSection === "messages",
+    initialSearchQuery: initialNav.searchQuery,
     initialOriginFilter: initialNav.originFilter,
     initialStatusFilter: initialNav.statusFilter,
     setBusy,
@@ -144,6 +147,17 @@ export function useCommunicationCenterController({
     },
     [navigate],
   );
+  const changeMessageFilters = (
+    status: MessageStatusFilter,
+    origin: MessageOriginFilter,
+    query: string,
+  ) => {
+    const search = query.trim();
+    history.applyFilters(status, origin, search);
+    const params = new URLSearchParams({ tab: "messages", status, type: origin });
+    if (search) params.set("q", search);
+    navigateCommunication(`/admin/communications?${params.toString()}`);
+  };
   const previousLocation = useRef(locationSearch);
   const applyLocation = useEffectEvent((value: string) => {
     const next = parseCommunicationSearch(value);
@@ -151,14 +165,14 @@ export function useCommunicationCenterController({
     if (next.messageMode === "compose" && !next.draftId) {
       if (messageMode !== "compose" || composer.activeDraftId !== null) composer.openNewMessage();
     } else setMessageMode(next.messageMode);
-    if (
-      next.section === "messages" &&
-      next.messageMode === "list" &&
-      (activeSection !== "messages" ||
-        history.statusFilter !== next.statusFilter ||
-        history.originFilter !== next.originFilter)
-    )
-      history.applyFilters(next.statusFilter, next.originFilter);
+    const filtersChanged = [
+      activeSection !== "messages",
+      history.statusFilter !== next.statusFilter,
+      history.originFilter !== next.originFilter,
+      history.searchQuery !== next.searchQuery,
+    ].some(Boolean);
+    if (next.section === "messages" && next.messageMode === "list" && filtersChanged)
+      history.applyFilters(next.statusFilter, next.originFilter, next.searchQuery);
     if (next.draftId && next.draftId !== composer.activeDraftId) {
       const loaded = overview.data?.drafts.find((item) => item.id === next.draftId)?.message;
       if (loaded) composer.resumeDraft(loaded);
@@ -437,21 +451,19 @@ export function useCommunicationCenterController({
       );
     },
     setOriginFilter: (origin) => {
-      history.applyFilters(history.statusFilter, origin);
-      navigateCommunication(
-        `/admin/communications?tab=messages&status=${history.statusFilter}&type=${origin}`,
-      );
+      changeMessageFilters(history.statusFilter, origin, history.searchQuery);
     },
     setRecipientsExpanded: composer.setRecipientsExpanded,
     setStatusFilter: (status) => {
-      history.applyFilters(status, history.originFilter);
-      navigateCommunication(
-        `/admin/communications?tab=messages&status=${status}&type=${history.originFilter}`,
-      );
+      changeMessageFilters(status, history.originFilter, history.searchQuery);
     },
+    setMessageFilters: changeMessageFilters,
+    searchQuery: history.searchQuery,
+    historyError: history.historyError,
+    retryHistory: history.retryHistory,
+    statusFilter: history.statusFilter,
     setSubject: composer.updateSubject,
     setVoiceParts: composer.setVoiceParts,
-    statusFilter: history.statusFilter,
     subject: composer.subject,
     successNotice,
     templates: templates.templates,

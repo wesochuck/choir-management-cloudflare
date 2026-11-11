@@ -54,6 +54,8 @@
     --color-danger-bg: var(--color-danger-surface);
     --color-info-surface: #172554;
     --color-success: #86efac;
+    --color-status-success-text: #86efac;
+    --color-status-automated-text: #fb923c;
     --color-success-text: var(--color-success);
     --music-genre-chip-teal: #5eead4;
     --music-genre-chip-blue: #93c5fd;
@@ -95,6 +97,8 @@
       --color-danger-bg: var(--color-danger-surface);
       --color-info-surface: #172554;
       --color-success: #86efac;
+      --color-status-success-text: #86efac;
+      --color-status-automated-text: #fb923c;
       --color-success-text: var(--color-success);
       --music-genre-chip-teal: #5eead4;
       --music-genre-chip-blue: #93c5fd;

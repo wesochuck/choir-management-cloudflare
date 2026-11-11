@@ -532,6 +532,7 @@
   "communicationHistoryItemSchema",
   "communicationHistoryOriginFilterSchema",
   "communicationHistoryPageResponseSchema",
+  "communicationHistorySearchSchema",
   "communicationHistoryStatusFilterSchema",
   "communicationMessageResponseSchema",
   "communicationMessageSchema",

@@ -403,3 +403,83 @@ claim timestamps changed Cloudflare billed-write counts and broke the older job 
 checks. The immutable index preserves that rollback contract; status and age remain residual filters
 within the three scheduler-kind partitions. The existing job-ledger write-accounting, queue replay,
 retry, event-reminder snapshot, and scheduler tests pass without weakening their assertions.
+
+# Communications search and dropdown filters — November 11, 2026
+
+final result: passed
+
+## Visual target and evidence
+
+Selected image:
+`/Users/wesosborn/.codex/generated_images/01a1c8d7-a111-7243-b87b-948b53c7256b/exec-817f298f-1bab-44be-a616-818258fe8278.png`
+(1351 × 1164). The change targets its Messages filter toolbar: one wide search field, labeled Status
+and Type selects, a draft shortcut beside the heading, and Clear filters beneath the controls.
+
+The desktop browser fixture uses a 1671 × 1164 CSS viewport at scale factor 1, leaving a
+1351-pixel-wide application content area beside the existing sidebar. Mobile uses Pixel 7, 393 × 851
+CSS pixels at scale factor 2.75. Its search field occupies the first row; the dropdowns share the
+next row. Scrolling the toolbar into the viewport center avoids fixed mobile navigation covering
+screenshot evidence.
+
+The approved toolbar crop and rendered desktop controls were opened together in
+`/tmp/communications-search-comparison.png`. Both themes and mobile controls were also opened and
+reviewed directly. The page retains the existing application shell, native controls, typography, and
+message cards; fixture records differ from the concept and do not represent hosted data.
+
+## Review and corrections
+
+- **Layout and rhythm:** the two pill groups are replaced by the compact three-column toolbar, with
+  consistent 40-pixel input/select heights. Mobile uses a full-width search input and two dropdown
+  columns. Clear filters remains reachable and there is no horizontal overflow.
+- **Typography:** shared application font, heading hierarchy, labels, and type tokens are retained.
+  The generated concept uses larger control text; keeping the established application scale is an
+  intentional adaptation. Native search/select chrome replaces illustrative input icons.
+- **Color and contrast:** navy/slate surfaces, blue actions, and orange navigation remain. Browser
+  checks exposed insufficient contrast in existing light-theme Sent/Automated badges. Readable
+  semantic foreground tokens now preserve their green/orange hues in both themes. Queued badges use
+  the readable primary foreground color. Axe reports no violations in the Messages panel.
+- **Assets:** no new raster runtime assets are required. The mock remains a design reference; the
+  actual interface uses HTML, CSS tokens, and existing components.
+- **Copy:** the approved search hint and labels are used. Status/type choices are unchanged. The
+  draft shortcut remains visible independently of the selected history filter.
+- **Loading and errors:** searches retain the previous list during refresh, explicitly label it as
+  previous results on failure, and disable paging until a valid page returns. Empty-search messaging
+  appears only after a successful empty response. Keeping rows mounted also preserves an open
+  notification-cancellation form during focus refresh.
+
+No unresolved P0, P1, or P2 visual findings remain.
+
+## Pagination and data verification
+
+The search is evaluated in the Organization store before the existing keyset cursor and LIMIT. Every
+page retains the same search/status/type criteria. Changing a criterion clears the cursor stack and
+returns to page one. Clear filters resets all three criteria together. Filters remain bookmarkable,
+with Back/Forward support. Requests are debounced and canceled when superseded; late responses
+cannot replace newer results. Failed searches no longer fall back to an unpaged, truncated
+compatibility list.
+
+Integration coverage includes 65 matching older records behind 120 newer non-matching records, seven
+consecutive filtered pages without omissions/duplicates, stored automatic-message metadata, ticket
+confirmation kinds and rendered subjects, skipped status, literal SQL metacharacters,
+authorization/isolation, bounded input, and Organization-timezone month/day searches across DST.
+Browser coverage includes Next/Previous, page reset, clear, Back, keyboard submission, retryable
+errors, draft access, retained cancellation input, both themes, contrast, and mobile overflow.
+
+Search terms are capped at 12 and 200 characters, with the existing 50-row UI page and 100-row API
+cap. Literal substring matching runs over the existing tenant-local history query rather than a new
+full-text index, so very large histories can require more SQLite read work than exact filters. No
+polling, recurring background scans, schema changes, provider calls, or hosted-data changes are
+introduced. The new read uses typed Durable Object RPC; the legacy internal read and query-less API
+callers remain compatible. Rollback restores the old UI/API without a migration reversal.
+
+## Regenerating evidence
+
+Run `npm run test:e2e -- communications.spec.ts` for all Communications journeys, or add
+`--grep 'search and dropdown'` for the filter/paging screenshots. Captures are written to
+`/tmp/communications-search-{chromium,mobile-chromium}-{dark,light}.png` and the corresponding
+`controls` files. Runtime artifacts are rebuilt by the standard `npm run build`/`npm run check:ci`
+commands. Full release qualification remains separate from this local implementation.
+
+Focus refresh also retains the current history cursor, page number, and Previous-page stack. The
+filtered paging browser journey explicitly returns focus on page two, waits for a request carrying
+the same cursor and search, and verifies that page two and its results remain visible.

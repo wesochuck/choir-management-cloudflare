@@ -1,5 +1,9 @@
+import { communicationHistorySearch } from "./historySearch";
 import type { SqlStorageValue } from "@cloudflare/workers-types";
-import { communicationScheduledMessageSchema } from "@choir/contracts";
+import {
+  communicationScheduledMessageSchema,
+  communicationHistorySearchSchema,
+} from "@choir/contracts";
 
 import { messageColumns, type CommunicationAudienceStorage, type MessageRow } from "./contracts";
 import { identityMatches, parseMessage } from "./shared";
@@ -107,6 +111,8 @@ function buildHistoryWhere(
   status?: string | null,
   cursor?: HistoryCursor | null,
   ascending = false,
+  search = "",
+  timezone = "UTC",
 ): { readonly bindings: unknown[]; readonly whereSql: string } {
   const whereClauses: string[] = [];
   const bindings: unknown[] = [];
@@ -136,6 +142,9 @@ function buildHistoryWhere(
     );
   }
 
+  const searchFilter = communicationHistorySearch(search, timezone);
+  whereClauses.push(...searchFilter.clauses);
+  bindings.push(...searchFilter.bindings);
   const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
   return { bindings, whereSql };
 }
@@ -196,9 +205,14 @@ function mapHistoryRow(row: HistoryRow, timezone: string) {
   };
 }
 
-export function listCommunicationHistoryFromStore(
+function parseHistorySearch(search: string | undefined) {
+  return communicationHistorySearchSchema.parse(search ?? "");
+}
+
+export function queryCommunicationHistoryFromStore(
   storage: DurableObjectStorage,
   input: {
+    readonly search?: string;
     readonly includePreviews?: boolean;
     readonly cursor?: string | null;
     readonly limit?: string | number | null;
@@ -206,9 +220,9 @@ export function listCommunicationHistoryFromStore(
     readonly origin?: string | null;
     readonly status?: string | null;
   },
-): Response {
+) {
   if (!input.organizationId || !identityMatches(storage, input.organizationId)) {
-    return Response.json({ code: "organization_not_found" }, { status: 404 });
+    return null;
   }
 
   const now = new Date();
@@ -225,7 +239,14 @@ export function listCommunicationHistoryFromStore(
   const rawLimit = Number(input.limit ?? 50);
   const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 50;
   const cursor = parseHistoryCursor(input.cursor ?? null);
-  const { bindings, whereSql } = buildHistoryWhere(input.origin, input.status, cursor, ascending);
+  const { bindings, whereSql } = buildHistoryWhere(
+    input.origin,
+    input.status,
+    cursor,
+    ascending,
+    parseHistorySearch(input.search),
+    timezone,
+  );
   bindings.push(limit + 1);
   bindings.unshift(JSON.stringify(projected), now.toISOString(), now.toISOString());
 
@@ -433,10 +454,17 @@ export function listCommunicationHistoryFromStore(
       ? `${lastRow.sortTimestamp}|${String(lastRow.sourceRank)}|${lastRow.id}`
       : null;
 
-  return Response.json({
-    items,
-    nextCursor,
-  });
+  return { items, nextCursor };
+}
+
+export function listCommunicationHistoryFromStore(
+  storage: DurableObjectStorage,
+  input: Parameters<typeof queryCommunicationHistoryFromStore>[1],
+): Response {
+  const page = queryCommunicationHistoryFromStore(storage, input);
+  return page
+    ? Response.json(page)
+    : Response.json({ code: "organization_not_found" }, { status: 404 });
 }
 
 function reminderHistoryDetails(row: HistoryRow) {

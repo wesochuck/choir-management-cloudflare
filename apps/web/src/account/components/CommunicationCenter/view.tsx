@@ -262,6 +262,10 @@ export function CommunicationCenterView({
               </div>
             ) : (
               <MessagesPanel
+                searchQuery={model.searchQuery}
+                onFiltersChange={model.setMessageFilters}
+                historyError={model.historyError}
+                onRetryHistory={model.retryHistory}
                 showNewMessage={false}
                 branding={branding}
                 busy={busy}

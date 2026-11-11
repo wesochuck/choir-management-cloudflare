@@ -661,19 +661,19 @@
   .status-pill--scheduled {
     border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
     background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
-    color: var(--color-accent);
+    color: var(--color-status-automated-text);
   }
 
   .status-pill--queued {
     border-color: color-mix(in srgb, var(--color-info, #38bdf8) 40%, var(--color-border));
     background: color-mix(in srgb, var(--color-info, #38bdf8) 12%, var(--color-surface));
-    color: var(--color-info, #38bdf8);
+    color: var(--color-primary);
   }
 
   .status-pill--sent {
     border-color: color-mix(in srgb, var(--color-success, #4ade80) 40%, var(--color-border));
     background: color-mix(in srgb, var(--color-success, #4ade80) 12%, var(--color-surface));
-    color: var(--color-success, #4ade80);
+    color: var(--color-status-success-text);
   }
 
   .status-pill--failed {
@@ -685,7 +685,7 @@
   .status-pill--automated {
     border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
     background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
-    color: var(--color-accent);
+    color: var(--color-status-automated-text);
   }
 
   .status-pill--custom {
@@ -1562,6 +1562,56 @@
     }
     .communication-compose-container .communication-composer-action-bar {
       bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+}
+
+@layer components {
+  .communication-messages-panel__title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+  }
+  .communication-messages-panel__title h2 {
+    margin: 0;
+  }
+  .communication-history-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(9rem, 1fr) minmax(9rem, 1fr);
+    column-gap: var(--spacing-md);
+    row-gap: var(--spacing-xs);
+    align-items: end;
+    margin-block: var(--spacing-lg);
+  }
+  .communication-history-filters .field {
+    min-width: 0;
+    margin: 0;
+  }
+  .communication-history-filters input,
+  .communication-history-filters select {
+    width: 100%;
+    height: var(--control-height);
+    box-sizing: border-box;
+  }
+  .communication-history-filters > .field-help {
+    grid-column: 1 / 3;
+    margin: 0;
+  }
+  .communication-history-filters__clear {
+    justify-self: end;
+  }
+  @media (max-width: 48rem) {
+    .communication-history-filters {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .communication-history-filters__search {
+      grid-column: 1 / -1;
+    }
+    .communication-history-filters > .field-help {
+      grid-column: 1 / -1;
+    }
+    .communication-history-filters__clear {
+      grid-column: 1 / -1;
     }
   }
 }

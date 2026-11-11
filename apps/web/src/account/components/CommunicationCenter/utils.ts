@@ -99,6 +99,7 @@ export interface InitialNavigationState {
     readonly voiceParts: readonly string[];
     readonly globalStatuses: readonly ("Active" | "Idle" | "Inactive")[];
   };
+  readonly searchQuery: string;
   readonly draftId: string | null;
   readonly messageMode: MessageWorkspaceMode;
   readonly originFilter: MessageOriginFilter;
@@ -189,6 +190,7 @@ export function parseCommunicationSearch(search: string): InitialNavigationState
 
   if (draftId) {
     return {
+      searchQuery: "",
       draftId,
       messageMode: "compose",
       originFilter: "all",
@@ -198,11 +200,12 @@ export function parseCommunicationSearch(search: string): InitialNavigationState
   }
 
   const { messageMode, section } =
-    tab === null && !rawStatus && !rawType
+    tab === null && !rawStatus && !rawType && !params.has("q")
       ? { messageMode: "list" as const, section: "overview" as const }
       : parseNavigationMode(tab);
   return {
     ...composeSearchContext(params, messageMode),
+    searchQuery: (params.get("q") ?? "").trim(),
     draftId: null,
     messageMode,
     originFilter: parseSearchOrigin(rawType, rawStatus, tab),

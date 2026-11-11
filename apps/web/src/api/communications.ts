@@ -41,17 +41,24 @@ import {
 
 import { request } from "./client";
 
+function appendHistorySearch(params: URLSearchParams, options: { search?: string } | undefined) {
+  const search = options?.search?.trim();
+  if (search) params.set("q", search);
+}
+
 export async function getOrganizationCommunicationHistory(
   options?: {
     cursor?: string | null;
     limit?: number;
     origin?: string | null;
     status?: string | null;
+    search?: string;
     includePreviews?: boolean;
   },
   signal?: AbortSignal,
 ): Promise<CommunicationHistoryPageResponse> {
   const params = new URLSearchParams();
+  appendHistorySearch(params, options);
   if (options?.includePreviews !== undefined)
     params.set("includePreviews", String(options.includePreviews));
   if (options?.cursor) params.set("cursor", options.cursor);

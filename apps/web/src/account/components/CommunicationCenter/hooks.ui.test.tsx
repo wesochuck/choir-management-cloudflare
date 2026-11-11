@@ -527,3 +527,136 @@ describe("useCommunicationCenterController filters", () => {
     });
   });
 });
+
+describe("filtered history pagination", () => {
+  it("preserves search across Next/Previous and resets paging when filters change", async () => {
+    const history = vi
+      .spyOn(apiModule, "getOrganizationCommunicationHistory")
+      .mockImplementation((options) =>
+        Promise.resolve({
+          items: [],
+          nextCursor: options?.cursor ? null : "matching-page-2",
+          requestId: "req-1",
+        }),
+      );
+    const { result } = renderHook(() => useCommunicationCenterController({ enabled: false }));
+    act(() => {
+      result.current.setMessageFilters("sent", "automated", "Christmas");
+    });
+    await waitFor(() => {
+      expect(result.current.hasNextPage).toBe(true);
+    });
+    await act(async () => {
+      await result.current.nextPage();
+    });
+    expect(result.current.pageNumber).toBe(2);
+    expect(history).toHaveBeenLastCalledWith(
+      {
+        search: "Christmas",
+        cursor: "matching-page-2",
+        includePreviews: false,
+        limit: 50,
+        status: "sent",
+        origin: "automated",
+      },
+      expect.any(AbortSignal),
+    );
+    expect(result.current.hasPreviousPage).toBe(true);
+    await act(async () => {
+      await result.current.previousPage();
+    });
+    expect(result.current.pageNumber).toBe(1);
+    expect(history).toHaveBeenLastCalledWith(
+      {
+        search: "Christmas",
+        cursor: null,
+        includePreviews: false,
+        limit: 50,
+        status: "sent",
+        origin: "automated",
+      },
+      expect.any(AbortSignal),
+    );
+    await act(async () => {
+      await result.current.nextPage();
+    });
+    act(() => {
+      result.current.setMessageFilters("failed", "manual", "reminder");
+    });
+    expect(result.current.pageNumber).toBe(1);
+    expect(result.current.hasPreviousPage).toBe(false);
+    expect(window.location.search).toContain("q=reminder");
+    await waitFor(() => {
+      expect(history).toHaveBeenLastCalledWith(
+        {
+          search: "reminder",
+          cursor: null,
+          includePreviews: false,
+          limit: 50,
+          status: "failed",
+          origin: "manual",
+        },
+        expect.any(AbortSignal),
+      );
+    });
+    act(() => {
+      result.current.setMessageFilters("all", "all", "");
+    });
+    expect(window.location.search).not.toContain("q=");
+  });
+
+  it("cancels old queries, ignores late responses, and retries search errors without a truncated fallback", async () => {
+    let resolveSlow: (value: { items: []; nextCursor: null; requestId: string }) => void = () => {
+      throw new Error("Resolver not initialized");
+    };
+    const slow = new Promise<{ items: []; nextCursor: null; requestId: string }>((resolve) => {
+      resolveSlow = resolve;
+    });
+    let oldSignal: AbortSignal | undefined;
+    const history = vi
+      .spyOn(apiModule, "getOrganizationCommunicationHistory")
+      .mockImplementation((options, signal) => {
+        if (options?.search === "slow") {
+          oldSignal = signal;
+          return slow;
+        }
+        return Promise.resolve({ items: [], nextCursor: "fast-next", requestId: "req-1" });
+      });
+    const fallback = vi.spyOn(apiModule, "listOrganizationCommunications");
+    const { result } = renderHook(() => useCommunicationCenterController({ enabled: false }));
+    act(() => {
+      result.current.setMessageFilters("all", "all", "slow");
+    });
+    act(() => {
+      result.current.setMessageFilters("all", "all", "fast");
+    });
+    await waitFor(() => {
+      expect(result.current.hasNextPage).toBe(true);
+    });
+    expect(oldSignal?.aborted).toBe(true);
+    await act(async () => {
+      resolveSlow({ items: [], nextCursor: null, requestId: "req-1" });
+      await slow;
+    });
+    expect(result.current.hasNextPage).toBe(true);
+    expect(result.current.searchQuery).toBe("fast");
+    history.mockRejectedValueOnce(new Error("offline"));
+    act(() => {
+      result.current.setMessageFilters("all", "all", "offline");
+    });
+    await waitFor(() => {
+      expect(result.current.historyError).not.toBeNull();
+    });
+    expect(fallback).not.toHaveBeenCalled();
+    act(() => {
+      result.current.retryHistory();
+    });
+    await waitFor(() => {
+      expect(result.current.historyError).toBeNull();
+    });
+    expect(history).toHaveBeenLastCalledWith(
+      { search: "offline", cursor: null, includePreviews: false, limit: 50 },
+      expect.any(AbortSignal),
+    );
+  });
+});

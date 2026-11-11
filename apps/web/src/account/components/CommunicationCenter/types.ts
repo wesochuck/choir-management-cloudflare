@@ -104,6 +104,14 @@ export interface CommunicationCenterControllerModel {
   readonly openReviewAndSend: () => Promise<void>;
   readonly openSaveAsTemplate: () => void;
   readonly openTestEmail: () => void;
+  readonly searchQuery: string;
+  readonly historyError: string | null;
+  readonly retryHistory: () => void;
+  readonly setMessageFilters: (
+    status: MessageStatusFilter,
+    origin: MessageOriginFilter,
+    query: string,
+  ) => void;
   readonly originFilter: MessageOriginFilter;
   readonly pageNumber: number;
   readonly previousPage: () => Promise<void>;

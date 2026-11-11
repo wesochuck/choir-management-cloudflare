@@ -1,3 +1,4 @@
+import { queryCommunicationHistoryFromStore } from "./communicationStore/historyQueries";
 import { readCommunicationOverview } from "./communicationOverview";
 import {
   readTicketNotificationDetails,
@@ -248,6 +249,10 @@ export class OrganizationStore extends DurableObject {
 
   async operationsRpc(call: OrganizationRpcCall<"operations">): Promise<OrganizationRpcResult> {
     return this.dispatchRpcCall(call);
+  }
+
+  readCommunicationHistory(input: Parameters<typeof queryCommunicationHistoryFromStore>[1]) {
+    return queryCommunicationHistoryFromStore(this.ctx.storage, input);
   }
 
   readCommunicationOverview(input: Parameters<typeof readCommunicationOverview>[1]) {
