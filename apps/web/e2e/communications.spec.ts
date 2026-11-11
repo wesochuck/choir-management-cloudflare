@@ -1955,7 +1955,13 @@ test("communications overview supports bookmarkable navigation, drafts, and resp
   await expect.poll(() => overviewReads).toBeGreaterThan(readsBeforeFocus);
   await page.getByRole("button", { name: "View all drafts", exact: true }).click();
   await expect(page).toHaveURL(/status=draft/);
-  expect(histories.at(-1)).toContain("includePreviews=false");
+  await expect
+    .poll(() =>
+      histories.some(
+        (query) => query.includes("status=draft") && query.includes("includePreviews=false"),
+      ),
+    )
+    .toBe(true);
   await page.goBack();
   await expect(navigation.getByRole("button", { name: "Overview", exact: true })).toHaveAttribute(
     "aria-current",
