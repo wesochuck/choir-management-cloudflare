@@ -415,8 +415,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     href: "/admin/communications",
     requiredModule: "communications",
     label: "Communications",
-    description:
-      "Build a message in three steps: choose the audience, write with Markdown and placeholders, then review it before queueing delivery.",
+    description: "Send messages and keep track of what goes out.",
     iconId: "communications",
     sidebar: {
       position: 0,

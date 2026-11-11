@@ -258,6 +258,7 @@ export function readTicketNotificationJobFromStore(
       readonly quantity: number;
       readonly originalSubtotalCents: number;
       readonly refundDate: string | null;
+      readonly purchaseStatus: string;
       readonly status: string;
       readonly subject: string;
       readonly timezone: string;
@@ -278,7 +279,7 @@ export function readTicketNotificationJobFromStore(
         n.content_markdown AS contentMarkdown, n.status, p.buyer_name AS buyerName,
         n.provider_event_at AS providerEventAt, n.provider_message_id AS providerMessageId,
         n.provider_reason AS providerReason, n.provider_status AS providerStatus,
-        p.refunded_at AS refundDate,
+        p.refunded_at AS refundDate, p.status AS purchaseStatus,
         COALESCE(e.title, p.event_title) AS eventTitle,
         p.quantity, p.amount_paid_cents AS amountPaidCents,
         p.original_subtotal_cents AS originalSubtotalCents,
@@ -316,11 +317,14 @@ export function readTicketNotificationJobFromStore(
   if (row.status === "suppressed") {
     return Response.json({ ...row, bundleEvents: [] });
   }
-  if (!["queued", "processing"].includes(row.status)) {
+  if (!["queued", "processing", "failed"].includes(row.status)) {
     return Response.json({ code: "ticket_notification_not_found" }, { status: 404 });
   }
 
-  const suppressionReason = checkReminderSuppression(row);
+  const suppressionReason =
+    row.purchaseStatus === "refunded" && row.kind !== "refund"
+      ? "Order refunded before delivery"
+      : checkReminderSuppression(row);
   if (suppressionReason) {
     storage.sql.exec(
       `UPDATE ticket_notifications
@@ -358,9 +362,13 @@ export function readTicketNotificationJobFromStore(
     )
     .toArray();
   storage.sql.exec(
-    "UPDATE ticket_notifications SET status = 'processing', updated_at = ? WHERE id = ? AND status = 'queued'",
+    "UPDATE ticket_notifications SET status = 'processing', updated_at = ? WHERE id = ? AND status IN ('queued','failed')",
     new Date().toISOString(),
     row.id,
   );
-  return Response.json({ ...row, bundleEvents });
+  return Response.json({
+    ...row,
+    status: row.status === "failed" ? "queued" : row.status,
+    bundleEvents,
+  });
 }

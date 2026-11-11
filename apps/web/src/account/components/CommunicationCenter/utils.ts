@@ -136,6 +136,8 @@ function parseNavigationMode(tab: string | null): {
   readonly messageMode: MessageWorkspaceMode;
   readonly section: CommunicationSection;
 } {
+  if (tab === "overview") return { messageMode: "list", section: "overview" };
+  if (tab === "automations") return { messageMode: "list", section: "automations" };
   if (tab === "compose") return { messageMode: "compose", section: "messages" };
   if (tab === "templates") return { messageMode: "list", section: "templates" };
   if (tab === "settings") return { messageMode: "list", section: "settings" };
@@ -167,6 +169,17 @@ function parseRsvpRequest(
     : undefined;
 }
 
+function composeSearchContext(params: URLSearchParams, messageMode: MessageWorkspaceMode) {
+  const contactListId = params.get("contactListId");
+  const attendeeEventId = params.get("attendeeEventId");
+  const rsvpRequest = parseRsvpRequest(params, messageMode);
+  return {
+    ...(messageMode === "compose" && attendeeEventId ? { attendeeEventId } : {}),
+    ...(messageMode === "compose" && contactListId !== null ? { contactListId } : {}),
+    ...(rsvpRequest ? { rsvpRequest } : {}),
+  };
+}
+
 export function parseCommunicationSearch(search: string): InitialNavigationState {
   const params = new URLSearchParams(search);
   const draftId = params.get("draftId");
@@ -184,14 +197,12 @@ export function parseCommunicationSearch(search: string): InitialNavigationState
     };
   }
 
-  const { messageMode, section } = parseNavigationMode(tab);
-  const contactListId = params.get("contactListId");
-  const attendeeEventId = params.get("attendeeEventId");
-  const rsvpRequest = parseRsvpRequest(params, messageMode);
+  const { messageMode, section } =
+    tab === null && !rawStatus && !rawType
+      ? { messageMode: "list" as const, section: "overview" as const }
+      : parseNavigationMode(tab);
   return {
-    ...(messageMode === "compose" && attendeeEventId ? { attendeeEventId } : {}),
-    ...(messageMode === "compose" && contactListId !== null ? { contactListId } : {}),
-    ...(rsvpRequest ? { rsvpRequest } : {}),
+    ...composeSearchContext(params, messageMode),
     draftId: null,
     messageMode,
     originFilter: parseSearchOrigin(rawType, rawStatus, tab),

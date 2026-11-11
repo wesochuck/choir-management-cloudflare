@@ -6,11 +6,14 @@ import type {
 } from "@choir/contracts";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "../../../auth/api";
 import { useCommunicationCenterController } from "./hooks";
 import { defaultAudience } from "./utils";
 
+beforeEach(() => {
+  window.history.replaceState(null, "", "/admin/communications?tab=messages");
+});
 const promotionEventId = "77777777-7777-4777-8777-777777777777";
 const promotionMessageId = "88888888-8888-4888-8888-888888888888";
 const promotionAudience: CommunicationMessage["audience"] = {
@@ -199,7 +202,7 @@ describe("useCommunicationCenterController filters", () => {
     }
   });
 
-  it("initializes with default filters and queries history", async () => {
+  it("initializes Messages with default filters and queries recorded history", async () => {
     const historySpy = vi
       .spyOn(apiModule, "getOrganizationCommunicationHistory")
       .mockResolvedValue({
@@ -219,7 +222,10 @@ describe("useCommunicationCenterController filters", () => {
     const { result } = renderHook(() => useCommunicationCenterController({ enabled: true }));
 
     await waitFor(() => {
-      expect(historySpy).toHaveBeenCalledWith({ cursor: null, limit: 50 }, expect.any(AbortSignal));
+      expect(historySpy).toHaveBeenCalledWith(
+        { cursor: null, includePreviews: false, limit: 50 },
+        expect.any(AbortSignal),
+      );
     });
 
     expect(result.current.statusFilter).toBe("all");
@@ -295,7 +301,7 @@ describe("useCommunicationCenterController filters", () => {
 
     await waitFor(() => {
       expect(historySpy).toHaveBeenLastCalledWith(
-        { cursor: null, limit: 50, status: "sent" },
+        { cursor: null, includePreviews: false, limit: 50, status: "sent" },
         expect.any(AbortSignal),
       );
     });
@@ -311,7 +317,7 @@ describe("useCommunicationCenterController filters", () => {
 
     await waitFor(() => {
       expect(historySpy).toHaveBeenLastCalledWith(
-        { cursor: null, limit: 50, origin: "manual", status: "sent" },
+        { cursor: null, includePreviews: false, limit: 50, origin: "manual", status: "sent" },
         expect.any(AbortSignal),
       );
     });

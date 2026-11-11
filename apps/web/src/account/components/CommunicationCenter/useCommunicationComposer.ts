@@ -1,3 +1,4 @@
+import { useSaveRegistration } from "../../../persistence";
 import type {
   CommunicationAudienceRequest,
   CommunicationChannel,
@@ -156,6 +157,10 @@ export function useCommunicationComposer({
   const [sendIdempotencyKey, setSendIdempotencyKey] = useState(() => crypto.randomUUID());
   const [nowMs, setNowMs] = useState(() => Date.now());
 
+  const snapshot = { audience, channel, contentMarkdown, eventPromotion, subject };
+  const [baseline, setBaseline] = useState(snapshot);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const dirty = messageMode === "compose" && JSON.stringify(snapshot) !== JSON.stringify(baseline);
   const replaceAudience = useCallback((nextAudience: CommunicationAudienceRequest) => {
     audienceRef.current = nextAudience;
     setAudience(nextAudience);
@@ -192,6 +197,13 @@ export function useCommunicationComposer({
         void refreshEvents();
       }
       setActiveDraft(draft);
+      setBaseline({
+        audience: draft.audience,
+        channel: draft.channel,
+        contentMarkdown: draft.contentMarkdown,
+        eventPromotion: draft.eventPromotion,
+        subject: draft.subject,
+      });
       setEventPromotion(draft.eventPromotion);
       audienceRef.current = draft.audience;
       setAudience(draft.audience);
@@ -216,6 +228,13 @@ export function useCommunicationComposer({
       void refreshEvents();
     }
     setActiveDraft(null);
+    setBaseline({
+      audience: defaultAudience,
+      channel: "Email",
+      contentMarkdown: "",
+      eventPromotion: null,
+      subject: "",
+    });
     setEventPromotion(null);
     replaceAudience(defaultAudience);
     setChannel("Email");
@@ -336,6 +355,7 @@ export function useCommunicationComposer({
   );
 
   const saveDraftAction = useCallback(async () => {
+    setSavingDraft(true);
     setBusy(true);
     setError(null);
     setSuccessNotice(null);
@@ -351,15 +371,19 @@ export function useCommunicationComposer({
         subject,
       });
       setActiveDraft(saved);
+      setBaseline({ audience, channel, contentMarkdown, eventPromotion, subject });
       setReviewSnapshot(null);
       setMessages((current) => [saved, ...current.filter((m) => m.id !== saved.id)]);
       void refreshDraftCount?.();
       void loadHistoryPage(statusFilter, originFilter, currentCursor);
       setSuccessNotice("Draft saved successfully.");
+      return true;
     } catch (err: unknown) {
       setError(failureMessage(err));
+      return false;
     } finally {
       setBusy(false);
+      setSavingDraft(false);
     }
   }, [
     activeDraft,
@@ -557,7 +581,25 @@ export function useCommunicationComposer({
     ],
   );
 
+  useSaveRegistration({
+    id: "communication-composer",
+    resourceKey: activeDraft?.id ?? "new-communication",
+    saveLabel: "Save draft",
+    dirty,
+    busy: savingDraft,
+    save: saveDraftAction,
+    discard: () => {
+      replaceAudience(baseline.audience);
+      setChannel(baseline.channel);
+      setContentMarkdown(baseline.contentMarkdown);
+      setEventPromotion(baseline.eventPromotion);
+      setSubject(baseline.subject);
+      setReviewSnapshot(null);
+    },
+  });
+
   return {
+    activeDraftId: activeDraft?.id ?? null,
     audience,
     channel,
     contentMarkdown,

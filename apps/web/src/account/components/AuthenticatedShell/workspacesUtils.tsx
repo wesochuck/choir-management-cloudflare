@@ -369,7 +369,13 @@ export function renderOrganizationPage(
   const pages: Record<string, ReactNode> = {
     "/admin/attendance": <AttendanceManager enabled={focusedEnabled} initialTab={attendanceTab} />,
     "/admin/auditions": <AuditionManager enabled={focusedEnabled} />,
-    "/admin/communications": <CommunicationCenter enabled={focusedEnabled} />,
+    "/admin/communications": (
+      <CommunicationCenter
+        enabled={focusedEnabled}
+        search={routeState.search}
+        navigate={navigate}
+      />
+    ),
     "/admin/contacts": <ContactsPage enabled={focusedEnabled} />,
     "/admin/donations": <DonationsManager enabled={focusedEnabled} />,
     "/admin/patrons": <AdminPatronsRedirect navigate={navigate} search={routeState.search} />,

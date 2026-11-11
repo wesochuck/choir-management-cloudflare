@@ -1,3 +1,9 @@
+import { communicationOverviewSchema } from "@choir/contracts";
+import {
+  ticketNotificationCancelSchema,
+  ticketNotificationCancelResponseSchema,
+  ticketNotificationDetailsSchema,
+} from "@choir/contracts";
 import {
   communicationDeliveryRecipientsPageResponseSchema,
   communicationDeliverySummaryResponseSchema,
@@ -41,10 +47,13 @@ export async function getOrganizationCommunicationHistory(
     limit?: number;
     origin?: string | null;
     status?: string | null;
+    includePreviews?: boolean;
   },
   signal?: AbortSignal,
 ): Promise<CommunicationHistoryPageResponse> {
   const params = new URLSearchParams();
+  if (options?.includePreviews !== undefined)
+    params.set("includePreviews", String(options.includePreviews));
   if (options?.cursor) params.set("cursor", options.cursor);
   if (options?.limit) params.set("limit", String(options.limit));
   if (options?.origin && options.origin !== "all") params.set("origin", options.origin);
@@ -292,4 +301,28 @@ export async function verifyOrganizationEmailDomain(): Promise<OrganizationEmail
     method: "POST",
   });
   return organizationEmailDomainVerifyResponseSchema.parse(await response.json());
+}
+
+export async function getTicketNotificationDetails(notificationId: string) {
+  const response = await request(
+    `/api/organization/communications/ticket-notifications/${encodeURIComponent(notificationId)}`,
+  );
+  return ticketNotificationDetailsSchema.parse(await response.json());
+}
+export async function cancelTicketNotification(notificationId: string, reason: string) {
+  const response = await request(
+    `/api/organization/communications/ticket-notifications/${encodeURIComponent(notificationId)}/cancel`,
+    {
+      method: "POST",
+      body: JSON.stringify(ticketNotificationCancelSchema.parse({ reason })),
+    },
+  );
+  ticketNotificationCancelResponseSchema.parse(await response.json());
+}
+
+export async function getCommunicationOverview(signal?: AbortSignal) {
+  const response = await request("/api/organization/communications/overview", {
+    signal: signal ?? null,
+  });
+  return communicationOverviewSchema.parse(await response.json());
 }

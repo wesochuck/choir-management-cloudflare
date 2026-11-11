@@ -10,6 +10,7 @@ import { MessageList } from "./MessageList";
 import type { MessageOriginFilter, MessageStatusFilter, UnifiedCommunicationItem } from "./types";
 
 interface MessagesPanelProps {
+  readonly showNewMessage?: boolean;
   readonly branding?: OrganizationBranding | null | undefined;
   readonly busy: boolean;
   readonly currentOrigin: MessageOriginFilter;
@@ -22,7 +23,7 @@ interface MessagesPanelProps {
   readonly hasPreviousPage?: boolean;
   readonly loadingDeliveryId: string | null;
   readonly loadingHistory?: boolean;
-  readonly onCancelQueued: (messageId: string) => Promise<void>;
+  readonly onCancelQueued: (messageId: string, reason?: string) => Promise<void>;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
   readonly onNewMessage: () => void;
   readonly onNextPage?: () => void;
@@ -57,6 +58,7 @@ const originFilterOptions: readonly { readonly id: MessageOriginFilter; readonly
   ];
 
 export function MessagesPanel({
+  showNewMessage = true,
   branding,
   busy,
   currentOrigin,
@@ -96,9 +98,11 @@ export function MessagesPanel({
             Manage drafts, scheduled sends, delivery history, and active messages.
           </p>
         </div>
-        <button className="button button--primary" onClick={onNewMessage} type="button">
-          New message
-        </button>
+        {showNewMessage ? (
+          <button className="button button--primary" onClick={onNewMessage} type="button">
+            New message
+          </button>
+        ) : null}
       </div>
 
       {/* Filter Groups */}

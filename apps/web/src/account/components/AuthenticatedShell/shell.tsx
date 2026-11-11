@@ -411,6 +411,7 @@ function AuthenticatedOrganizationShell({
             route.pathname === "/admin/roster" ||
             route.pathname === "/account/notifications" ||
             route.pathname === "/admin/auditions" ||
+            route.pathname === "/admin/communications" ||
             route.pathname === "/admin/invitations" ||
             route.pathname === "/admin/settings/invitations" ? null : (
               <div

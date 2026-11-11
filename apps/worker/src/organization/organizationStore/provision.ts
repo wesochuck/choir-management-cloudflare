@@ -1,3 +1,4 @@
+import { failTicketNotification } from "../ticketNotificationManagement";
 import { deliveryJobSchema } from "../../jobs/contracts";
 import { ensureOrganizationAlarm } from "../scheduler";
 import { currentOrganizationSchemaVersion } from "../schema";
@@ -408,6 +409,8 @@ export async function failJob(storage: DurableObjectStorage, request: Request): 
     parsed.data.jobId,
     parsed.data.attempt,
   );
+  if (result.rowsWritten === 1)
+    failTicketNotification(storage, parsed.data.idempotencyKey, parsed.data.failedAt);
   return Response.json({ failed: result.rowsWritten === 1 });
 }
 
@@ -431,6 +434,8 @@ export async function terminalJob(
     parsed.data.jobId,
     parsed.data.attempt,
   );
+  if (result.rowsWritten === 1)
+    failTicketNotification(storage, parsed.data.idempotencyKey, parsed.data.failedAt);
   return Response.json({ terminal: result.rowsWritten === 1 });
 }
 

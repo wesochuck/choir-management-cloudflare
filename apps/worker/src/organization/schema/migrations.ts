@@ -2538,6 +2538,44 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE public_website_settings ADD COLUMN google_ads_conversion_label TEXT NOT NULL DEFAULT ''",
     ],
   },
+  {
+    version: 141,
+    statements: [
+      // One-time repair. Normal refund/failure transitions maintain these source states.
+      `UPDATE ticket_notifications SET status='suppressed',
+         failure_detail='Order refunded before delivery',
+         updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE status IN ('queued','processing','failed') AND kind IN ('confirmation','reminder')
+         AND purchase_id IN (SELECT id FROM ticket_purchases WHERE status='refunded')`,
+      `UPDATE ticket_notifications SET status='failed',
+         failure_detail='Delivery job failed. Review delivery details before retrying.',
+         updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE status IN ('queued','processing') AND EXISTS (
+         SELECT 1 FROM job_ledger l WHERE l.idempotency_key=('ticket-notification:' || ticket_notifications.id)
+           AND l.status='failed')`,
+    ],
+  },
+  {
+    version: 142,
+    statements: [
+      // Overview drafts and failure/delay partitions, sorted without reading sent history.
+      `CREATE INDEX communication_overview_state ON communication_messages(status,updated_at DESC,id DESC) WHERE canceled_at IS NULL`,
+      // Recent actual sends use original send timestamps, never provider-feedback updates.
+      `CREATE INDEX communication_overview_sent ON communication_messages(COALESCE(sent_at,created_at) DESC,id DESC) WHERE status='Sent' AND canceled_at IS NULL`,
+      `CREATE INDEX ticket_overview_sent ON ticket_notifications(COALESCE(sent_at,scheduled_for) DESC,id DESC) WHERE status='sent'`,
+      // Provider failures retain a sent source record; these selective partitions power attention previews.
+      `CREATE INDEX ticket_overview_issues ON ticket_notifications(COALESCE(provider_event_at,updated_at) DESC,id DESC) WHERE status='sent' AND provider_status IN ('bounced','failed','rejected','complained')`,
+      `CREATE INDEX audition_overview_issues ON audition_notifications(COALESCE(provider_event_at,updated_at) DESC,id DESC) WHERE status='sent' AND provider_status IN ('bounced','failed','rejected','complained')`,
+      `CREATE INDEX audition_overview_sent ON audition_notifications(COALESCE(sent_at,scheduled_for) DESC,id DESC) WHERE status='sent'`,
+      // Checkout reminders lack a general state index; supports recent, failed and delayed partitions.
+      `CREATE INDEX checkout_overview_state ON checkout_reminders(state,COALESCE(sent_at,due_at) DESC,id DESC) WHERE state IN ('sent','failed','sending')`,
+      // Partial delivery problems are grouped using only the current failed partition.
+      `CREATE INDEX communication_overview_failed_deliveries ON communication_deliveries(message_id,updated_at DESC) WHERE status='failed' OR provider_status IN ('bounced','failed','rejected','complained')`,
+      // Restrict attention reads to scheduler kinds without indexing mutable claim/status fields.
+      // Status-only job updates must retain their existing billed-write count for rollback compatibility.
+      `CREATE INDEX communication_overview_jobs ON job_ledger(kind,job_id) WHERE kind IN ('attendance_report','event_reminder','rsvp_follow_up')`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

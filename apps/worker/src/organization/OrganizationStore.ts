@@ -1,3 +1,8 @@
+import { readCommunicationOverview } from "./communicationOverview";
+import {
+  readTicketNotificationDetails,
+  cancelTicketNotification,
+} from "./ticketNotificationManagement";
 import {
   checkCommunicationDelivery,
   type CommunicationDeliveryCheckInput,
@@ -243,6 +248,19 @@ export class OrganizationStore extends DurableObject {
 
   async operationsRpc(call: OrganizationRpcCall<"operations">): Promise<OrganizationRpcResult> {
     return this.dispatchRpcCall(call);
+  }
+
+  readCommunicationOverview(input: Parameters<typeof readCommunicationOverview>[1]) {
+    return readCommunicationOverview(this.ctx.storage, input);
+  }
+
+  readTicketNotificationDetails(input: Parameters<typeof readTicketNotificationDetails>[1]) {
+    return readTicketNotificationDetails(this.ctx.storage, input);
+  }
+  cancelTicketNotification(input: Parameters<typeof cancelTicketNotification>[1]) {
+    return this.ctx.storage.transactionSync(() =>
+      cancelTicketNotification(this.ctx.storage, input),
+    );
   }
 
   async schedulePaymentFeeReconciliation(input: {

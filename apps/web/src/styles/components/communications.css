@@ -1424,3 +1424,144 @@
     font-weight: var(--font-weight-medium);
   }
 }
+
+@layer components {
+  .communication-overview__header,
+  .communication-overview__section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+  }
+  .communication-overview__header {
+    margin-bottom: var(--spacing-lg);
+  }
+  .communication-overview {
+    display: grid;
+    gap: var(--spacing-xl);
+  }
+  .communication-overview__columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+    gap: var(--spacing-xl);
+    align-items: start;
+  }
+  .communication-overview__main,
+  .communication-overview__aside {
+    display: grid;
+    gap: var(--spacing-xl);
+    min-width: 0;
+  }
+  .communication-overview__section-heading {
+    margin-bottom: var(--spacing-md);
+  }
+  .communication-overview__section-heading h2 .field-help {
+    font-weight: var(--font-weight-normal);
+  }
+  .communication-overview__panel {
+    padding: var(--spacing-lg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    min-width: 0;
+  }
+  .communication-overview__rows {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+  }
+  .communication-overview__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    padding-block: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border);
+    min-width: 0;
+  }
+  .communication-overview__row > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .communication-overview__row h3 {
+    font-size: var(--font-size-base);
+    margin: 0;
+    font-weight: var(--font-weight-semibold);
+  }
+  .communication-overview__row p {
+    margin-block: var(--spacing-2xs);
+  }
+  .communication-overview__row > .text-button {
+    flex-shrink: 0;
+  }
+  .communication-overview__aside .communication-overview__row {
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: var(--spacing-sm);
+  }
+  .communication-overview__aside .communication-overview__row > div {
+    flex: 1;
+    width: auto;
+  }
+  .communication-overview__aside .communication-overview__panel > .field-help {
+    margin-block: var(--spacing-md);
+  }
+  .communication-overview__status {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+  .communication-overview__status--sent {
+    color: var(--color-success-text);
+  }
+  .communication-overview__status--failed {
+    color: var(--color-danger-text);
+  }
+  .communication-overview__health {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    padding-block: var(--spacing-md);
+    border-block: 1px solid var(--color-border);
+  }
+  .communication-overview__health > .communication-overview__rows {
+    width: 100%;
+  }
+  .communication-nav {
+    flex-wrap: wrap;
+  }
+  @media (max-width: 60rem) {
+    .communication-overview__columns {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .communication-overview__row {
+      flex-wrap: wrap;
+    }
+    .communication-overview__row > div {
+      width: 100%;
+    }
+  }
+}
+
+@layer components {
+  /* The composer owns a persistent Save draft action. Its registration still protects
+     navigation; a second floating save bar would cover its mobile send controls. */
+  .signed-in-shell:has(.communication-compose-container) .floating-save-bar {
+    display: none;
+  }
+  .communication-overview__section-heading h2 .field-help {
+    display: inline;
+    font-size: var(--font-size-sm);
+  }
+  @media (max-width: 60rem) {
+    .communication-compose-container {
+      padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+    }
+    .communication-compose-container .communication-composer-action-bar {
+      bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+}

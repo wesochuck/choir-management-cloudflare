@@ -175,6 +175,7 @@ const contentGetHandlers: Record<
     listEventPromotionMessagesFromStore(storage, organizationId, url.searchParams.get("eventId")),
   "/internal/communications/history": (storage, url, organizationId) =>
     listCommunicationHistoryFromStore(storage, {
+      includePreviews: url.searchParams.get("includePreviews") !== "false",
       cursor: url.searchParams.get("cursor"),
       limit: url.searchParams.get("limit"),
       organizationId,

@@ -532,6 +532,7 @@ export const communicationUnsubscribeResponseSchema = z.object({
 export const communicationHistoryItemSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("manual"),
+    automatic: z.boolean().optional(),
     message: communicationMessageSchema,
     sortTimestamp: z.iso.datetime(),
   }),
@@ -678,3 +679,27 @@ export type OrganizationEmailSettingsResponse = z.infer<
 export type OrganizationEmailDomainVerifyResponse = z.infer<
   typeof organizationEmailDomainVerifyResponseSchema
 >;
+
+export const ticketNotificationCancelSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+export const ticketNotificationDetailsSchema = z.object({
+  id: z.uuid(),
+  purchaseId: z.uuid(),
+  buyerName: z.string(),
+  recipientEmail: z.email(),
+  purchaseStatus: z.string(),
+  refundedAt: z.iso.datetime().nullable(),
+  status: z.enum(["queued", "processing", "failed", "sent", "suppressed"]),
+  kind: z.enum(["confirmation", "reminder", "refund"]),
+  scheduledAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+  failureDetail: z.string(),
+  providerStatus: z.string().nullable(),
+  providerMessageId: z.string().nullable(),
+  jobStatus: z.enum(["claimed", "completed", "failed"]).nullable(),
+  jobAttempts: z.number().int().nonnegative().nullable(),
+  canCancel: z.boolean(),
+});
+
+export const ticketNotificationCancelResponseSchema = z.object({ canceled: z.literal(true) });

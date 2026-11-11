@@ -1,3 +1,4 @@
+import { TicketNotificationDetails } from "./TicketNotificationDetails";
 import type {
   CommunicationDeliverySummary,
   CommunicationMessage,
@@ -24,7 +25,7 @@ interface MessageListProps {
   readonly deliverySummary: CommunicationDeliverySummary | null;
   readonly events?: readonly OrganizationEvent[] | undefined;
   readonly loadingDeliveryId: string | null;
-  readonly onCancelQueued: (messageId: string) => Promise<void>;
+  readonly onCancelQueued: (messageId: string, reason?: string) => Promise<void>;
   readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
@@ -43,7 +44,7 @@ interface MessageCardProps {
   readonly events?: readonly OrganizationEvent[] | undefined;
   readonly isLoadingThis: boolean;
   readonly item: UnifiedCommunicationItem;
-  readonly onCancelQueued: (messageId: string) => Promise<void>;
+  readonly onCancelQueued: (messageId: string, reason?: string) => Promise<void>;
   readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
@@ -66,13 +67,21 @@ function MessageCardActions({
   readonly busy: boolean;
   readonly isLoadingThis: boolean;
   readonly item: UnifiedCommunicationItem;
-  readonly onCancelQueued: (messageId: string) => Promise<void>;
+  readonly onCancelQueued: (messageId: string, reason?: string) => Promise<void>;
   readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
 }) {
-  if (item.kind !== "manual") return null;
+  if (item.kind !== "manual") {
+    return item.scheduledMessage.kind.startsWith("ticket_") && !item.scheduledMessage.projected ? (
+      <TicketNotificationDetails
+        notificationId={item.id}
+        onCancel={onCancelQueued}
+        timezone={item.scheduledMessage.timezone}
+      />
+    ) : null;
+  }
 
   if (item.status === "Draft") {
     return (
@@ -271,7 +280,7 @@ function MessageCard({
                 </span>
               </>
             ) : null}
-            {item.automated ? (
+            {item.kind === "scheduled" ? (
               <>
                 <span>·</span>
                 <span>{scheduledMessageKindLabel(item.scheduledMessage.kind)}</span>
@@ -369,10 +378,10 @@ export function MessageList({
 function CheckoutReminderMetadata({ item }: { readonly item: UnifiedCommunicationItem }) {
   return (
     <>
-      {item.automated && item.scheduledMessage.recipientEmail ? (
+      {item.kind === "scheduled" && item.scheduledMessage.recipientEmail ? (
         <span>{item.scheduledMessage.recipientEmail}</span>
       ) : null}
-      {item.automated && item.scheduledMessage.skipReason ? (
+      {item.kind === "scheduled" && item.scheduledMessage.skipReason ? (
         <span>{item.scheduledMessage.skipReason.replaceAll("_", " ")}</span>
       ) : null}
     </>

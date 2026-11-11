@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import {
   cancelOrganizationCommunication,
+  cancelTicketNotification,
   getOrganizationCommunicationDeliverySummary,
   getOrganizationCommunicationHistory,
   listOrganizationCommunications,
@@ -24,9 +25,9 @@ function filterFallbackHistory(
 ): CommunicationHistoryItem[] {
   let res = items;
   if (origin === "manual") {
-    res = res.filter((i) => i.kind === "manual");
+    res = res.filter((i) => i.kind === "manual" && !i.automatic);
   } else if (origin === "automated") {
-    res = res.filter((i) => i.kind === "automated");
+    res = res.filter((i) => i.kind === "automated" || i.automatic);
   }
   if (status === "draft") {
     res = res.filter((i) => i.kind === "manual" && i.message.status === "Draft");
@@ -90,7 +91,7 @@ export function useCommunicationHistory({
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [historyCursorStack, setHistoryCursorStack] = useState<(string | null)[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(enabled);
 
   const [deliverySummary, setDeliverySummary] = useState<CommunicationDeliverySummary | null>(null);
   const [deliveryDetailsMessage, setDeliveryDetailsMessage] = useState<CommunicationMessage | null>(
@@ -109,11 +110,13 @@ export function useCommunicationHistory({
       try {
         const query: {
           cursor: string | null;
+          includePreviews: boolean;
           limit: number;
           origin?: "manual" | "automated";
           status?: "draft" | "scheduled" | "queued" | "sent" | "failed" | "skipped";
         } = {
           cursor,
+          includePreviews: targetStatus === "scheduled",
           limit: 50,
         };
         if (targetOrigin !== "all") {
@@ -149,11 +152,13 @@ export function useCommunicationHistory({
               message: m,
               sortTimestamp: m.sentAt ?? m.createdAt,
             }));
-            const scheduledItems: CommunicationHistoryItem[] = scheduled.map((s) => ({
-              kind: "automated",
-              scheduledMessage: s,
-              sortTimestamp: s.scheduledAt,
-            }));
+            const scheduledItems: CommunicationHistoryItem[] = scheduled
+              .filter((s) => targetStatus === "scheduled" || !s.projected)
+              .map((s) => ({
+                kind: "automated",
+                scheduledMessage: s,
+                sortTimestamp: s.scheduledAt,
+              }));
             const merged = [...manualItems, ...scheduledItems].sort(
               (a, b) =>
                 (targetStatus === "scheduled" ? 1 : -1) *
@@ -223,7 +228,7 @@ export function useCommunicationHistory({
       return historyItems.map((item): UnifiedCommunicationItem => {
         if (item.kind === "manual") {
           return {
-            automated: false,
+            automated: item.automatic ?? false,
             channel: item.message.channel,
             id: item.message.id,
             kind: "manual",
@@ -305,6 +310,24 @@ export function useCommunicationHistory({
     }
   }, [historyItems, messages, scheduledMessages, originFilter, statusFilter]);
 
+  const applyFilters = useCallback(
+    (status: MessageStatusFilter, origin: MessageOriginFilter) => {
+      historyAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      historyAbortControllerRef.current = controller;
+      setStatusFilter(status);
+      setOriginFilter(origin);
+      setPageNumber(1);
+      setCurrentCursor(null);
+      setHistoryCursorStack([]);
+      setNextCursor(null);
+      setLoadingHistory(true);
+      setDeliveryDetailsMessage(null);
+      setDeliverySummary(null);
+      void loadHistoryPage(status, origin, null, controller.signal);
+    },
+    [loadHistoryPage],
+  );
   const changeStatusFilter = useCallback(
     (nextStatus: MessageStatusFilter) => {
       historyAbortControllerRef.current?.abort();
@@ -363,25 +386,39 @@ export function useCommunicationHistory({
   }, [historyCursorStack, loadHistoryPage, originFilter, statusFilter]);
 
   const cancelQueuedAction = useCallback(
-    async (messageId: string) => {
-      const ok = await confirm({
-        confirmLabel: "Cancel communication",
-        description: "Cancel this queued communication? Pending recipients will not be delivered.",
-        destructive: true,
-        title: "Cancel queued communication",
-      });
+    async (messageId: string, reason?: string) => {
+      const ticketId = messageId.startsWith("ticket:") ? messageId.slice(7) : null;
+      const ok =
+        ticketId !== null ||
+        (await confirm({
+          confirmLabel: "Cancel communication",
+          description:
+            "Cancel this queued communication? Pending recipients will not be delivered.",
+          destructive: true,
+          title: "Cancel queued communication",
+        }));
       if (!ok) return;
       setBusy(true);
       setError(null);
       try {
-        const canceled = await cancelOrganizationCommunication(messageId);
-        setMessages((current) =>
-          current.map((m) => (m.id === messageId ? { ...m, ...canceled } : m)),
+        if (ticketId) {
+          await cancelTicketNotification(
+            ticketId,
+            reason ?? "Canceled by Organization administrator.",
+          );
+        } else {
+          const canceled = await cancelOrganizationCommunication(messageId);
+          setMessages((current) =>
+            current.map((m) => (m.id === messageId ? { ...m, ...canceled } : m)),
+          );
+        }
+        await loadHistoryPage(statusFilter, originFilter, currentCursor);
+        setSuccessNotice(
+          ticketId ? "Ticket notification canceled." : "Queued communication canceled.",
         );
-        void loadHistoryPage(statusFilter, originFilter, currentCursor);
-        setSuccessNotice("Queued communication canceled.");
       } catch (err: unknown) {
         setError(failureMessage(err));
+        if (ticketId) throw err;
       } finally {
         setBusy(false);
       }
@@ -450,6 +487,7 @@ export function useCommunicationHistory({
   }, []);
 
   return {
+    applyFilters,
     cancelQueuedAction,
     changeOriginFilter,
     changeStatusFilter,

@@ -1,3 +1,4 @@
+import { suppressRefundedTicketNotifications } from "../ticketNotificationManagement";
 import { cancelCheckoutReminderAfterPayment } from "../checkoutReminderStore";
 import type { z } from "zod";
 
@@ -115,6 +116,7 @@ export function refundFakePurchase(
         )
         .toArray().length > 0;
     if (!transition.changed) return;
+    suppressRefundedTicketNotifications(storage, row.id, occurredAt);
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
@@ -418,6 +420,7 @@ export function refundStripeTicketPurchases(
           )
           .toArray().length > 0;
       if (!transitioned) continue;
+      suppressRefundedTicketNotifications(storage, row.id, occurredAt);
       schedulerWorkQueued =
         queueTicketRefundNotification(storage, row, occurredAt, {
           actorId: "stripe",

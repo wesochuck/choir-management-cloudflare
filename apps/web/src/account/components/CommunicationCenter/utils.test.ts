@@ -43,13 +43,13 @@ describe("parseCommunicationSearch", () => {
         .rsvpRequest,
     ).toBeUndefined();
   });
-  it("defaults to all status, all origins, and messages list for empty search", () => {
+  it("defaults to the overview for empty search", () => {
     const res = parseCommunicationSearch("");
     expect(res).toEqual({
       draftId: null,
       messageMode: "list",
       originFilter: "all",
-      section: "messages",
+      section: "overview",
       statusFilter: "all",
     });
   });

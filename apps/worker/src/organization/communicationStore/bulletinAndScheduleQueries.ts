@@ -187,9 +187,10 @@ function notificationStatus(
     readonly enqueuedAt: string | null;
   },
   now: Date,
-): "Failed" | "Queued" | "Scheduled" | "Sent" {
+): "Failed" | "Queued" | "Scheduled" | "Sent" | "Skipped" {
   if (message.status === "failed") return "Failed";
-  if (message.status === "sent" || message.status === "suppressed") return "Sent";
+  if (message.status === "suppressed") return "Skipped";
+  if (message.status === "sent") return "Sent";
   return message.status === "queued" &&
     !message.enqueuedAt &&
     Date.parse(message.scheduledAt) > now.getTime()

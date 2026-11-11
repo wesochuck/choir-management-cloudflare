@@ -315,3 +315,91 @@ npm run test:e2e:webkit -- apps/web/e2e/roster-profile.spec.ts --grep 'tablet ro
 ```
 
 Run browser commands sequentially: their local server setup rebuilds the same `apps/web/dist`.
+
+# Communications Overview design QA
+
+final result: passed
+
+## Comparison evidence
+
+- Reference: approved Communications landing-page concept,
+  `/Users/wesosborn/.codex/generated_images/01a1c8d7-a111-7243-b87b-948b53c7256b/exec-88f76c2f-ec73-4814-a3cf-44d131836564.png`
+  (1487 × 1058).
+- Implementation: authenticated local application at `/admin/communications`, using deterministic
+  fictional browser-test records. No production data or real delivery was used.
+- Desktop viewport: 1807 × 1058 CSS pixels, scale factor 1. The existing sidebar and shell leave a
+  1487-pixel-wide Communications surface. The content-only capture is 1487 × 910; its shorter height
+  reflects fewer fixture rows than the concept.
+- Mobile viewport: Pixel 7, 393 × 851 CSS pixels, scale factor 2.75. Full-page captures contain
+  fixed navigation at its viewport position; separate scrolled viewport captures verify the middle
+  and bottom sections remain readable and reachable.
+- Dark reference and rendered surface were opened together in
+  `/tmp/communications-overview-comparison-final.png`. Desktop light/dark and mobile captures were
+  inspected separately, including the scrolled mobile Recent messages and Automatic messages
+  regions.
+- Retained evidence:
+  `/Users/wesosborn/.codex/visualizations/2026/11/11/01a1c8d7-a111-7243-b87b-948b53c7256b/communications-overview-{dark,light,mobile,comparison,mobile-middle,mobile-bottom}.png`.
+
+## Findings and corrections
+
+1. **P2, resolved: excessive sidebar height.** Initial automatic-message rows placed every
+   owning-settings action beneath its description. Inline actions and smaller row gaps restore the
+   compact directory and Coming up panel. Final desktop and mobile captures show readable wrapping
+   without horizontal overflow.
+2. **P2, resolved: draft-count hierarchy.** The shared help-text style initially broke the exact
+   draft count onto a separate line. It now stays inline with the heading, at the shared small-text
+   size. Counts are omitted when the capped result cannot establish an exact total.
+3. **P1, resolved: mobile composer controls.** Registering the composer with the existing
+   unsaved-change coordinator introduced a second floating Save draft bar over the existing composer
+   actions. The composer retains its own persistent save controls and navigation protection; the
+   duplicate bar is hidden in this workspace and the composer actions clear the mobile bottom
+   navigation. Desktop/mobile send and draft-resume tests verify the correction.
+
+No unresolved P0, P1, or P2 design findings remain.
+
+## Fidelity and behavior review
+
+- **Typography:** existing application font family, heading hierarchy, weights, and type tokens are
+  retained. The generated concept uses larger display text; adopting the repository's existing
+  heading scale is intentional. Subjects and actionable labels remain readable when wrapped.
+- **Spacing/layout:** Overview, Messages, Automations, Templates, and Settings navigation; prominent
+  header action; quiet delivery-status strip; compact divided rows; and the main/sidebar hierarchy
+  follow the concept. Mobile order is delivery status, drafts, recent messages, coming up, then the
+  directory. There are no KPI tiles or repeated large history cards.
+- **Colors/tokens:** existing navy/slate dark surfaces, light surfaces, orange selected navigation,
+  blue actions, and semantic delivery-status colors are retained. Automated Axe checks report no
+  violations within Communications in either theme; overflow checks pass at both viewport sizes.
+  Theme transitions are disabled during measurement.
+- **Assets:** this screen requires no new illustration or raster asset. Existing application
+  identity and shared UI primitives remain in use. The concept's decorative mail/check/chevron icons
+  are replaced by explicit accessible action/status labels; no new icon drawing system was
+  introduced.
+- **Copy/content:** approved introductory copy is used. Recorded automatic sends, partial failures,
+  potentially delayed claims, real scheduled items, and projected previews have distinct labels.
+  Recipient eligibility is explained once beneath Coming up. The existing local simulated-delivery
+  banner remains visible so recorded test sends are understood correctly. Fictional example
+  subjects/counts are not copied into application defaults.
+- **Interaction:** tested default and legacy navigation, bookmarkable status/type filters,
+  Back/Forward, keyboard section activation, owning-settings links, delivery details, draft
+  create/save/resume, cancel/discard protection, focus refresh, retryable errors, and existing
+  notification cancellation. Failure states do not fabricate healthy or empty sections.
+
+## Regeneration and implementation checklist
+
+- Run `npm run test:e2e -- communications.spec.ts` to regenerate screenshots under
+  `/tmp/communications-overview-*` and exercise desktop/mobile behavior.
+- Use the content-only desktop dark capture beside the approved image for composition review;
+  inspect mobile viewport captures for fixed-navigation clearance.
+- Screenshot files are review artifacts, not runtime assets. The production application renders
+  HTML/CSS and shared components.
+- Overview reads remain Organization-local, bounded, and side-effect free. Migration 142 adds only
+  query indexes and is compatible with older application code. Existing notification cleanup
+  migration and mutation behavior are preserved.
+- Full release qualification is intentionally separate from this local implementation; no push or
+  deployment is included.
+
+The scheduler attention index uses immutable job-kind/job-ID fields. An index on mutable status or
+claim timestamps changed Cloudflare billed-write counts and broke the older job handlers' success
+checks. The immutable index preserves that rollback contract; status and age remain residual filters
+within the three scheduler-kind partitions. The existing job-ledger write-accounting, queue replay,
+retry, event-reminder snapshot, and scheduler tests pass without weakening their assertions.

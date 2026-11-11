@@ -1,3 +1,5 @@
+import { requestGlobalLeave, useOptionalSaveCoordinator } from "../../../persistence";
+import { useCommunicationOverview } from "./useCommunicationOverview";
 import type {
   ContactList,
   OrganizationBranding,
@@ -8,7 +10,7 @@ import type {
   OrganizationVenue,
 } from "@choir/contracts";
 import { useConfirmation } from "@choir/ui";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import {
   getOrganizationBranding,
   getOrganizationCalendarSettings,
@@ -34,13 +36,19 @@ export type { CommunicationCenterControllerModel } from "./types";
 
 export function useCommunicationCenterController({
   enabled,
+  search,
+  navigate,
 }: {
   readonly enabled: boolean;
+  readonly search?: string | undefined;
+  readonly navigate?: ((href: string) => void) | undefined;
 }): CommunicationCenterControllerModel {
-  const initialNav = useMemo(
-    () => parseCommunicationSearch(typeof window !== "undefined" ? window.location.search : ""),
-    [],
+  const saveCoordinator = useOptionalSaveCoordinator();
+  const [localSearch, setLocalSearch] = useState(() =>
+    typeof window !== "undefined" ? window.location.search : "",
   );
+  const locationSearch = search ?? localSearch;
+  const [initialNav] = useState(() => parseCommunicationSearch(locationSearch));
 
   const [activeSection, setActiveSection] = useState<CommunicationSection>(initialNav.section);
   const [messageMode, setMessageMode] = useState<MessageWorkspaceMode>(initialNav.messageMode);
@@ -83,7 +91,7 @@ export function useCommunicationCenterController({
 
   const history = useCommunicationHistory({
     confirm,
-    enabled,
+    enabled: enabled && activeSection === "messages",
     initialOriginFilter: initialNav.originFilter,
     initialStatusFilter: initialNav.statusFilter,
     setBusy,
@@ -115,6 +123,98 @@ export function useCommunicationCenterController({
     statusFilter: history.statusFilter,
   });
 
+  const overview = useCommunicationOverview(
+    enabled && (activeSection === "overview" || activeSection === "automations"),
+    successNotice,
+  );
+  const navigateCommunication = useCallback(
+    (href: string) => {
+      if (navigate) {
+        navigate(href);
+        return;
+      }
+      void requestGlobalLeave({
+        reason: "navigate",
+        action: () => {
+          const next = new URL(href, window.location.origin);
+          window.history.pushState(null, "", next.pathname + next.search);
+          setLocalSearch(next.search);
+        },
+      });
+    },
+    [navigate],
+  );
+  const previousLocation = useRef(locationSearch);
+  const applyLocation = useEffectEvent((value: string) => {
+    const next = parseCommunicationSearch(value);
+    setActiveSection(next.section);
+    if (next.messageMode === "compose" && !next.draftId) {
+      if (messageMode !== "compose" || composer.activeDraftId !== null) composer.openNewMessage();
+    } else setMessageMode(next.messageMode);
+    if (
+      next.section === "messages" &&
+      next.messageMode === "list" &&
+      (activeSection !== "messages" ||
+        history.statusFilter !== next.statusFilter ||
+        history.originFilter !== next.originFilter)
+    )
+      history.applyFilters(next.statusFilter, next.originFilter);
+    if (next.draftId && next.draftId !== composer.activeDraftId) {
+      const loaded = overview.data?.drafts.find((item) => item.id === next.draftId)?.message;
+      if (loaded) composer.resumeDraft(loaded);
+      else
+        void listOrganizationCommunications()
+          .then((messages) => {
+            const draft = messages.find(
+              (message) => message.id === next.draftId && message.status === "Draft",
+            );
+            if (draft) composer.resumeDraft(draft);
+            else setError("This draft could not be found.");
+          })
+          .catch((err: unknown) => {
+            setError(failureMessage(err));
+          });
+    }
+  });
+  useEffect(() => {
+    if (previousLocation.current === locationSearch) return;
+    previousLocation.current = locationSearch;
+    applyLocation(locationSearch);
+  }, [locationSearch]);
+  useEffect(() => {
+    if (navigate) return;
+    const pop = () => {
+      setLocalSearch(window.location.search);
+    };
+    window.addEventListener("popstate", pop);
+    return () => {
+      window.removeEventListener("popstate", pop);
+    };
+  }, [navigate]);
+  const synchronizeComposer = useEffectEvent(() => {
+    const params = new URLSearchParams(locationSearch);
+    if (activeSection !== "messages") return;
+    if (messageMode === "list" && (params.get("tab") === "compose" || params.has("draftId")))
+      navigateCommunication("/admin/communications?tab=messages");
+    else if (
+      messageMode === "compose" &&
+      composer.activeDraftId &&
+      params.get("draftId") !== composer.activeDraftId
+    )
+      navigateCommunication(`/admin/communications?draftId=${composer.activeDraftId}`);
+  });
+  useEffect(() => {
+    if (saveCoordinator?.isDirty) return;
+    // Let the shared save coordinator publish the newly clean draft before navigating
+    // after a successful save or send. Otherwise its previous render can prompt again.
+    const timer = window.setTimeout(() => {
+      synchronizeComposer();
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [messageMode, composer.activeDraftId, saveCoordinator?.isDirty]);
+
   const templates = useCommunicationTemplates({
     channel: composer.channel,
     confirm,
@@ -133,7 +233,7 @@ export function useCommunicationCenterController({
     if (!enabled) return;
     const controller = new AbortController();
     void Promise.resolve().then(() => {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && initialNav.section === "messages") {
         void loadHistoryPage(
           initialNav.statusFilter,
           initialNav.originFilter,
@@ -201,6 +301,7 @@ export function useCommunicationCenterController({
   }, [
     enabled,
     initialNav.draftId,
+    initialNav.section,
     initialNav.originFilter,
     initialNav.statusFilter,
     resourceAttempt,
@@ -246,6 +347,9 @@ export function useCommunicationCenterController({
 
   return {
     activeSection,
+    overview,
+    navigateCommunication,
+    clearDeliveryDetails: history.clearDeliveryDetails,
     audience: composer.audience,
     audienceOptions,
     branding,
@@ -277,7 +381,15 @@ export function useCommunicationCenterController({
     nextPage: history.nextPage,
     nowMs: composer.nowMs,
     openDeliveryDetails: history.openDeliveryDetails,
-    openNewMessage: composer.openNewMessage,
+    openNewMessage: () => {
+      void requestGlobalLeave({
+        reason: "navigate",
+        action: () => {
+          composer.openNewMessage();
+          navigateCommunication("/admin/communications?tab=compose");
+        },
+      });
+    },
     openNewTemplateDialog: () => {
       // Standalone new template dialog in templates panel
     },
@@ -295,7 +407,15 @@ export function useCommunicationCenterController({
     reachState: composer.reachState,
     recipientsExpanded: composer.recipientsExpanded,
     removeConflictingPlaceholder: composer.removeConflictingPlaceholder,
-    resumeDraft: composer.resumeDraft,
+    resumeDraft: (draft) => {
+      void requestGlobalLeave({
+        reason: "navigate",
+        action: () => {
+          composer.resumeDraft(draft);
+          navigateCommunication(`/admin/communications?draftId=${draft.id}`);
+        },
+      });
+    },
     retryDeliveries: history.retryDeliveriesAction,
     rosterConfiguration,
     saveDraft: composer.saveDraftAction,
@@ -303,16 +423,32 @@ export function useCommunicationCenterController({
     selectedEvent,
     sendCommunication: composer.sendCommunicationAction,
     sendTestEmail: composer.sendTestEmailAction,
-    setActiveSection,
+    setActiveSection: (section) => {
+      navigateCommunication(`/admin/communications?tab=${section}`);
+    },
     setChannel: composer.updateChannel,
     setContentMarkdown: composer.updateContent,
     setIsReviewOpen: composer.setIsReviewOpen,
     setIsSaveTemplateOpen: templates.setSaveTemplateOpen,
     setIsTestEmailOpen: composer.setIsTestEmailOpen,
-    setMessageMode,
-    setOriginFilter: history.changeOriginFilter,
+    setMessageMode: (mode) => {
+      navigateCommunication(
+        `/admin/communications?tab=${mode === "compose" ? "compose" : "messages"}`,
+      );
+    },
+    setOriginFilter: (origin) => {
+      history.applyFilters(history.statusFilter, origin);
+      navigateCommunication(
+        `/admin/communications?tab=messages&status=${history.statusFilter}&type=${origin}`,
+      );
+    },
     setRecipientsExpanded: composer.setRecipientsExpanded,
-    setStatusFilter: history.changeStatusFilter,
+    setStatusFilter: (status) => {
+      history.applyFilters(status, history.originFilter);
+      navigateCommunication(
+        `/admin/communications?tab=messages&status=${status}&type=${history.originFilter}`,
+      );
+    },
     setSubject: composer.updateSubject,
     setVoiceParts: composer.setVoiceParts,
     statusFilter: history.statusFilter,

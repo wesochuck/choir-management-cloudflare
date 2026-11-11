@@ -112,9 +112,9 @@ function buildHistoryWhere(
   const bindings: unknown[] = [];
 
   if (origin === "manual") {
-    whereClauses.push("source_rank = 3");
+    whereClauses.push("source_rank = 3 AND autoKind IS NULL");
   } else if (origin === "automated") {
-    whereClauses.push("source_rank != 3");
+    whereClauses.push("(source_rank != 3 OR autoKind IS NOT NULL)");
   }
 
   const normalizedStatus = (status ?? "all").toLowerCase();
@@ -170,6 +170,7 @@ function mapHistoryRow(row: HistoryRow, timezone: string) {
     });
     return {
       kind: "manual" as const,
+      ...(row.autoKind ? { automatic: true } : {}),
       message,
       sortTimestamp,
     };
@@ -198,6 +199,7 @@ function mapHistoryRow(row: HistoryRow, timezone: string) {
 export function listCommunicationHistoryFromStore(
   storage: DurableObjectStorage,
   input: {
+    readonly includePreviews?: boolean;
     readonly cursor?: string | null;
     readonly limit?: string | number | null;
     readonly organizationId: string | null;
@@ -214,7 +216,9 @@ export function listCommunicationHistoryFromStore(
     .exec<{ readonly timezone: string }>("SELECT timezone FROM organization_metadata LIMIT 1")
     .one().timezone;
   const projected =
-    input.origin === "manual" || (input.status && !["all", "scheduled"].includes(input.status))
+    input.includePreviews === false ||
+    input.origin === "manual" ||
+    (input.status && !["all", "scheduled"].includes(input.status))
       ? []
       : upcomingCommunications(storage, input.organizationId, now);
   const ascending = input.status === "scheduled";
@@ -268,7 +272,7 @@ export function listCommunicationHistoryFromStore(
         m.content_markdown AS contentMarkdown,
         COALESCE(json_extract(m.automation_json, '$.eventId'), json_extract(m.audience_json, '$.eventId')) AS eventId,
         e.title AS eventTitle,
-        json_extract(m.automation_json, '$.kind') AS autoKind,
+        CASE WHEN m.automation_json IS NOT NULL OR m.created_by='system:scheduler' THEN COALESCE(json_extract(m.automation_json, '$.kind'),'automatic') ELSE NULL END AS autoKind,
         NULL AS recipientCount
       FROM communication_messages m
       LEFT JOIN events e ON e.id = COALESCE(json_extract(m.automation_json, '$.eventId'), json_extract(m.audience_json, '$.eventId'))
@@ -282,7 +286,8 @@ export function listCommunicationHistoryFromStore(
         n.scheduled_for AS sort_timestamp,
         CASE
           WHEN n.status = 'failed' THEN 'Failed'
-          WHEN n.status IN ('sent', 'suppressed') THEN 'Sent'
+          WHEN n.status = 'suppressed' THEN 'Skipped'
+          WHEN n.status = 'sent' THEN 'Sent'
           WHEN n.status = 'queued' AND n.scheduled_for > ? AND NOT EXISTS (
             SELECT 1 FROM scheduled_job_outbox x
             WHERE x.idempotency_key = ('ticket-notification:' || n.id)
@@ -327,7 +332,8 @@ export function listCommunicationHistoryFromStore(
         n.scheduled_for AS sort_timestamp,
         CASE
           WHEN n.status = 'failed' THEN 'Failed'
-          WHEN n.status IN ('sent', 'suppressed') THEN 'Sent'
+          WHEN n.status = 'suppressed' THEN 'Skipped'
+          WHEN n.status = 'sent' THEN 'Sent'
           WHEN n.status = 'queued' AND n.scheduled_for > ? AND NOT EXISTS (
             SELECT 1 FROM scheduled_job_outbox x
             WHERE x.idempotency_key = ('audition-notification:' || n.id)
@@ -386,6 +392,8 @@ export function listCommunicationHistoryFromStore(
       LEFT JOIN job_ledger l ON l.job_id = o.job_id
       JOIN events e ON (o.idempotency_key LIKE ('%:' || e.id) OR o.idempotency_key LIKE ('%:' || e.id || ':%'))
       WHERE o.kind IN ('event_reminder', 'rsvp_follow_up', 'attendance_report')
+        AND (l.status IS NULL OR l.status != 'completed')
+        AND NOT EXISTS (SELECT 1 FROM audit_events a WHERE a.id=('communication:organization.communication.queued:' || o.job_id))
     ), combined AS (
       SELECT * FROM reminder_history UNION ALL SELECT * FROM existing_history
     )

@@ -25,3 +25,29 @@ create a second dismissal audit event.
 
 If a row says **Retry pending**, do not submit another retry. The source reset or queue acceptance
 was not fully confirmed; inspect the originating notification or job before taking another action.
+
+## Cancel an obsolete ticket notification
+
+Organization administrators can open **Communications → Messages → View details** on a ticket
+confirmation, reminder, or refund notification. Details identify the exact order, buyer, recipient,
+refund status, job attempts, provider result, and last update. A missing provider result is not
+proof that the provider never accepted an email.
+
+For an unsent notification, enter a cancellation reason and choose **Cancel notification**, then
+confirm. Cancellation preserves the order and notification, records the actual actor and reason in
+Audit History, and displays the notification as **Skipped**. Repeating cancellation does not create
+another audit event. Sent notifications, notifications with a recorded provider message, and jobs
+claimed within the last 15 minutes cannot be canceled. An email already in flight cannot be
+recalled.
+
+Refund transactions suppress pending confirmations and reminders while keeping the separate refund
+receipt eligible for delivery. Delivery also checks the authoritative refund state before sending.
+Job failures update the notification to **Failed**; normal queue retries can still proceed with the
+original job identity. Canceled notifications remain suppressed on replay and cannot be reopened by
+the platform dead-letter retry action.
+
+Organization migration 141 repairs historical pending notifications for refunded orders and failed
+jobs once. Ongoing cleanup happens in refund/failure transitions, without recurring history scans.
+The migration uses existing states and indexes and is compatible with the prior Worker. Rollback
+does not undo the repaired states or cancellation audit history; older interfaces may label
+suppressed notifications as Sent. Never reset a canceled notification merely to tidy its history.

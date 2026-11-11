@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import {
   communicationDraftRequestSchema,
+  communicationMessageSchema,
   communicationSendRequestSchema,
   type CommunicationMessage,
 } from "@choir/contracts";
@@ -18,6 +19,101 @@ const smsTemplateId = "55555555-5555-4555-8555-555555555555";
 const historyMessageId = "22222222-2222-4222-8222-222222222222";
 const queuedMessageId = "33333333-3333-4333-8333-333333333333";
 const secondQueuedMessageId = "44444444-4444-4444-8444-444444444444";
+
+test("reviews and cancels a stale ticket notification through the interface", async ({
+  page,
+}, testInfo) => {
+  let canceled = false;
+  const notificationId = "99999999-9999-4999-8999-999999999999";
+  const timestamp = "2026-09-22T05:18:00.000Z";
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/organization/communications/history") {
+      await fulfillJson(route, {
+        requestId,
+        nextCursor: null,
+        items: canceled
+          ? []
+          : [
+              {
+                kind: "automated",
+                sortTimestamp: timestamp,
+                scheduledMessage: {
+                  id: notificationId,
+                  eventId,
+                  eventTitle: "Christmas Concert",
+                  kind: "ticket_confirmation",
+                  recipientCount: 1,
+                  scheduledAt: timestamp,
+                  status: "Queued",
+                  subject: "Tickets confirmed: Christmas Concert",
+                },
+              },
+            ],
+      });
+    } else if (path.endsWith(`/ticket-notifications/${notificationId}`)) {
+      await fulfillJson(route, {
+        id: notificationId,
+        purchaseId: historyMessageId,
+        buyerName: "Test Buyer",
+        recipientEmail: "buyer@example.test",
+        purchaseStatus: "refunded",
+        refundedAt: timestamp,
+        status: "processing",
+        kind: "confirmation",
+        scheduledAt: timestamp,
+        updatedAt: timestamp,
+        failureDetail: "Delivery job failed",
+        providerStatus: null,
+        providerMessageId: null,
+        jobStatus: "failed",
+        jobAttempts: 6,
+        canCancel: true,
+      });
+    } else if (path.endsWith(`/ticket-notifications/${notificationId}/cancel`)) {
+      expect(route.request().postDataJSON()).toEqual({ reason: "Refunded test order" });
+      canceled = true;
+      await fulfillJson(route, { canceled: true });
+    } else await handleRoute(route, []);
+  });
+  await page.goto("/admin/communications?status=queued");
+  await page.getByRole("button", { name: "View details", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Ticket notification details" });
+  await expect(dialog.getByText("Test Buyer", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("refunded", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Cancel notification" })).toBeDisabled();
+  await dialog.getByRole("button", { name: "Close", exact: true }).last().click();
+  await page.addStyleTag({
+    content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
+  });
+  for (const theme of ["light", "dark"]) {
+    const switchTheme = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await switchTheme.count()) await switchTheme.click();
+    await page.getByRole("button", { name: "View details", exact: true }).click();
+    await expect(dialog.getByText("Test Buyer", { exact: true })).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    const accessibility = await new AxeBuilder({ page }).include('[role="dialog"]').analyze();
+    expect(accessibility.violations).toEqual([]);
+    await page.screenshot({
+      path: `/tmp/ticket-notification-${testInfo.project.name}-${theme}.png`,
+      fullPage: true,
+    });
+    if (theme === "light")
+      await dialog.getByRole("button", { name: "Close", exact: true }).last().click();
+  }
+  await dialog.getByLabel("Cancellation reason").fill("Refunded test order");
+  await dialog.getByRole("button", { name: "Cancel notification" }).click();
+  const confirmation = page.getByRole("dialog", {
+    name: "Cancel ticket notification",
+    exact: true,
+  });
+  await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeVisible();
+  await confirmation.getByRole("button", { name: "Cancel notification", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("No queued messages found.")).toBeVisible();
+});
 
 const session = {
   session: {
@@ -132,6 +228,15 @@ async function handleRoute(
       role: "administrator",
       twoFactorEnabled: false,
       twoFactorVerified: false,
+    },
+    "/api/organization/communications/overview": {
+      asOf: "2026-11-11T18:00:00.000Z",
+      timezone: "America/New_York",
+      drafts: [],
+      recent: [],
+      upcoming: [],
+      attention: [],
+      hasMore: { drafts: false, recent: false, upcoming: false, attention: false },
     },
     "/api/organization/communications": { messages: [], requestId },
     "/api/organization/communications/history": { items: [], nextCursor: null, requestId },
@@ -1697,4 +1802,344 @@ test("inserts upcoming performances placeholder, filters by audience, and previe
   await expect(reviewDialog).not.toContainText("Private School Outreach");
   await expect(reviewDialog).toContainText("Season Gala Concert");
   await expect(reviewDialog).toContainText("Lyric Theater, 42 Harmony Ave");
+});
+
+test("communications overview supports bookmarkable navigation, drafts, and responsive themes", async ({
+  page,
+}, testInfo) => {
+  if (testInfo.project.name === "chromium")
+    await page.setViewportSize({ width: 1807, height: 1058 });
+  const draft = {
+    ...queuedMessage,
+    id: historyMessageId,
+    status: "Draft",
+    subject: "Christmas concert announcement",
+    draftRevision: 1,
+  };
+  const row = {
+    id: draft.id,
+    source: "message",
+    subject: draft.subject,
+    timestamp: draft.updatedAt,
+    channel: "Email",
+    automatic: false,
+    status: "Draft",
+    projected: false,
+    recipientCount: 2,
+    href: `/admin/communications?draftId=${draft.id}`,
+    message: draft,
+  };
+  let overviewReads = 0;
+  const histories: string[] = [];
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/communications/overview")) {
+      overviewReads++;
+      await fulfillJson(route, {
+        asOf: "2026-11-11T18:00:00.000Z",
+        timezone: "America/New_York",
+        drafts: [row],
+        recent: [
+          {
+            ...row,
+            id: queuedMessageId,
+            subject: "Rehearsal update",
+            status: "Sent",
+            automatic: true,
+            message: {
+              ...draft,
+              id: queuedMessageId,
+              status: "Sent",
+              subject: "Rehearsal update",
+              sentAt: row.timestamp,
+            },
+          },
+        ],
+        upcoming: [
+          {
+            ...row,
+            id: "planned:report",
+            source: "scheduler",
+            subject: "Attendance report: Christmas Concert",
+            automatic: true,
+            projected: true,
+            status: "Scheduled",
+            timestamp: "2026-11-14T06:00:00.000Z",
+            recipientCount: null,
+            href: "/admin/attendance",
+            message: null,
+          },
+        ],
+        attention: [],
+        hasMore: { drafts: false, recent: false, upcoming: false, attention: false },
+      });
+    } else if (url.pathname.endsWith(`/${queuedMessageId}/delivery-summary`)) {
+      const counts = { failed: 1, processing: 0, queued: 0, sent: 1, suppressed: 0, total: 2 };
+      await fulfillJson(route, {
+        requestId,
+        messageId: queuedMessageId,
+        email: counts,
+        sms: { failed: 0, processing: 0, queued: 0, sent: 0, suppressed: 0, total: 0 },
+        total: counts,
+        state: "partial",
+        failures: [],
+        hasMoreFailures: false,
+        lastActivity: row.timestamp,
+        recipients: [],
+        provider: {
+          accepted: 0,
+          bounced: 0,
+          complained: 0,
+          deferred: 0,
+          delivered: 0,
+          failed: 0,
+          rejected: 0,
+          total: 0,
+        },
+      });
+    } else if (url.pathname.endsWith("/communications/history")) {
+      histories.push(url.search);
+      await fulfillJson(route, { items: [], nextCursor: null, requestId });
+    } else if (
+      url.pathname === "/api/organization/communications" &&
+      route.request().method() === "GET"
+    )
+      await fulfillJson(route, { messages: [draft], requestId });
+    else await handleRoute(route, []);
+  });
+  await page.goto("/admin/communications");
+  const navigation = page.getByRole("navigation", { name: "Communications navigation" });
+  await expect(navigation.getByRole("button", { name: "Overview", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(page.getByRole("heading", { name: "Drafts" })).toBeVisible();
+  await expect(page.getByText("Sent", { exact: true })).toBeVisible();
+  await expect(page.getByText("Automatic preview", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Nov 14, 1:00 AM EST/)).toBeVisible();
+  await page.addStyleTag({
+    content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
+  });
+  for (const theme of ["dark", "light"]) {
+    const switchTheme = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await switchTheme.count()) await switchTheme.click();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    const accessibility = await new AxeBuilder({ page }).include(".communication-center").analyze();
+    expect(accessibility.violations).toEqual([]);
+    await page.screenshot({
+      path: `/tmp/communications-overview-${testInfo.project.name}-${theme}.png`,
+      fullPage: true,
+    });
+    await page.locator(".communication-center").screenshot({
+      path: `/tmp/communications-overview-content-${testInfo.project.name}-${theme}.png`,
+    });
+  }
+  await page.getByRole("button", { name: "View details", exact: true }).click();
+  const delivery = page.getByRole("dialog", { name: "Rehearsal update", exact: true });
+  await expect(delivery.getByText(/1 sent · 1 failed/)).toBeVisible();
+  await delivery.getByRole("button", { name: "Close", exact: true }).last().click();
+  if (testInfo.project.name === "mobile-chromium") {
+    await page
+      .getByRole("heading", { name: "Recent messages", exact: true })
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "/tmp/communications-overview-mobile-middle.png" });
+    await page
+      .getByRole("heading", { name: "Automatic messages", exact: true })
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "/tmp/communications-overview-mobile-bottom.png" });
+  }
+  const readsBeforeFocus = overviewReads;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => overviewReads).toBeGreaterThan(readsBeforeFocus);
+  await page.getByRole("button", { name: "View all drafts", exact: true }).click();
+  await expect(page).toHaveURL(/status=draft/);
+  expect(histories.at(-1)).toContain("includePreviews=false");
+  await page.goBack();
+  await expect(navigation.getByRole("button", { name: "Overview", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await page.goForward();
+  await expect(navigation.getByRole("button", { name: "Messages", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await page.goBack();
+  await page.getByRole("button", { name: "View upcoming messages", exact: true }).click();
+  await expect(page).toHaveURL(/status=scheduled/);
+  await expect
+    .poll(() =>
+      histories.some(
+        (query) => query.includes("status=scheduled") && query.includes("includePreviews=true"),
+      ),
+    )
+    .toBe(true);
+  await navigation.getByRole("button", { name: "Overview", exact: true }).click();
+  await page.getByRole("button", { name: "Continue writing", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`draftId=${historyMessageId}`));
+  await expect(page.getByRole("textbox", { name: "Subject", exact: true })).toHaveValue(
+    draft.subject,
+  );
+  await page.getByRole("textbox", { name: "Subject", exact: true }).fill("Unsaved concert edits");
+  await navigation.getByRole("button", { name: "Overview", exact: true }).click();
+  const guard = page.getByRole("dialog", { name: "Leave with unsaved changes?" });
+  await expect(guard).toBeVisible();
+  await guard.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Subject", exact: true })).toHaveValue(
+    "Unsaved concert edits",
+  );
+  await navigation.getByRole("button", { name: "Overview", exact: true }).click();
+  await guard.getByRole("button", { name: "Discard changes", exact: true }).click();
+  await expect(navigation.getByRole("button", { name: "Overview", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await page.getByRole("link", { name: "View all automations", exact: true }).click();
+  await expect(page).toHaveURL(/tab=automations/);
+  await expect(page.getByRole("link", { name: "Ticket settings", exact: true })).toHaveAttribute(
+    "href",
+    "/admin/tickets?tab=confirmation",
+  );
+  await expect(page.getByRole("link", { name: "Reminder settings", exact: true })).toHaveAttribute(
+    "href",
+    "/admin/settings?tab=payments",
+  );
+  for (const section of ["Templates", "Settings", "Overview"]) {
+    await navigation.getByRole("button", { name: section, exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect(navigation.getByRole("button", { name: section, exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  }
+});
+
+test("overview errors remain retryable and never show healthy or fabricated empty sections", async ({
+  page,
+}) => {
+  let fail = true;
+  let showAttention = false;
+  await page.route("**/api/**", async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith("/communications/overview") && fail)
+      await fulfillJson(
+        route,
+        { code: "temporarily_unavailable", message: "Overview unavailable", requestId },
+        503,
+      );
+    else if (
+      new URL(route.request().url()).pathname.endsWith("/communications/overview") &&
+      showAttention
+    )
+      await fulfillJson(route, {
+        asOf: "2026-11-11T18:00:00.000Z",
+        timezone: "America/New_York",
+        drafts: [],
+        recent: [],
+        upcoming: [],
+        attention: (["Failed", "Delayed", "Sent with issues"] as const).map((status, index) => ({
+          id: `99999999-9999-4999-8999-99999999999${String(index)}`,
+          source: "ticket",
+          subject: `Ticket notification: ${status}`,
+          timestamp: "2026-11-11T17:00:00.000Z",
+          channel: "Email",
+          automatic: true,
+          status,
+          projected: false,
+          recipientCount: 1,
+          href: "/admin/tickets",
+          message: null,
+        })),
+        hasMore: { drafts: false, recent: false, upcoming: false, attention: false },
+      });
+    else await handleRoute(route, []);
+  });
+  await page.goto("/admin/communications");
+  await expect(page.getByRole("button", { name: "Try again", exact: true })).toBeVisible();
+  await expect(page.getByText("No delivery problems to review")).toHaveCount(0);
+  await expect(page.getByText("No messages have been sent yet.")).toHaveCount(0);
+  fail = false;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(page.getByText("No delivery problems to review")).toBeVisible();
+  await expect(page.getByText("No messages have been sent yet.")).toBeVisible();
+  showAttention = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  const deliveryStatus = page.getByRole("region", { name: "Delivery status", exact: true });
+  await expect(deliveryStatus.getByText("Delivery needs attention", { exact: true })).toBeVisible();
+  await expect(deliveryStatus.getByText("Delayed", { exact: true })).toBeVisible();
+  await expect(deliveryStatus.getByText("Sent with issues", { exact: true })).toBeVisible();
+  await expect(page.getByText("No delivery problems to review", { exact: true })).toHaveCount(0);
+});
+
+test("overview creates, saves, and resumes a composer draft without losing its content", async ({
+  page,
+}) => {
+  let saved: CommunicationMessage | null = null;
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/communications/drafts") && route.request().method() === "POST") {
+      const body = communicationDraftRequestSchema.parse(route.request().postDataJSON());
+      saved = communicationMessageSchema.parse({
+        queuedByUserId: null,
+        queuedByName: null,
+        ...queuedMessage,
+        ...body,
+        id: historyMessageId,
+        status: "Draft",
+        draftRevision: 1,
+      });
+      await fulfillJson(route, { ...saved, requestId });
+    } else if (url.pathname.endsWith("/communications/overview")) {
+      await fulfillJson(route, {
+        asOf: "2026-11-11T18:00:00.000Z",
+        timezone: "America/New_York",
+        drafts: saved
+          ? [
+              {
+                id: saved.id,
+                source: "message",
+                subject: saved.subject,
+                timestamp: saved.updatedAt,
+                channel: saved.channel,
+                automatic: false,
+                status: "Draft",
+                projected: false,
+                recipientCount: 2,
+                href: `/admin/communications?draftId=${saved.id}`,
+                message: saved,
+              },
+            ]
+          : [],
+        recent: [],
+        upcoming: [],
+        attention: [],
+        hasMore: { drafts: false, recent: false, upcoming: false, attention: false },
+      });
+    } else await handleRoute(route, []);
+  });
+  await page.goto("/admin/communications");
+  await page.getByRole("button", { name: "New message", exact: true }).click();
+  await page.getByRole("textbox", { name: "Subject", exact: true }).fill("Saved from Overview");
+  await page
+    .getByRole("textbox", { name: "Message body", exact: true })
+    .fill("Keep these concert details.");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved successfully.", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`draftId=${historyMessageId}`));
+  await page
+    .getByRole("navigation", { name: "Communications navigation" })
+    .getByRole("button", { name: "Overview", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Saved from Overview", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Leave with unsaved changes?" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Continue writing", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Subject", exact: true })).toHaveValue(
+    "Saved from Overview",
+  );
+  await expect(page.getByRole("textbox", { name: "Message body", exact: true })).toHaveValue(
+    "Keep these concert details.",
+  );
 });

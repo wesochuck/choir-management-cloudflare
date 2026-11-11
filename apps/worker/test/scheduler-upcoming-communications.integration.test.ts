@@ -275,7 +275,13 @@ describe("upcoming communication scheduling", () => {
         const terminal = await read();
         expect(terminal.history.items).toHaveLength(0);
         expect(terminal.fallback.messages[0]?.status).toBe(
-          status === "failed" ? "Failed" : status === "processing" ? "Queued" : "Sent",
+          status === "failed"
+            ? "Failed"
+            : status === "processing"
+              ? "Queued"
+              : status === "suppressed"
+                ? "Skipped"
+                : "Sent",
         );
       }
     });

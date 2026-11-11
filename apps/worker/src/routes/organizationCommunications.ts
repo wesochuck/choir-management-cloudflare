@@ -1,3 +1,9 @@
+import { communicationOverviewSchema } from "@choir/contracts";
+import {
+  ticketNotificationCancelSchema,
+  ticketNotificationCancelResponseSchema,
+  ticketNotificationDetailsSchema,
+} from "@choir/contracts";
 import {
   communicationAudienceChannelRequestSchema,
   communicationDraftRequestSchema,
@@ -65,6 +71,130 @@ function communicationValidationMessage(error: z.ZodError, fallback: string): st
 }
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
+  router.get("/api/organization/communications/overview", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok)
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    try {
+      const overview = await organizationStoreStub(
+        context.env,
+        authorization.organizationId,
+      ).readCommunicationOverview({ organizationId: authorization.organizationId });
+      if (!overview)
+        return context.json(
+          {
+            code: "organization_not_found",
+            message: "Organization not found.",
+            requestId: context.get("requestId"),
+          },
+          404,
+        );
+      return context.json(communicationOverviewSchema.parse(overview));
+    } catch (error: unknown) {
+      const result = communicationProblem(
+        error,
+        context.get("requestId"),
+        "Communications overview is temporarily unavailable.",
+      );
+      return context.json(result.problem, result.status);
+    }
+  });
+  router.get(
+    "/api/organization/communications/ticket-notifications/:notificationId",
+    async (context) => {
+      const authorization = await authorizeCalendarRoute(context, true);
+      if (!authorization.ok)
+        return context.json(
+          { ...authorization, requestId: context.get("requestId") },
+          authorization.status,
+        );
+      const id = z.uuid().safeParse(context.req.param("notificationId"));
+      if (!id.success)
+        return context.json(
+          {
+            code: "invalid_notification_id",
+            message: "Invalid notification ID.",
+            requestId: context.get("requestId"),
+          },
+          400,
+        );
+      const details = await organizationStoreStub(
+        context.env,
+        authorization.organizationId,
+      ).readTicketNotificationDetails({
+        organizationId: authorization.organizationId,
+        notificationId: id.data,
+      });
+      if (!details)
+        return context.json(
+          {
+            code: "notification_not_found",
+            message: "Notification not found.",
+            requestId: context.get("requestId"),
+          },
+          404,
+        );
+      return context.json(ticketNotificationDetailsSchema.parse(details));
+    },
+  );
+  router.post(
+    "/api/organization/communications/ticket-notifications/:notificationId/cancel",
+    async (context) => {
+      const authorization = await authorizeCalendarRoute(context, true);
+      if (!authorization.ok)
+        return context.json(
+          { ...authorization, requestId: context.get("requestId") },
+          authorization.status,
+        );
+      const id = z.uuid().safeParse(context.req.param("notificationId"));
+      const body = ticketNotificationCancelSchema.safeParse(
+        await context.req.json().catch(() => null),
+      );
+      if (!id.success || !body.success)
+        return context.json(
+          {
+            code: "invalid_notification_cancel",
+            message: "Enter a cancellation reason (up to 500 characters).",
+            requestId: context.get("requestId"),
+          },
+          400,
+        );
+      const result = await organizationStoreStub(
+        context.env,
+        authorization.organizationId,
+      ).cancelTicketNotification({
+        organizationId: authorization.organizationId,
+        notificationId: id.data,
+        actorUserId: authorization.userId,
+        requestId: context.get("requestId"),
+        reason: body.data.reason,
+      });
+      if (result.status === "not_found")
+        return context.json(
+          {
+            code: "notification_not_found",
+            message: "Notification not found.",
+            requestId: context.get("requestId"),
+          },
+          404,
+        );
+      if (result.status === "conflict")
+        return context.json(
+          {
+            code: "notification_not_cancelable",
+            message:
+              "This notification is being delivered or has already completed. Refresh its details.",
+            requestId: context.get("requestId"),
+          },
+          409,
+        );
+      return context.json(ticketNotificationCancelResponseSchema.parse({ canceled: true }));
+    },
+  );
+
   router.get("/api/organization/communications", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);
     if (!authorization.ok)
@@ -163,11 +293,25 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const limit = url.searchParams.get("limit");
       const origin = url.searchParams.get("origin");
       const status = url.searchParams.get("status");
+      const previewInput = z
+        .enum(["true", "false"])
+        .nullable()
+        .safeParse(url.searchParams.get("includePreviews"));
+      if (!previewInput.success)
+        return context.json(
+          {
+            code: "invalid_preview_filter",
+            message: "Invalid preview filter.",
+            requestId: context.get("requestId"),
+          },
+          400,
+        );
       const page = await listCommunicationHistory(context.env, authorization.organizationId, {
         cursor,
         limit,
         origin,
         status,
+        includePreviews: previewInput.data !== "false",
       });
       return context.json({
         items: page.items,

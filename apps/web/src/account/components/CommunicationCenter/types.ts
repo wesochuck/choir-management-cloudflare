@@ -1,3 +1,4 @@
+import type { useCommunicationOverview } from "./useCommunicationOverview";
 import type {
   CommunicationAudienceRequest,
   CommunicationChannel,
@@ -20,7 +21,8 @@ export type CommunicationAudienceTarget = CommunicationAudienceRequest["targetAu
 export type CommunicationMessageStatus = CommunicationMessage["status"];
 export type { CommunicationChannel };
 
-export type CommunicationSection = "messages" | "templates" | "settings";
+export type CommunicationSection =
+  "overview" | "messages" | "automations" | "templates" | "settings";
 
 export type MessageWorkspaceMode = "list" | "compose";
 
@@ -34,7 +36,7 @@ export type MessageFilter = MessageStatusFilter;
 
 export type UnifiedCommunicationItem =
   | {
-      readonly automated: false;
+      readonly automated: boolean;
       readonly channel: CommunicationChannel;
       readonly id: string;
       readonly kind: "manual";
@@ -64,10 +66,13 @@ export interface CommunicationReachState {
 
 export interface CommunicationCenterControllerModel {
   readonly activeSection: CommunicationSection;
+  readonly overview: ReturnType<typeof useCommunicationOverview>;
+  readonly navigateCommunication: (href: string) => void;
+  readonly clearDeliveryDetails: () => void;
   readonly audience: CommunicationMessage["audience"];
   readonly audienceOptions: readonly CommunicationAudienceTarget[];
   readonly busy: boolean;
-  readonly cancelQueuedMessage: (messageId: string) => Promise<void>;
+  readonly cancelQueuedMessage: (messageId: string, reason?: string) => Promise<void>;
   readonly channel: CommunicationChannel;
   readonly confirmationDialog: React.ReactNode;
   readonly contactLists: readonly ContactList[];
@@ -109,7 +114,7 @@ export interface CommunicationCenterControllerModel {
   readonly resumeDraft: (draft: CommunicationMessage) => void;
   readonly retryDeliveries: (messageId: string) => Promise<void>;
   readonly rosterConfiguration: OrganizationRosterConfiguration | null;
-  readonly saveDraft: () => Promise<void>;
+  readonly saveDraft: () => Promise<boolean>;
   readonly saveTemplate: (templateName: string) => Promise<void>;
   readonly selectedEvent: OrganizationEvent | null;
   readonly sendCommunication: () => Promise<void>;

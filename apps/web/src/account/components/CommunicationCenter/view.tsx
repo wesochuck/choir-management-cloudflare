@@ -1,3 +1,4 @@
+import { CommunicationOverview } from "./CommunicationOverview";
 import { OrganizationTimezoneBoundary } from "../OrganizationTimezoneStatus";
 import { CommunicationReviewDialog } from "./CommunicationReviewDialog";
 import { CommunicationTestDialog } from "./CommunicationTestDialog";
@@ -26,6 +27,77 @@ function deliveryModeDescription(environment: string, externalEffectsMode: strin
     return "Messages are recorded as suppressed and are not sent.";
   }
   return "Messages are delivered under staging sandbox restrictions (allowlisted QA recipients only).";
+}
+
+function CommunicationHeader({ model }: { readonly model: CommunicationCenterControllerModel }) {
+  const { activeSection, messageMode, openNewMessage, setActiveSection, providerStatus } = model;
+  const showProviderNotice =
+    providerStatus &&
+    (providerStatus.environment !== "production" ||
+      providerStatus.externalEffectsMode === "disabled" ||
+      providerStatus.externalEffectsMode === "fake");
+  const navItems: readonly { readonly id: CommunicationSection; readonly label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "messages", label: "Messages" },
+    { id: "automations", label: "Automations" },
+    { id: "templates", label: "Templates" },
+    { id: "settings", label: "Settings" },
+  ];
+  return (
+    <>
+      <header className="communication-overview__header">
+        <div>
+          <h1>Communications</h1>
+          <p className="page-heading__description">
+            Send messages and keep track of what goes out.
+          </p>
+        </div>
+        {messageMode !== "compose" || activeSection !== "messages" ? (
+          <button type="button" className="button button--primary" onClick={openNewMessage}>
+            New message
+          </button>
+        ) : null}
+      </header>
+      {/* Top Level Section Navigation (Buttons with aria-current) */}
+      <nav aria-label="Communications navigation" className="communication-nav">
+        {navItems.map((item) => (
+          <button
+            aria-current={activeSection === item.id ? "page" : undefined}
+            className={`communication-nav__item ${activeSection === item.id ? "is-active" : ""}`}
+            key={item.id}
+            onClick={() => {
+              setActiveSection(item.id);
+            }}
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Prominent Provider Warning / Delivery Mode Notice */}
+      {showProviderNotice ? (
+        <aside
+          aria-label="Delivery mode"
+          className="notice notice--info communication-provider-banner"
+          role="region"
+        >
+          <p>
+            <strong>
+              Delivery mode:{" "}
+              {deliveryModeLabel(providerStatus.environment, providerStatus.externalEffectsMode)}
+            </strong>
+          </p>
+          <p>
+            {deliveryModeDescription(
+              providerStatus.environment,
+              providerStatus.externalEffectsMode,
+            )}
+          </p>
+        </aside>
+      ) : null}
+    </>
+  );
 }
 
 export function CommunicationCenterView({
@@ -63,14 +135,12 @@ export function CommunicationCenterView({
     nextPage,
     nowMs,
     openDeliveryDetails,
-    openNewMessage,
     openReviewAndSend,
     openSaveAsTemplate,
     openTestEmail,
     originFilter,
     pageNumber,
     previousPage,
-    providerStatus,
     reachState,
     recipientsExpanded,
     removeConflictingPlaceholder,
@@ -82,7 +152,6 @@ export function CommunicationCenterView({
     selectedEvent,
     sendCommunication,
     sendTestEmail,
-    setActiveSection,
     setChannel,
     setContentMarkdown,
     setIsReviewOpen,
@@ -104,18 +173,6 @@ export function CommunicationCenterView({
     venues,
   } = model;
 
-  const showProviderNotice =
-    providerStatus &&
-    (providerStatus.environment !== "production" ||
-      providerStatus.externalEffectsMode === "disabled" ||
-      providerStatus.externalEffectsMode === "fake");
-
-  const navItems: readonly { readonly id: CommunicationSection; readonly label: string }[] = [
-    { id: "messages", label: "Messages" },
-    { id: "templates", label: "Templates" },
-    { id: "settings", label: "Settings" },
-  ];
-
   return (
     <OrganizationTimezoneBoundary
       timezone={timezone}
@@ -124,48 +181,7 @@ export function CommunicationCenterView({
       errorMessage={error}
     >
       <div className="communication-center">
-        {/* Top Level Section Navigation (Buttons with aria-current) */}
-        <nav aria-label="Communications navigation" className="communication-nav">
-          {navItems.map((item) => (
-            <button
-              aria-current={activeSection === item.id ? "page" : undefined}
-              className={`communication-nav__item ${activeSection === item.id ? "is-active" : ""}`}
-              key={item.id}
-              onClick={() => {
-                setActiveSection(item.id);
-                if (item.id === "messages" && messageMode === "compose") {
-                  // Return to list when clicking Messages tab
-                  setMessageMode("list");
-                }
-              }}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        {/* Prominent Provider Warning / Delivery Mode Notice */}
-        {showProviderNotice ? (
-          <aside
-            aria-label="Delivery mode"
-            className="notice notice--info communication-provider-banner"
-            role="region"
-          >
-            <p>
-              <strong>
-                Delivery mode:{" "}
-                {deliveryModeLabel(providerStatus.environment, providerStatus.externalEffectsMode)}
-              </strong>
-            </p>
-            <p>
-              {deliveryModeDescription(
-                providerStatus.environment,
-                providerStatus.externalEffectsMode,
-              )}
-            </p>
-          </aside>
-        ) : null}
+        <CommunicationHeader model={model} />
 
         {/* Global Errors and Success Notices (outside compose mode) */}
         {error && messageMode !== "compose" ? (
@@ -182,6 +198,9 @@ export function CommunicationCenterView({
 
         {/* Main Section Content */}
         <div className="communication-main-content">
+          {activeSection === "overview" || activeSection === "automations" ? (
+            <CommunicationOverview model={model} automations={activeSection === "automations"} />
+          ) : null}
           {activeSection === "messages" ? (
             messageMode === "compose" ? (
               <div className="communication-compose-container">
@@ -243,6 +262,7 @@ export function CommunicationCenterView({
               </div>
             ) : (
               <MessagesPanel
+                showNewMessage={false}
                 branding={branding}
                 busy={busy}
                 currentOrigin={originFilter}
@@ -257,7 +277,7 @@ export function CommunicationCenterView({
                 loadingHistory={loadingHistory}
                 onCancelQueued={cancelQueuedMessage}
                 onDeleteDraft={deleteDraft}
-                onNewMessage={openNewMessage}
+                onNewMessage={model.openNewMessage}
                 onNextPage={() => void nextPage()}
                 onOpenDeliveryDetails={openDeliveryDetails}
                 onOriginFilterChange={setOriginFilter}
@@ -278,7 +298,7 @@ export function CommunicationCenterView({
           {activeSection === "settings" ? (
             <CommunicationSettingsPanel
               emailSettings={emailSettings}
-              providerStatus={providerStatus}
+              providerStatus={model.providerStatus}
             />
           ) : null}
         </div>

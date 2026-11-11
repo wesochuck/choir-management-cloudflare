@@ -1,3 +1,4 @@
+import { boundedUpcomingCommunications } from "./boundedUpcoming";
 import type { CommunicationScheduledMessage } from "@choir/contracts";
 import { readRosterAutomationConfiguration } from "../statusAutomationStore";
 import {
@@ -27,12 +28,16 @@ export function upcomingCommunications(
   storage: DurableObjectStorage,
   organizationId: string,
   now: Date,
+  previewDays = COMMUNICATION_PREVIEW_DAYS,
+  limit?: number,
 ): readonly CommunicationScheduledMessage[] {
+  if (limit !== undefined)
+    return boundedUpcomingCommunications(storage, organizationId, now, previewDays, limit);
   const timezone = storage.sql
     .exec<{ readonly timezone: string }>("SELECT timezone FROM organization_metadata LIMIT 1")
     .one().timezone;
   const configuration = readRosterAutomationConfiguration(storage);
-  const horizon = now.getTime() + COMMUNICATION_PREVIEW_DAYS * 86400000;
+  const horizon = now.getTime() + previewDays * 86400000;
   const eventColumns = `id, title, type, starts_at AS startsAt, reminder_sent_at AS reminderSentAt,
     rsvp_deadline_date AS rsvpDeadlineDate, rsvp_follow_up_mode AS rsvpFollowUpMode,
     rsvp_follow_up_lead_hours AS rsvpFollowUpLeadHours`;

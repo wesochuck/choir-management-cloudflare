@@ -666,12 +666,15 @@ export async function listCommunicationHistory(
     limit?: string | number | null;
     origin?: string | null;
     status?: string | null;
+    includePreviews?: boolean;
   },
 ): Promise<{
   readonly items: readonly CommunicationHistoryItem[];
   readonly nextCursor: string | null;
 }> {
   const parameters: Record<string, string> = {};
+  if (options?.includePreviews !== undefined)
+    parameters.includePreviews = String(options.includePreviews);
   if (options?.cursor) parameters.cursor = options.cursor;
   if (options?.limit != null) {
     parameters.limit = String(options.limit);
