@@ -95,6 +95,22 @@ describe("renderCommunicationMarkdownPreview", () => {
     );
   });
 
+  it("renders multiple links with tokens containing underscores without mangling into @@LINK placeholders or accidental italics", () => {
+    const source =
+      "If you have an account, go to [https://lmc.musicsite.org/schedule](https://lmc.musicsite.org/schedule) and scroll to the bottom. Don't have an account? [Sign up](https://lmc.musicsite.org/join-roster#token=abc_123_xyz).";
+    const rendered = renderCommunicationMarkdownPreview(source);
+
+    expect(rendered).not.toContain("@@LINK");
+    expect(rendered).not.toContain("<em>");
+    expect(rendered).toContain(
+      '<a href="https://lmc.musicsite.org/schedule" target="_blank" rel="noopener noreferrer">https://lmc.musicsite.org/schedule</a>',
+    );
+    expect(rendered).toContain(
+      '<a href="https://lmc.musicsite.org/join-roster#token=abc_123_xyz" target="_blank" rel="noopener noreferrer">Sign up</a>',
+    );
+    expect(rendered).toContain(" and scroll to the bottom. Don&#39;t have an account? ");
+  });
+
   it("handles backslash-escaped characters in preview without rendering escape slashes", () => {
     const rendered = renderCommunicationMarkdownPreview(
       "Buyer: Robin Leach (leachrobing@gmail\\.com) and \\[VIP\\] \\*not italic\\*",

@@ -47,6 +47,7 @@ export function CommunicationCenterView({
     deleteDraft,
     deliveryDetailsMessage,
     deliverySummary,
+    draftCount,
     emailSettings,
     eventPromotion,
     error,
@@ -60,6 +61,7 @@ export function CommunicationCenterView({
     loadingHistory,
     messageMode,
     nextPage,
+    nowMs,
     openDeliveryDetails,
     openNewMessage,
     openReviewAndSend,
@@ -215,6 +217,7 @@ export function CommunicationCenterView({
                   contextIssues={contextIssues}
                   eventPromotion={eventPromotion}
                   events={events}
+                  nowMs={nowMs}
                   onChannelChange={setChannel}
                   onContentChange={setContentMarkdown}
                   onOpenReview={() => void openReviewAndSend()}
@@ -246,6 +249,7 @@ export function CommunicationCenterView({
                 currentStatus={statusFilter}
                 deliveryDetailsMessage={deliveryDetailsMessage}
                 deliverySummary={deliverySummary}
+                draftCount={draftCount}
                 events={events}
                 hasNextPage={hasNextPage}
                 hasPreviousPage={hasPreviousPage}
@@ -288,6 +292,7 @@ export function CommunicationCenterView({
           contentMarkdown={contentMarkdown}
           error={error}
           events={events}
+          nowMs={nowMs}
           onClose={() => {
             setIsReviewOpen(false);
           }}

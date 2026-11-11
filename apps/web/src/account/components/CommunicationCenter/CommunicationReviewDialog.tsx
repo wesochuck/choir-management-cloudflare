@@ -39,6 +39,7 @@ interface CommunicationReviewDialogProps {
   readonly subject: string;
   readonly timezone: string | null;
   readonly branding?: OrganizationBranding | null;
+  readonly nowMs?: number | undefined;
   readonly venues?: readonly OrganizationVenue[] | undefined;
 }
 
@@ -98,13 +99,15 @@ export function CommunicationReviewDialog({
   selectedEvent,
   timezone,
   branding,
+  nowMs: nowMsProp,
   subject,
   venues,
 }: CommunicationReviewDialogProps) {
   const recipientSummary = recipientTypeSummary(audience);
   const filterSummary = reviewFilterSummary(audience, contactLists, rosterConfiguration);
 
-  const [nowMs] = useState(() => Date.now());
+  const [fallbackNowMs] = useState(() => Date.now());
+  const nowMs = nowMsProp ?? fallbackNowMs;
   const totalCount = reachState.data?.total ?? 0;
   const previewValues = reviewPreviewValues({
     audience,

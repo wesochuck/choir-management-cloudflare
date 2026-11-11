@@ -213,4 +213,47 @@ describe("Upcoming performances placeholder in MessageComposer", () => {
     );
     expect(screen.getByRole("button", { name: "Review & send" })).toBeEnabled();
   });
+
+  it("dynamically updates upcoming performances preview when events change or are removed", async () => {
+    const user = userEvent.setup();
+    const removedPerformance = makeEvent({
+      id: "44444444-4444-4444-8444-444444444444",
+      location: "Town Square",
+      publishOnWebsite: false,
+      startsAt: futureIsoDate({ days: 12 }),
+      title: "Holiday Parade",
+    });
+    const keptPerformance = makeEvent({
+      id: "55555555-5555-4555-8555-555555555555",
+      location: "Fairfield Christian Church",
+      publishOnWebsite: false,
+      startsAt: futureIsoDate({ days: 15 }),
+      title: "Christmas Concert",
+    });
+
+    const { rerender } = render(<ComposerHarness events={[removedPerformance, keptPerformance]} />);
+
+    await user.click(screen.getByText("Insert placeholder"));
+    const personalize = screen.getByRole("region", { name: "Personalize message" });
+    await user.click(within(personalize).getByRole("button", { name: /Upcoming performances/i }));
+
+    const preview = screen.getByLabelText("Live formatted message preview");
+    expect(preview).toHaveTextContent("Holiday Parade");
+    expect(preview).toHaveTextContent("Christmas Concert");
+
+    // Parent updates events (e.g. user removed Holiday Parade and added a new tour stop)
+    const newPerformance = makeEvent({
+      id: "66666666-6666-4666-8666-666666666666",
+      location: "Kingsbury Senior Living",
+      publishOnWebsite: false,
+      startsAt: futureIsoDate({ days: 18 }),
+      title: "Kingsbury - Nursing Home Tour",
+    });
+
+    rerender(<ComposerHarness events={[keptPerformance, newPerformance]} />);
+
+    expect(preview).not.toHaveTextContent("Holiday Parade");
+    expect(preview).toHaveTextContent("Christmas Concert");
+    expect(preview).toHaveTextContent("Kingsbury - Nursing Home Tour");
+  });
 });

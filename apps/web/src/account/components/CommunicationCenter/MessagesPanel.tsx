@@ -16,6 +16,7 @@ interface MessagesPanelProps {
   readonly currentStatus: MessageStatusFilter;
   readonly deliveryDetailsMessage: CommunicationMessage | null;
   readonly deliverySummary: CommunicationDeliverySummary | null;
+  readonly draftCount?: number | undefined;
   readonly events?: readonly OrganizationEvent[] | undefined;
   readonly hasNextPage?: boolean;
   readonly hasPreviousPage?: boolean;
@@ -62,6 +63,7 @@ export function MessagesPanel({
   currentStatus,
   deliveryDetailsMessage,
   deliverySummary,
+  draftCount,
   events,
   hasNextPage,
   hasPreviousPage,
@@ -82,6 +84,9 @@ export function MessagesPanel({
   unifiedMessages,
   venues,
 }: MessagesPanelProps) {
+  const effectiveDraftCount =
+    draftCount ?? unifiedMessages.filter((m) => !m.automated && m.status === "Draft").length;
+
   return (
     <div className="communication-messages-panel">
       <div className="communication-messages-panel__header">
@@ -107,19 +112,41 @@ export function MessagesPanel({
             className="communication-filter-group__chips"
             role="toolbar"
           >
-            {statusFilterOptions.map((opt) => (
-              <button
-                aria-pressed={currentStatus === opt.id}
-                className={`filter-chip ${currentStatus === opt.id ? "is-active" : ""}`}
-                key={opt.id}
-                onClick={() => {
-                  onStatusFilterChange(opt.id);
-                }}
-                type="button"
-              >
-                {opt.label}
-              </button>
-            ))}
+            {statusFilterOptions.map((opt) => {
+              const isDraft = opt.id === "draft";
+              const hasPendingDrafts = isDraft && effectiveDraftCount > 0;
+              return (
+                <button
+                  aria-label={
+                    hasPendingDrafts
+                      ? `Drafts (${String(effectiveDraftCount)} pending ${effectiveDraftCount === 1 ? "draft" : "drafts"})`
+                      : undefined
+                  }
+                  aria-pressed={currentStatus === opt.id}
+                  className={`filter-chip ${currentStatus === opt.id ? "is-active" : ""} ${hasPendingDrafts ? "filter-chip--has-pending" : ""}`}
+                  key={opt.id}
+                  onClick={() => {
+                    onStatusFilterChange(opt.id);
+                  }}
+                  title={
+                    hasPendingDrafts
+                      ? `${String(effectiveDraftCount)} pending ${effectiveDraftCount === 1 ? "draft" : "drafts"}`
+                      : undefined
+                  }
+                  type="button"
+                >
+                  {hasPendingDrafts ? (
+                    <span className="filter-chip__indicator" aria-hidden="true" />
+                  ) : null}
+                  <span>{opt.label}</span>
+                  {hasPendingDrafts ? (
+                    <span className="filter-chip__badge" aria-hidden="true">
+                      {effectiveDraftCount}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         </div>
 

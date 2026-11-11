@@ -132,12 +132,12 @@ export async function sendMessage(
     return Response.json({ code: "communication_delivery_limit_exceeded" }, { status: 413 });
   }
   const isPromotion = Boolean(operation.message.eventPromotion);
-  const isReviewedDraft = isPromotion || Boolean(operation.message.reviewSnapshot);
+  const isExistingDraft = Boolean(operation.message.expectedRevision);
   const inserted = storage.transactionSync(() => {
     if (isPromotion && promotionAudienceChangedByPurchase(storage, operation)) {
       return "promotion_review_stale";
     }
-    if (isReviewedDraft && !updateReviewedDraftForSend(storage, operation, reach, now))
+    if (isExistingDraft && !updateReviewedDraftForSend(storage, operation, reach, now))
       return "draft_conflict";
     if (isPromotion) {
       storage.sql.exec(
@@ -145,7 +145,7 @@ export async function sendMessage(
         operation.messageId,
       );
     }
-    if (!isReviewedDraft) insertQueuedMessage(storage, operation, reach, now);
+    if (!isExistingDraft) insertQueuedMessage(storage, operation, reach, now);
     const persisted = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
         operation.dedupeKey

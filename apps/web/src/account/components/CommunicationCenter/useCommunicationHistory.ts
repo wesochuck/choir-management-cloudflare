@@ -85,6 +85,7 @@ export function useCommunicationHistory({
     readonly CommunicationScheduledMessage[]
   >([]);
   const [historyItems, setHistoryItems] = useState<readonly CommunicationHistoryItem[]>([]);
+  const [draftCount, setDraftCount] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -124,6 +125,14 @@ export function useCommunicationHistory({
         const page = await getOrganizationCommunicationHistory(query, signal);
         setHistoryItems(page.items);
         setNextCursor(page.nextCursor);
+        if (targetStatus === "draft" && cursor === null) {
+          setDraftCount(page.items.length);
+        } else if (targetStatus === "all" && cursor === null && !page.nextCursor) {
+          const draftsInPage = page.items.filter(
+            (item) => item.kind === "manual" && item.message.status === "Draft",
+          );
+          setDraftCount(draftsInPage.length);
+        }
       } catch (err: unknown) {
         if (!signal?.aborted) {
           try {
@@ -133,6 +142,8 @@ export function useCommunicationHistory({
             ]);
             setMessages(manual);
             setScheduledMessages(scheduled);
+            const manualDrafts = manual.filter((m) => m.status === "Draft");
+            setDraftCount(manualDrafts.length);
             const manualItems: CommunicationHistoryItem[] = manual.map((m) => ({
               kind: "manual",
               message: m,
@@ -162,12 +173,40 @@ export function useCommunicationHistory({
     [setError],
   );
 
+  const refreshDraftCount = useCallback(async (signal?: AbortSignal): Promise<void> => {
+    try {
+      const page = await getOrganizationCommunicationHistory(
+        { limit: 50, status: "draft" },
+        signal,
+      );
+      if (!signal?.aborted) {
+        setDraftCount(page.items.length);
+      }
+    } catch {
+      // Ignored
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    void Promise.resolve().then(() => {
+      if (!controller.signal.aborted) {
+        void refreshDraftCount(controller.signal);
+      }
+    });
+    return () => {
+      controller.abort();
+    };
+  }, [enabled, refreshDraftCount]);
+
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
     const refresh = () => {
       if (document.visibilityState === "visible") {
         void loadHistoryPage(statusFilter, originFilter, null, controller.signal);
+        void refreshDraftCount(controller.signal);
         setHistoryCursorStack([]);
         setCurrentCursor(null);
       }
@@ -177,7 +216,7 @@ export function useCommunicationHistory({
       controller.abort();
       window.removeEventListener("focus", refresh);
     };
-  }, [enabled, loadHistoryPage, originFilter, statusFilter]);
+  }, [enabled, loadHistoryPage, originFilter, refreshDraftCount, statusFilter]);
 
   const unifiedMessages: readonly UnifiedCommunicationItem[] = useMemo(() => {
     if (historyItems.length > 0) {
@@ -418,6 +457,7 @@ export function useCommunicationHistory({
     currentCursor,
     deliveryDetailsMessage,
     deliverySummary,
+    draftCount,
     hasNextPage: Boolean(nextCursor),
     hasPreviousPage: pageNumber > 1,
     historyCursorStack,
@@ -429,7 +469,9 @@ export function useCommunicationHistory({
     originFilter,
     pageNumber,
     previousPage,
+    refreshDraftCount,
     retryDeliveriesAction,
+    setDraftCount,
     setHistoryItems,
     setMessages,
     statusFilter,

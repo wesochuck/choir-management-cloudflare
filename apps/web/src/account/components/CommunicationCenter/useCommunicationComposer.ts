@@ -69,8 +69,11 @@ export function useCommunicationComposer({
   loadHistoryPage,
   messageMode,
   originFilter,
+  refreshDraftCount,
+  refreshEvents,
   setActiveSection,
   setBusy,
+  setDraftCount,
   setError,
   setHistoryItems,
   setMessageMode,
@@ -98,8 +101,11 @@ export function useCommunicationComposer({
   ) => Promise<void>;
   readonly messageMode: MessageWorkspaceMode;
   readonly originFilter: MessageOriginFilter;
+  readonly refreshDraftCount?: (signal?: AbortSignal) => Promise<void>;
+  readonly refreshEvents?: (signal?: AbortSignal) => Promise<void>;
   readonly setActiveSection: Dispatch<SetStateAction<CommunicationSection>>;
   readonly setBusy: Dispatch<SetStateAction<boolean>>;
+  readonly setDraftCount?: Dispatch<SetStateAction<number>>;
   readonly setError: Dispatch<SetStateAction<string | null>>;
   readonly setHistoryItems: Dispatch<SetStateAction<readonly CommunicationHistoryItem[]>>;
   readonly setMessageMode: Dispatch<SetStateAction<MessageWorkspaceMode>>;
@@ -148,7 +154,7 @@ export function useCommunicationComposer({
   const [reviewSnapshot, setReviewSnapshot] = useState<string | null>(null);
   const [isTestEmailOpen, setIsTestEmailOpen] = useState(false);
   const [sendIdempotencyKey, setSendIdempotencyKey] = useState(() => crypto.randomUUID());
-  const [nowMs] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const replaceAudience = useCallback((nextAudience: CommunicationAudienceRequest) => {
     audienceRef.current = nextAudience;
@@ -181,6 +187,10 @@ export function useCommunicationComposer({
   const resumeDraft = useCallback(
     (draft: CommunicationMessage) => {
       setSendIdempotencyKey(crypto.randomUUID());
+      setNowMs(Date.now());
+      if (refreshEvents) {
+        void refreshEvents();
+      }
       setActiveDraft(draft);
       setEventPromotion(draft.eventPromotion);
       audienceRef.current = draft.audience;
@@ -196,11 +206,15 @@ export function useCommunicationComposer({
       setError(null);
       setSuccessNotice("Draft loaded. Make your edits and send when ready.");
     },
-    [setActiveSection, setError, setMessageMode, setSuccessNotice],
+    [refreshEvents, setActiveSection, setError, setMessageMode, setSuccessNotice],
   );
 
   const openNewMessage = useCallback(() => {
     setSendIdempotencyKey(crypto.randomUUID());
+    setNowMs(Date.now());
+    if (refreshEvents) {
+      void refreshEvents();
+    }
     setActiveDraft(null);
     setEventPromotion(null);
     replaceAudience(defaultAudience);
@@ -217,6 +231,7 @@ export function useCommunicationComposer({
     setActiveSection("messages");
   }, [
     clearDeliveryDetails,
+    refreshEvents,
     replaceAudience,
     setActiveSection,
     setError,
@@ -294,6 +309,8 @@ export function useCommunicationComposer({
         setHistoryItems((current) =>
           current.filter((item) => !(item.kind === "manual" && item.message.id === messageId)),
         );
+        setDraftCount?.((prev) => Math.max(0, prev - 1));
+        void refreshDraftCount?.();
         void loadHistoryPage(statusFilter, originFilter, currentCursor);
         setSuccessNotice("Draft deleted.");
       } catch (err: unknown) {
@@ -307,7 +324,9 @@ export function useCommunicationComposer({
       currentCursor,
       loadHistoryPage,
       originFilter,
+      refreshDraftCount,
       setBusy,
+      setDraftCount,
       setError,
       setHistoryItems,
       setMessages,
@@ -334,6 +353,7 @@ export function useCommunicationComposer({
       setActiveDraft(saved);
       setReviewSnapshot(null);
       setMessages((current) => [saved, ...current.filter((m) => m.id !== saved.id)]);
+      void refreshDraftCount?.();
       void loadHistoryPage(statusFilter, originFilter, currentCursor);
       setSuccessNotice("Draft saved successfully.");
     } catch (err: unknown) {
@@ -350,6 +370,7 @@ export function useCommunicationComposer({
     eventPromotion,
     loadHistoryPage,
     originFilter,
+    refreshDraftCount,
     setBusy,
     setError,
     setMessages,
@@ -443,7 +464,7 @@ export function useCommunicationComposer({
           channel,
           contentMarkdown,
           ...(eventPromotion ? { eventPromotion } : {}),
-          ...((eventPromotion || reviewSnapshot) && activeDraft
+          ...(activeDraft
             ? { expectedRevision: activeDraft.draftRevision, messageId: activeDraft.id }
             : {}),
           ...(reviewSnapshot ? { reviewSnapshot } : {}),
@@ -452,6 +473,10 @@ export function useCommunicationComposer({
         sendIdempotencyKey,
       );
       setMessages((current) => [queued, ...current.filter((m) => m.id !== queued.id)]);
+      if (activeDraft) {
+        setDraftCount?.((prev) => Math.max(0, prev - 1));
+        void refreshDraftCount?.();
+      }
       setIsReviewOpen(false);
       setMessageMode("list");
       setActiveSection("messages");
@@ -478,11 +503,13 @@ export function useCommunicationComposer({
     eventPromotion,
     loadHistoryPage,
     originFilter,
+    refreshDraftCount,
     replaceAudience,
     reviewSnapshot,
     sendIdempotencyKey,
     setActiveSection,
     setBusy,
+    setDraftCount,
     setError,
     setMessageMode,
     setMessages,
@@ -539,6 +566,7 @@ export function useCommunicationComposer({
     eventPromotion,
     isReviewOpen,
     isTestEmailOpen,
+    nowMs,
     openNewMessage,
     openReviewAndSend,
     reachState: reachStateForAudience(reachState, audience, channel),

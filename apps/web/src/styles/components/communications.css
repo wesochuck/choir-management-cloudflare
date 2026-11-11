@@ -552,6 +552,9 @@
   }
 
   .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2xs);
     padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-full);
@@ -578,6 +581,53 @@
   .filter-chip:focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+  }
+
+  .filter-chip--has-pending {
+    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+  }
+
+  .filter-chip--has-pending:hover {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+  }
+
+  .filter-chip__indicator {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: var(--radius-full);
+    background-color: var(--color-accent);
+    flex-shrink: 0;
+    box-shadow: 0 0 4px color-mix(in srgb, var(--color-accent) 60%, transparent);
+  }
+
+  .filter-chip.is-active .filter-chip__indicator {
+    background-color: var(--color-background);
+    box-shadow: none;
+  }
+
+  .filter-chip__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 var(--spacing-3xs);
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: var(--font-weight-bold);
+    line-height: 1;
+    background-color: color-mix(in srgb, var(--color-accent) 20%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+    color: var(--color-accent);
+  }
+
+  .filter-chip.is-active .filter-chip__badge {
+    background-color: var(--color-background);
+    border-color: var(--color-background);
+    color: var(--color-accent);
   }
 
   .communication-empty-state {

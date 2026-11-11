@@ -1,5 +1,6 @@
 import {
   communicationDeleteResponseSchema,
+  communicationHistoryPageResponseSchema,
   communicationMessageResponseSchema,
   communicationTemplateResponseSchema,
   communicationTemplatesResponseSchema,
@@ -19,6 +20,7 @@ import {
 } from "./organization.integration.fixture";
 import {
   api,
+  createProfile,
   database,
   managerEmail,
   signIn,
@@ -253,6 +255,68 @@ describe("Organization communications drafts and templates", () => {
       },
     );
     expect(draftWithConflictResponse.status).toBe(201);
+  });
+
+  it("transitions a saved draft to Queued when sent and clears it from the drafts list", async () => {
+    const cookie = await signIn();
+    const profileId = await createProfile(cookie, {
+      displayName: "Draft Recipient",
+      voicePart: "S1",
+    });
+    await database
+      .prepare("UPDATE member SET profileId = ? WHERE id = 'member-alpha'")
+      .bind(profileId)
+      .run();
+    const audience = {
+      eventId: null,
+      globalStatuses: ["Active"],
+      profileIds: [],
+      rsvp: "All",
+      voiceParts: [],
+    };
+    const draftResponse = await write(
+      "alpha.localhost",
+      "/api/organization/communications/drafts",
+      cookie,
+      {
+        audience,
+        channel: "Email",
+        contentMarkdown: "Draft text to be sent",
+        subject: "Draft Subject",
+      },
+    );
+    expect(draftResponse.status).toBe(201);
+    const draft = communicationMessageResponseSchema.parse(await draftResponse.json());
+    expect(draft.status).toBe("Draft");
+
+    // Send the draft with expectedRevision and messageId
+    const sendResponse = await write(
+      "alpha.localhost",
+      "/api/organization/communications/send",
+      cookie,
+      {
+        audience,
+        channel: "Email",
+        contentMarkdown: "Draft text to be sent",
+        expectedRevision: draft.draftRevision,
+        messageId: draft.id,
+        subject: "Draft Subject",
+      },
+    );
+    expect(sendResponse.status).toBe(202);
+    const sent = communicationMessageResponseSchema.parse(await sendResponse.json());
+    expect(sent.id).toBe(draft.id);
+    expect(sent.status).toBe("Queued");
+
+    // Query draft history to confirm the draft is no longer returned as Draft
+    const historyResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/communications/history?status=draft", cookie),
+    );
+    expect(historyResponse.status).toBe(200);
+    const history = communicationHistoryPageResponseSchema.parse(await historyResponse.json());
+    expect(
+      history.items.some((item) => item.kind === "manual" && item.message.id === draft.id),
+    ).toBe(false);
   });
 
   it("resets only registered system templates to the current canonical default", async () => {

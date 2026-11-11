@@ -60,35 +60,52 @@ function restoreMarkdownEscapedText(value: string): string {
   );
 }
 
-function renderInline(value: string): string {
-  const links: string[] = [];
-  const escaped = escapeHtml(value);
-  const withPolls = escaped.replace(
-    /\{\{POLL_LINK:[0-9a-f-]{36}\}\}/gi,
-    '<span class="communication-poll-link-placeholder">Respond Here (No login required)</span>',
-  );
-  const withLinks = withPolls.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
-    (match, label: string, url: string) => {
-      const effectiveUrl = restoreMarkdownEscapedText(url);
-      if (!isSafeHttpUrl(effectiveUrl)) return match;
-      const index = links.length;
-      const target = effectiveUrl.startsWith("/")
-        ? ""
-        : ' target="_blank" rel="noopener noreferrer"';
-      links.push(`<a href="${url}"${target}>${label}</a>`);
-      return `@@LINK_${String(index)}@@`;
-    },
-  );
-
-  const formatted = withLinks
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
+function renderMarkdownEmphasis(value: string): string {
+  return escapeHtml(value)
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/__([^_]+)__/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/_([^_]+)_/g, "<em>$1</em>");
+}
 
-  return formatted.replace(/@@LINK_(\d+)@@/g, (_, index: string) => links[Number(index)] ?? "");
+function renderMarkdownText(value: string): string {
+  let cursor = 0;
+  let rendered = "";
+  for (const code of value.matchAll(/`([^`]+)`/g)) {
+    rendered += renderMarkdownEmphasis(value.slice(cursor, code.index));
+    rendered += `<code>${escapeHtml(code[1] ?? "")}</code>`;
+    cursor = code.index + code[0].length;
+  }
+  return rendered + renderMarkdownEmphasis(value.slice(cursor));
+}
+
+const INLINE_TOKEN_PATTERN = /(\[([^\]]+)\]\(([^)]+)\))|(\{\{POLL_LINK:[0-9a-f-]{36}\}\})/gi;
+
+function renderInline(value: string): string {
+  let cursor = 0;
+  let rendered = "";
+  for (const match of value.matchAll(INLINE_TOKEN_PATTERN)) {
+    rendered += renderMarkdownText(value.slice(cursor, match.index));
+    if (match[4]) {
+      rendered +=
+        '<span class="communication-poll-link-placeholder">Respond Here (No login required)</span>';
+    } else {
+      const rawLink = match[1] ?? "";
+      const label = match[2] ?? "Open link";
+      const url = match[3] ?? "";
+      const effectiveUrl = restoreMarkdownEscapedText(url);
+      if (isSafeHttpUrl(effectiveUrl)) {
+        const target = effectiveUrl.startsWith("/")
+          ? ""
+          : ' target="_blank" rel="noopener noreferrer"';
+        rendered += `<a href="${escapeHtml(effectiveUrl)}"${target}>${renderMarkdownText(label)}</a>`;
+      } else {
+        rendered += renderMarkdownText(rawLink);
+      }
+    }
+    cursor = match.index + match[0].length;
+  }
+  return rendered + renderMarkdownText(value.slice(cursor));
 }
 
 function formatPreviewDate(value: string, timezone: string): string {

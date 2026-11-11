@@ -9,6 +9,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "../../../auth/api";
 import { useCommunicationCenterController } from "./hooks";
+import { defaultAudience } from "./utils";
 
 const promotionEventId = "77777777-7777-4777-8777-777777777777";
 const promotionMessageId = "88888888-8888-4888-8888-888888888888";
@@ -432,5 +433,91 @@ describe("useCommunicationCenterController filters", () => {
       expect.any(String),
     );
     expect(historySpy).toHaveBeenCalled();
+  });
+
+  it("resumes and sends a standard draft with messageId and expectedRevision", async () => {
+    const regularDraft: CommunicationMessage = {
+      audience: defaultAudience,
+      channel: "Email",
+      contentMarkdown: "Draft body text",
+      createdAt: "2026-08-01T10:00:00.000Z",
+      draftRevision: 3,
+      eventPromotion: null,
+      id: "33333333-3333-3333-3333-333333333333",
+      queuedByName: null,
+      queuedByUserId: null,
+      reach: {
+        audienceOverLimit: false,
+        both: 0,
+        email: 10,
+        sms: 0,
+        ticketBuyerPurchasesOverLimit: 0,
+        total: 10,
+        undeliverableTicketBuyerPurchases: 0,
+        unreachable: 0,
+      },
+      sentAt: null,
+      status: "Draft",
+      subject: "Standard Draft",
+      updatedAt: "2026-08-01T10:00:00.000Z",
+    };
+
+    const sendSpy = vi
+      .spyOn(apiModule, "sendOrganizationCommunication")
+      .mockResolvedValue({ ...regularDraft, status: "Queued", draftRevision: 4 });
+    const historySpy = vi
+      .spyOn(apiModule, "getOrganizationCommunicationHistory")
+      .mockResolvedValue({ items: [], nextCursor: null, requestId: "req-1" });
+
+    const { result } = renderHook(() => useCommunicationCenterController({ enabled: false }));
+
+    act(() => {
+      result.current.resumeDraft(regularDraft);
+    });
+
+    await act(async () => result.current.sendCommunication());
+
+    expect(sendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedRevision: 3,
+        messageId: "33333333-3333-3333-3333-333333333333",
+        subject: "Standard Draft",
+      }),
+      expect.any(String),
+    );
+    expect(historySpy).toHaveBeenCalled();
+  });
+
+  it("refetches events when a draft is resumed and when window gains focus", async () => {
+    const listEventsSpy = vi.spyOn(apiModule, "listOrganizationEvents").mockResolvedValue([]);
+    vi.spyOn(apiModule, "getOrganizationCalendarSettings").mockResolvedValue({
+      timezone: "America/New_York",
+    });
+    vi.spyOn(apiModule, "listOrganizationCommunicationTemplates").mockResolvedValue([]);
+    vi.spyOn(apiModule, "getOrganizationProviderStatus").mockResolvedValue(mockProviderStatus);
+    vi.spyOn(apiModule, "getOrganizationEmailSettings").mockResolvedValue(mockEmailSettings);
+    vi.spyOn(apiModule, "getOrganizationRosterConfiguration").mockResolvedValue(mockRosterConfig);
+    vi.spyOn(apiModule, "listOrganizationCommunications").mockResolvedValue([]);
+
+    const { result } = renderHook(() => useCommunicationCenterController({ enabled: true }));
+    await waitFor(() => {
+      expect(listEventsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      result.current.resumeDraft(promotionDraft(1, "Draft"));
+    });
+
+    await waitFor(() => {
+      expect(listEventsSpy).toHaveBeenCalledTimes(2);
+    });
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    await waitFor(() => {
+      expect(listEventsSpy).toHaveBeenCalledTimes(3);
+    });
   });
 });

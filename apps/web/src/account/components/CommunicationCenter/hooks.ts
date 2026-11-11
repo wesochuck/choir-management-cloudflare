@@ -8,7 +8,7 @@ import type {
   OrganizationVenue,
 } from "@choir/contracts";
 import { useConfirmation } from "@choir/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getOrganizationBranding,
   getOrganizationCalendarSettings,
@@ -51,6 +51,22 @@ export function useCommunicationCenterController({
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [eventsLoaded, setEventsLoaded] = useState(false);
   const [venues, setVenues] = useState<readonly OrganizationVenue[]>([]);
+
+  const refreshEvents = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const [loadedEvents, loadedVenues] = await Promise.all([
+        listOrganizationEvents(signal),
+        listOrganizationVenues(signal).catch(() => []),
+      ]);
+      if (!signal?.aborted) {
+        setEvents(loadedEvents);
+        setEventsLoaded(true);
+        setVenues(loadedVenues);
+      }
+    } catch {
+      // Keep previous events if refresh fails
+    }
+  }, []);
   const [contactLists, setContactLists] = useState<readonly ContactList[]>([]);
   const [providerStatus, setProviderStatus] = useState<OrganizationProviderStatusResponse | null>(
     null,
@@ -86,8 +102,11 @@ export function useCommunicationCenterController({
     loadHistoryPage: history.loadHistoryPage,
     messageMode,
     originFilter: history.originFilter,
+    refreshDraftCount: history.refreshDraftCount,
+    refreshEvents,
     setActiveSection,
     setBusy,
+    setDraftCount: history.setDraftCount,
     setError,
     setHistoryItems: history.setHistoryItems,
     setMessageMode,
@@ -190,6 +209,23 @@ export function useCommunicationCenterController({
     setTemplates,
   ]);
 
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void refreshEvents(controller.signal);
+      }
+    };
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [enabled, refreshEvents]);
+
   const selectedEvent = useMemo(
     () =>
       events.find(
@@ -224,6 +260,7 @@ export function useCommunicationCenterController({
     deleteTemplate: templates.deleteTemplateAction,
     deliveryDetailsMessage: history.deliveryDetailsMessage,
     deliverySummary: history.deliverySummary,
+    draftCount: history.draftCount,
     emailSettings,
     error,
     eventPromotion: composer.eventPromotion,
@@ -238,6 +275,7 @@ export function useCommunicationCenterController({
     loadingHistory: history.loadingHistory,
     messageMode,
     nextPage: history.nextPage,
+    nowMs: composer.nowMs,
     openDeliveryDetails: history.openDeliveryDetails,
     openNewMessage: composer.openNewMessage,
     openNewTemplateDialog: () => {

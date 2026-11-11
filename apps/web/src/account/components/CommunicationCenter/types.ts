@@ -77,6 +77,7 @@ export interface CommunicationCenterControllerModel {
   readonly deleteTemplate: (templateId: string) => Promise<void>;
   readonly deliveryDetailsMessage: CommunicationMessage | null;
   readonly deliverySummary: CommunicationDeliverySummary | null;
+  readonly draftCount: number;
   readonly emailSettings: OrganizationEmailSettings | null;
   readonly eventPromotion: CommunicationMessage["eventPromotion"];
   readonly error: string | null;
@@ -91,6 +92,7 @@ export interface CommunicationCenterControllerModel {
   readonly loadingHistory: boolean;
   readonly messageMode: MessageWorkspaceMode;
   readonly nextPage: () => Promise<void>;
+  readonly nowMs: number;
   readonly openDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
   readonly openNewMessage: () => void;
   readonly openNewTemplateDialog: () => void;

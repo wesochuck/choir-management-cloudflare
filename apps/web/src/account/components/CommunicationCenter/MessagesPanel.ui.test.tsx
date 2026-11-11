@@ -249,6 +249,96 @@ describe("MessagesPanel UI", () => {
     expect(onOriginFilterChange).toHaveBeenCalledWith("automated");
   });
 
+  it("renders a number badge and callout indicator on the draft filter button when there is a pending draft", async () => {
+    const user = userEvent.setup();
+    const onStatusFilterChange = vi.fn();
+
+    const { rerender } = render(
+      <MessagesPanel
+        busy={false}
+        currentOrigin="all"
+        currentStatus="all"
+        deliveryDetailsMessage={null}
+        deliverySummary={null}
+        draftCount={1}
+        loadingDeliveryId={null}
+        onCancelQueued={vi.fn()}
+        onDeleteDraft={vi.fn()}
+        onNewMessage={vi.fn()}
+        onOpenDeliveryDetails={vi.fn()}
+        onOriginFilterChange={vi.fn()}
+        onResumeDraft={vi.fn()}
+        onRetryDeliveries={vi.fn()}
+        onStatusFilterChange={onStatusFilterChange}
+        unifiedMessages={[]}
+      />,
+    );
+
+    const draftBtn = screen.getByRole("button", { name: "Drafts (1 pending draft)" });
+    expect(draftBtn).toHaveClass("filter-chip--has-pending");
+    expect(draftBtn).toHaveAttribute("title", "1 pending draft");
+    expect(draftBtn.querySelector(".filter-chip__indicator")).toBeInTheDocument();
+    expect(draftBtn.querySelector(".filter-chip__badge")).toHaveTextContent("1");
+
+    await user.click(draftBtn);
+    expect(onStatusFilterChange).toHaveBeenCalledWith("draft");
+
+    // Multiple pending drafts test
+    rerender(
+      <MessagesPanel
+        busy={false}
+        currentOrigin="all"
+        currentStatus="all"
+        deliveryDetailsMessage={null}
+        deliverySummary={null}
+        draftCount={3}
+        loadingDeliveryId={null}
+        onCancelQueued={vi.fn()}
+        onDeleteDraft={vi.fn()}
+        onNewMessage={vi.fn()}
+        onOpenDeliveryDetails={vi.fn()}
+        onOriginFilterChange={vi.fn()}
+        onResumeDraft={vi.fn()}
+        onRetryDeliveries={vi.fn()}
+        onStatusFilterChange={onStatusFilterChange}
+        unifiedMessages={[]}
+      />,
+    );
+
+    const multiDraftBtn = screen.getByRole("button", { name: "Drafts (3 pending drafts)" });
+    expect(multiDraftBtn).toHaveClass("filter-chip--has-pending");
+    expect(multiDraftBtn).toHaveAttribute("title", "3 pending drafts");
+    expect(multiDraftBtn.querySelector(".filter-chip__badge")).toHaveTextContent("3");
+
+    // Zero drafts test - no callout or badge
+    rerender(
+      <MessagesPanel
+        busy={false}
+        currentOrigin="all"
+        currentStatus="all"
+        deliveryDetailsMessage={null}
+        deliverySummary={null}
+        draftCount={0}
+        loadingDeliveryId={null}
+        onCancelQueued={vi.fn()}
+        onDeleteDraft={vi.fn()}
+        onNewMessage={vi.fn()}
+        onOpenDeliveryDetails={vi.fn()}
+        onOriginFilterChange={vi.fn()}
+        onResumeDraft={vi.fn()}
+        onRetryDeliveries={vi.fn()}
+        onStatusFilterChange={onStatusFilterChange}
+        unifiedMessages={[]}
+      />,
+    );
+
+    const normalDraftBtn = screen.getByRole("button", { name: "Drafts" });
+    expect(normalDraftBtn).not.toHaveClass("filter-chip--has-pending");
+    expect(normalDraftBtn).not.toHaveAttribute("title");
+    expect(normalDraftBtn.querySelector(".filter-chip__indicator")).toBeNull();
+    expect(normalDraftBtn.querySelector(".filter-chip__badge")).toBeNull();
+  });
+
   it("displays customized empty state for combinations", () => {
     const { rerender } = render(
       <MessagesPanel

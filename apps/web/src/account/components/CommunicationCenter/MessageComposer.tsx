@@ -61,6 +61,7 @@ interface MessageComposerProps {
   readonly subject: string;
   readonly timezone: string | null;
   readonly branding?: OrganizationBranding | null;
+  readonly nowMs?: number | undefined;
   readonly templates: readonly CommunicationTemplate[];
   readonly venues?: readonly OrganizationVenue[] | undefined;
 }
@@ -583,6 +584,7 @@ export function MessageComposer({
   selectedEvent,
   timezone,
   branding,
+  nowMs: nowMsProp,
   subject,
   templates,
   venues,
@@ -592,7 +594,8 @@ export function MessageComposer({
   const placeholderPickerRef = useRef<HTMLDetailsElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [nowMs] = useState(() => Date.now());
+  const [fallbackNowMs] = useState(() => Date.now());
+  const nowMs = nowMsProp ?? fallbackNowMs;
   const { confirm, confirmationDialog } = useConfirmation();
 
   // Filter templates compatible with current recipients and channel
