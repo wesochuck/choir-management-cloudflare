@@ -801,7 +801,12 @@ export async function readOrganizationTicketWillCallCsv(
   }
   const result = willCallResponseSchema.parse(await response.json());
   return {
-    content: renderTicketWillCallCsv(result.rows),
+    content: renderTicketWillCallCsv(
+      result.rows.map((row) => ({
+        ...row,
+        type: row.bundleId !== null ? "Bundle" : "Single",
+      })),
+    ),
     filename: ticketWillCallFilename(result.eventTitle, eventId),
   };
 }

@@ -10,6 +10,11 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import {
+  countPaidTicketsBySource,
+  filterOrdersBySource,
+  type WillCallSourceFilter,
+} from "./shared";
 import { WillCallPanel } from "./WillCallPanel";
 
 const eventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -110,6 +115,7 @@ interface WillCallPanelTestOptions {
   readonly selectedPerformance?: OrganizationEvent | undefined;
   readonly selectedPerformanceId?: string;
   readonly showRefunded?: boolean;
+  readonly sourceFilter?: WillCallSourceFilter;
 }
 
 function WillCallPanelHarness({
@@ -122,7 +128,23 @@ function WillCallPanelHarness({
   readonly financialSummary?: PaymentFinancialSummary | undefined;
 }) {
   const [showRefunded, setShowRefunded] = useState(options.showRefunded ?? false);
-  const resolvedSummary = financialSummary ?? calculatePaymentFinancialSummary(orders);
+  const [sourceFilter, setSourceFilter] = useState<WillCallSourceFilter>(
+    options.sourceFilter ?? "all",
+  );
+  const selectedPerformance =
+    "selectedPerformance" in options ? options.selectedPerformance : event;
+  const sourceTicketCounts = countPaidTicketsBySource(orders);
+  const sourceFilteredOrders = filterOrdersBySource(orders, sourceFilter);
+  const paidTickets = sourceFilteredOrders
+    .filter((order) => order.status === "paid")
+    .reduce((total, order) => total + order.quantity, 0);
+  const ticketCapacity = selectedPerformance?.ticketCapacity ?? null;
+  const ticketSoldLabel =
+    ticketCapacity === null
+      ? String(paidTickets)
+      : `${String(paidTickets)}/${String(ticketCapacity)}`;
+  const resolvedSummary =
+    financialSummary ?? calculatePaymentFinancialSummary(sourceFilteredOrders);
   return (
     <WillCallPanel
       activeTab={options.activeTab ?? "willcall"}
@@ -137,16 +159,20 @@ function WillCallPanelHarness({
       refreshingOrders={false}
       refund={options.refund ?? vi.fn(() => Promise.resolve())}
       resendConfirmation={vi.fn(() => Promise.resolve())}
-      selectedPerformance={"selectedPerformance" in options ? options.selectedPerformance : event}
+      selectedPerformance={selectedPerformance}
       selectedPerformanceId={options.selectedPerformanceId ?? eventId}
       setSelectedPerformanceId={vi.fn()}
       setShowRefunded={setShowRefunded}
+      setSourceFilter={setSourceFilter}
       setWillCallSearch={vi.fn()}
       showRefunded={showRefunded}
+      sourceFilter={sourceFilter}
+      sourceFilteredOrderCount={sourceFilteredOrders.length}
+      sourceTicketCounts={sourceTicketCounts}
       state={{ orders, status: "ready" }}
       ticketEvents={[event]}
-      ticketSoldLabel="2"
-      visibleOrders={orders}
+      ticketSoldLabel={ticketSoldLabel}
+      visibleOrders={sourceFilteredOrders}
       willCallSearch=""
     />
   );
@@ -216,16 +242,20 @@ describe("WillCallPanel refunded and expired orders", () => {
     expect(within(table).queryByText("Expired Bundle Buyer")).not.toBeInTheDocument();
   });
 
-  it("shows bundle information in the expandable order details", async () => {
+  it("shows a sortable Type column with Single and Bundle badges and bundle details on expand", async () => {
     const user = userEvent.setup();
     renderWillCallPanel([paidOrder, bundleOrder]);
 
     const table = getWillCallTable();
+    expect(within(table).getByRole("columnheader", { name: /Type/ })).toBeInTheDocument();
+    expect(within(table).queryByRole("columnheader", { name: "Bundle" })).not.toBeInTheDocument();
+
     const bundleRow = within(table).getByText("Bundle Buyer").closest("tr");
     if (!(bundleRow instanceof HTMLTableRowElement)) {
       throw new Error("Expected the bundle buyer to be rendered in a table row.");
     }
-    expect(within(bundleRow).queryByText("Bundle")).not.toBeInTheDocument();
+    const bundlePill = within(bundleRow).getByText("Bundle");
+    expect(bundlePill).toHaveAttribute("title", "Season Pass");
     await user.click(
       within(bundleRow).getByRole("button", { name: "Show details for Bundle Buyer" }),
     );
@@ -236,8 +266,83 @@ describe("WillCallPanel refunded and expired orders", () => {
     if (!(standaloneRow instanceof HTMLTableRowElement)) {
       throw new Error("Expected the standalone buyer to be rendered in a table row.");
     }
+    expect(within(standaloneRow).getByText("Single")).toBeInTheDocument();
     expect(within(standaloneRow).queryByText("Bundle")).not.toBeInTheDocument();
-    expect(within(table).queryByRole("columnheader", { name: "Bundle" })).not.toBeInTheDocument();
+  });
+
+  it("filters both summary metrics and the will-call list by ticket source", async () => {
+    const user = userEvent.setup();
+    const singleTwoTickets = ticketOrder({
+      amountPaidCents: 3000,
+      buyerName: "Single Buyer",
+      id: "11111111-1111-4111-8111-111111111111",
+      quantity: 2,
+    });
+    const bundleThreeTickets = ticketOrder({
+      amountPaidCents: 9000,
+      bundleId: "74e47064-75b9-47e9-97e6-c28f5430bee0",
+      bundleTitle: "Season Pass",
+      buyerName: "Bundle Buyer",
+      id: "22222222-2222-4222-8222-222222222222",
+      quantity: 3,
+    });
+    renderWillCallPanel([singleTwoTickets, bundleThreeTickets], {
+      selectedPerformance: { ...event, ticketCapacity: 100 },
+    });
+
+    const sourceGroup = screen.getByRole("group", { name: "Ticket source" });
+    const allButton = within(sourceGroup).getByRole("button", { name: /All sales/i });
+    const singleButton = within(sourceGroup).getByRole("button", { name: /Single-concert only/i });
+    const bundleButton = within(sourceGroup).getByRole("button", { name: /Bundle sales only/i });
+
+    const grossCard = document.querySelector(".ticket-dashboard__metric--gross");
+    const soldCard = document.querySelector(".ticket-dashboard__metric--sold");
+    if (!(grossCard instanceof HTMLElement) || !(soldCard instanceof HTMLElement)) {
+      throw new Error("Expected performance summary metric cards.");
+    }
+
+    expect(allButton).toHaveAttribute("aria-pressed", "true");
+    expect(allButton).toHaveTextContent("(5)");
+    expect(singleButton).toHaveTextContent("(2)");
+    expect(bundleButton).toHaveTextContent("(3)");
+    expect(within(soldCard).getByText("5/100")).toBeInTheDocument();
+    expect(within(soldCard).getByText("2 single · 3 bundle")).toBeInTheDocument();
+    expect(within(grossCard).getByText("$120.00")).toBeInTheDocument();
+
+    await user.click(singleButton);
+    expect(singleButton).toHaveAttribute("aria-pressed", "true");
+    expect(within(soldCard).getByText("2/100")).toBeInTheDocument();
+    expect(within(soldCard).getByText("Single-concert sales only")).toBeInTheDocument();
+    expect(within(grossCard).getByText("Single-concert charges")).toBeInTheDocument();
+    expect(within(grossCard).getByText("$30.00")).toBeInTheDocument();
+    expect(within(getWillCallTable()).getByText("Single Buyer")).toBeInTheDocument();
+    expect(within(getWillCallTable()).queryByText("Bundle Buyer")).not.toBeInTheDocument();
+    expect(screen.getByText(/Filtering by ticket source:/)).toBeInTheDocument();
+
+    await user.click(bundleButton);
+    expect(bundleButton).toHaveAttribute("aria-pressed", "true");
+    expect(within(soldCard).getByText("3/100")).toBeInTheDocument();
+    expect(within(soldCard).getByText("Bundle sales only")).toBeInTheDocument();
+    expect(within(grossCard).getByText("Full bundle order charges")).toBeInTheDocument();
+    expect(within(grossCard).getByText("$90.00")).toBeInTheDocument();
+    expect(within(getWillCallTable()).getByText("Bundle Buyer")).toBeInTheDocument();
+    expect(within(getWillCallTable()).queryByText("Single Buyer")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show all" }));
+    expect(allButton).toHaveAttribute("aria-pressed", "true");
+    expect(within(getWillCallTable()).getByText("Single Buyer")).toBeInTheDocument();
+    expect(within(getWillCallTable()).getByText("Bundle Buyer")).toBeInTheDocument();
+  });
+
+  it("shows a dedicated empty state when a performance has orders but none match the selected ticket source", async () => {
+    const user = userEvent.setup();
+    renderWillCallPanel([paidOrder]);
+
+    const sourceGroup = screen.getByRole("group", { name: "Ticket source" });
+    await user.click(within(sourceGroup).getByRole("button", { name: /Bundle sales only/i }));
+
+    expect(screen.getByText("No bundle ticket orders for this selection.")).toBeInTheDocument();
+    expect(screen.queryByText("No ticket orders yet.")).not.toBeInTheDocument();
   });
 
   it.each([refundedOrder, expiredOrder, expiredBundleOrder])(

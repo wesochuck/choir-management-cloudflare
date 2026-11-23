@@ -163,6 +163,7 @@ describe("ticketing rules", () => {
       },
       {
         amountPaidCents: 3000,
+        bundleId: "bundle-season-pass",
         buyerEmail: "sarah@example.test",
         buyerName: "Sarah Van Dyke",
         createdAt: "2026-07-23T00:00:00.000Z",
@@ -174,6 +175,12 @@ describe("ticketing rules", () => {
     expect(csv).toContain('"\'=IMPORTXML(example.test)"');
     expect(csv).toContain('"\'=Danger Adams"');
     expect(csv).toContain('"Sarah Van Dyke","Van Dyke"');
+    expect(csv).toContain(
+      '"Zoe Baker","Baker","zoe@example.test","1","25.00","paid","2026-07-21T00:00:00.000Z","Single"',
+    );
+    expect(csv).toContain(
+      '"Sarah Van Dyke","Van Dyke","sarah@example.test","1","30.00","paid","2026-07-23T00:00:00.000Z","Bundle"',
+    );
     expect(csv.indexOf("=Danger Adams")).toBeLessThan(csv.indexOf("Zoe Baker"));
     expect(csv.indexOf("Zoe Baker")).toBeLessThan(csv.indexOf("Sarah Van Dyke"));
     expect(ticketWillCallFilename("Winter Concert!", "event-id")).toBe(

@@ -48,13 +48,16 @@ import {
   useTicketingNotice,
 } from "./components/Ticketing/ticketingNotice";
 import {
+  countPaidTicketsBySource,
   DEFAULT_TICKET_CONFIRMATION_SETTINGS,
   EMPTY_DISCOUNT_DRAFT,
+  filterOrdersBySource,
   findClosestEvent,
   WILL_CALL_REFRESH_INTERVAL_MS,
   type DiscountDraft,
   type OrderState,
   type TicketingTab,
+  type WillCallSourceFilter,
 } from "./components/Ticketing/shared";
 import { TicketScanner } from "./TicketScanner";
 
@@ -85,6 +88,7 @@ export function TicketingManager({
   const initialDefaultAppliedRef = useRef(false);
   const [willCallSearch, setWillCallSearch] = useState("");
   const [willCallDiscountCode, setWillCallDiscountCode] = useState<string | null>(null);
+  const [willCallSourceFilter, setWillCallSourceFilter] = useState<WillCallSourceFilter>("all");
   const [willCallShowRefunded, setWillCallShowRefunded] = useState(false);
   const [lastOrderRefreshAt, setLastOrderRefreshAt] = useState<Date | null>(null);
   const [ticketEvents, setTicketEvents] = useState<readonly OrganizationEvent[]>([]);
@@ -542,6 +546,7 @@ export function TicketingManager({
   function viewDiscountCodeRedemptions(code: DiscountCode): void {
     userPerformanceSelectionRef.current = true;
     setWillCallDiscountCode(code.code);
+    setWillCallSourceFilter("all");
     setWillCallShowRefunded(true);
     setWillCallSearch("");
     setSelectedPerformanceId("all");
@@ -563,10 +568,12 @@ export function TicketingManager({
             order.includedEvents.some(({ id }) => id === selectedPerformanceId),
         )
       : [];
+  const sourceTicketCounts = countPaidTicketsBySource(performanceOrders);
+  const sourceFilteredOrders = filterOrdersBySource(performanceOrders, willCallSourceFilter);
   const normalizedSearch = willCallSearch.trim().toLocaleLowerCase();
   const normalizedDiscountFilter =
     willCallDiscountCode === null ? null : normalizeDiscountCode(willCallDiscountCode);
-  const visibleOrders = performanceOrders.filter((order) => {
+  const visibleOrders = sourceFilteredOrders.filter((order) => {
     const matchesDiscount =
       normalizedDiscountFilter === null ||
       (normalizedDiscountFilter.length > 0 &&
@@ -579,9 +586,9 @@ export function TicketingManager({
       order.buyerEmail.toLocaleLowerCase().includes(normalizedSearch);
     return matchesDiscount && matchesConfirmedRedemption && matchesSearch;
   });
-  const paidOrders = performanceOrders.filter((order) => order.status === "paid");
+  const paidOrders = sourceFilteredOrders.filter((order) => order.status === "paid");
   const ticketsSold = paidOrders.reduce((total, order) => total + order.quantity, 0);
-  const financialSummary = calculatePaymentFinancialSummary(performanceOrders);
+  const financialSummary = calculatePaymentFinancialSummary(sourceFilteredOrders);
   const ticketCapacity = selectedPerformance?.ticketCapacity ?? null;
   const ticketSoldLabel =
     ticketCapacity === null
@@ -723,8 +730,12 @@ export function TicketingManager({
               selectedPerformanceId={selectedPerformanceId}
               setSelectedPerformanceId={handleSelectPerformanceId}
               setShowRefunded={setWillCallShowRefunded}
+              setSourceFilter={setWillCallSourceFilter}
               setWillCallSearch={setWillCallSearch}
               showRefunded={willCallShowRefunded}
+              sourceFilter={willCallSourceFilter}
+              sourceFilteredOrderCount={sourceFilteredOrders.length}
+              sourceTicketCounts={sourceTicketCounts}
               state={state}
               ticketEvents={ticketEvents}
               ticketSoldLabel={ticketSoldLabel}

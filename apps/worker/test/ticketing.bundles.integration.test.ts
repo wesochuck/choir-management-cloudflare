@@ -205,9 +205,9 @@ describe("Organization ticket bundles", () => {
         cookie,
       ),
     );
-    expect(await winterWillCall.text()).toContain(
-      '"Season Buyer","Buyer","season@example.test","2"',
-    );
+    const winterWillCallCsv = await winterWillCall.text();
+    expect(winterWillCallCsv).toContain('"Season Buyer","Buyer","season@example.test","2"');
+    expect(winterWillCallCsv).toContain(',"Bundle"\r\n');
     const bundleRefund = await jsonWrite(
       "alpha.localhost",
       `/api/organization/tickets/${encodeURIComponent(checkout.purchase.id)}/refund`,

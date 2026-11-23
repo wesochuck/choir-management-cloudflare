@@ -9,6 +9,8 @@ import {
   ticketOrderStatusDisplay,
   type OrderState,
   type TicketingTab,
+  type WillCallSourceFilter,
+  type WillCallSourceTicketCounts,
 } from "./shared";
 import { AppLink } from "../AuthenticatedShell/navigation";
 
@@ -30,34 +32,124 @@ function willCallEmptyMessage({
   discountCodeFilter,
   displayedOrderCount,
   performanceOrderCount,
+  sourceFilter,
+  sourceFilteredOrderCount,
   status,
   visibleOrderCount,
 }: {
   readonly discountCodeFilter: string | null;
   readonly displayedOrderCount: number;
   readonly performanceOrderCount: number;
+  readonly sourceFilter: WillCallSourceFilter;
+  readonly sourceFilteredOrderCount: number;
   readonly status: OrderState["status"];
   readonly visibleOrderCount: number;
 }): string | null {
   if (status !== "ready") return null;
   if (visibleOrderCount === 0) {
+    if (performanceOrderCount === 0) return "No ticket orders yet.";
+    if (sourceFilteredOrderCount === 0) {
+      return sourceFilter === "bundle"
+        ? "No bundle ticket orders for this selection."
+        : "No single-concert ticket orders for this selection.";
+    }
     if (discountCodeFilter !== null) {
       return `No ticket orders match discount code ${discountCodeFilter}.`;
     }
-    if (performanceOrderCount === 0) return "No ticket orders yet.";
     return "No ticket buyers match this search.";
   }
   if (displayedOrderCount === 0) return "All matching ticket orders are refunded or expired.";
   return null;
 }
 
+function sourceScopeNote(
+  sourceFilter: WillCallSourceFilter,
+  selectedPerformance: OrganizationEvent | undefined,
+): string {
+  if (selectedPerformance) {
+    if (sourceFilter === "single") {
+      return `Excluding bundled ticket sales — showing only direct ${selectedPerformance.title} orders.`;
+    }
+    if (sourceFilter === "bundle") {
+      return `Showing only bundle orders that include ${selectedPerformance.title}.`;
+    }
+    return `Showing single-concert and bundle sales for ${selectedPerformance.title}.`;
+  }
+  if (sourceFilter === "single") {
+    return "Excluding bundled ticket sales — showing only single-concert orders.";
+  }
+  if (sourceFilter === "bundle") {
+    return "Showing only bundle orders across all performances.";
+  }
+  return "Showing single-concert and bundle sales across all performances.";
+}
+
+function WillCallSourceFilterBar({
+  selectedPerformance,
+  setSourceFilter,
+  sourceFilter,
+  sourceTicketCounts,
+}: {
+  readonly selectedPerformance: OrganizationEvent | undefined;
+  readonly setSourceFilter: Dispatch<SetStateAction<WillCallSourceFilter>>;
+  readonly sourceFilter: WillCallSourceFilter;
+  readonly sourceTicketCounts: WillCallSourceTicketCounts;
+}) {
+  const options: readonly {
+    readonly count: number;
+    readonly label: string;
+    readonly value: WillCallSourceFilter;
+  }[] = [
+    { count: sourceTicketCounts.all, label: "All sales", value: "all" },
+    { count: sourceTicketCounts.single, label: "Single-concert only", value: "single" },
+    { count: sourceTicketCounts.bundle, label: "Bundle sales only", value: "bundle" },
+  ];
+
+  return (
+    <div className="ticket-dashboard__source-bar">
+      <div className="ticket-dashboard__source-controls">
+        <span className="ticket-dashboard__source-label" id="will-call-source-filter-label">
+          Ticket source
+        </span>
+        <div
+          aria-labelledby="will-call-source-filter-label"
+          className="ticket-dashboard__source-group"
+          role="group"
+        >
+          {options.map((option) => (
+            <button
+              aria-pressed={sourceFilter === option.value}
+              className="ticket-dashboard__source-button"
+              key={option.value}
+              onClick={() => {
+                setSourceFilter(option.value);
+              }}
+              type="button"
+            >
+              <span>{option.label}</span>
+              <span className="ticket-dashboard__source-count">({option.count})</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="ticket-dashboard__source-note">
+        {sourceScopeNote(sourceFilter, selectedPerformance)}
+      </p>
+    </div>
+  );
+}
+
 function WillCallPerformanceMetrics({
   financialSummary,
   selectedPerformance,
+  sourceFilter,
+  sourceTicketCounts,
   ticketSoldLabel,
 }: {
   readonly financialSummary: PaymentFinancialSummary;
   readonly selectedPerformance: OrganizationEvent | undefined;
+  readonly sourceFilter: WillCallSourceFilter;
+  readonly sourceTicketCounts: WillCallSourceTicketCounts;
   readonly ticketSoldLabel: string;
 }) {
   const processorFeeDisplay =
@@ -74,17 +166,34 @@ function WillCallPerformanceMetrics({
         : money(financialSummary.netProceedsCents)
       : "Pending";
 
+  const soldBreakdownLabel =
+    sourceFilter === "all"
+      ? `${String(sourceTicketCounts.single)} single · ${String(sourceTicketCounts.bundle)} bundle`
+      : sourceFilter === "single"
+        ? "Single-concert sales only"
+        : "Bundle sales only";
+
+  const grossSubtitle =
+    sourceFilter === "single"
+      ? "Single-concert charges"
+      : sourceFilter === "bundle"
+        ? "Full bundle order charges"
+        : "Original charges";
+
   return (
     <div className="ticket-dashboard__metrics">
       <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sold">
         <span className="summary-card__label">Tickets sold</span>
         <strong>{ticketSoldLabel}</strong>
-        <small>{selectedPerformance ? selectedPerformance.title : "All performances"}</small>
+        <small className="ticket-dashboard__metric-detail">
+          <span>{selectedPerformance ? selectedPerformance.title : "All performances"}</span>
+          <span className="ticket-dashboard__metric-breakdown">{soldBreakdownLabel}</span>
+        </small>
       </article>
       <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--gross">
         <span className="summary-card__label">Gross charged</span>
         <strong>{money(financialSummary.grossChargedCents)}</strong>
-        <small>Original charges</small>
+        <small>{grossSubtitle}</small>
       </article>
       <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--refunds">
         <span className="summary-card__label">Refunds</span>
@@ -223,8 +332,12 @@ export function WillCallPanel({
   selectedPerformanceId,
   setSelectedPerformanceId,
   setShowRefunded,
+  setSourceFilter,
   setWillCallSearch,
   showRefunded,
+  sourceFilter,
+  sourceFilteredOrderCount,
+  sourceTicketCounts,
   state,
   ticketEvents,
   ticketSoldLabel,
@@ -247,7 +360,11 @@ export function WillCallPanel({
   readonly selectedPerformanceId: string;
   readonly setSelectedPerformanceId: Dispatch<SetStateAction<string>>;
   readonly setShowRefunded: Dispatch<SetStateAction<boolean>>;
+  readonly setSourceFilter: Dispatch<SetStateAction<WillCallSourceFilter>>;
   readonly setWillCallSearch: Dispatch<SetStateAction<string>>;
+  readonly sourceFilter: WillCallSourceFilter;
+  readonly sourceFilteredOrderCount: number;
+  readonly sourceTicketCounts: WillCallSourceTicketCounts;
   readonly state: OrderState;
   readonly ticketEvents: readonly OrganizationEvent[];
   readonly ticketSoldLabel: string;
@@ -278,6 +395,8 @@ export function WillCallPanel({
     discountCodeFilter,
     displayedOrderCount: displayedOrders.length,
     performanceOrderCount: performanceOrders.length,
+    sourceFilter,
+    sourceFilteredOrderCount,
     status: state.status,
     visibleOrderCount: visibleOrders.length,
   });
@@ -313,9 +432,17 @@ export function WillCallPanel({
               ticketEvents={ticketEvents}
             />
           </div>
+          <WillCallSourceFilterBar
+            selectedPerformance={selectedPerformance}
+            setSourceFilter={setSourceFilter}
+            sourceFilter={sourceFilter}
+            sourceTicketCounts={sourceTicketCounts}
+          />
           <WillCallPerformanceMetrics
             financialSummary={financialSummary}
             selectedPerformance={selectedPerformance}
+            sourceFilter={sourceFilter}
+            sourceTicketCounts={sourceTicketCounts}
             ticketSoldLabel={ticketSoldLabel}
           />
           <p className="ticket-dashboard__helper-text">
@@ -368,6 +495,25 @@ export function WillCallPanel({
             Show refunded and expired
           </label>
         </div>
+        {sourceFilter !== "all" ? (
+          <div aria-live="polite" className="ticket-dashboard__active-filter">
+            <span>
+              Filtering by ticket source:{" "}
+              <strong>
+                {sourceFilter === "single" ? "Single-concert only" : "Bundle sales only"}
+              </strong>
+            </span>
+            <button
+              className="text-button"
+              onClick={() => {
+                setSourceFilter("all");
+              }}
+              type="button"
+            >
+              Show all
+            </button>
+          </div>
+        ) : null}
         {discountCodeFilter !== null ? (
           <div aria-live="polite" className="ticket-dashboard__active-filter">
             <span>
@@ -433,6 +579,26 @@ export function WillCallPanel({
                     </span>
                   ),
                   sortValue: (order) => order.buyerEmail,
+                },
+                {
+                  className: "ticket-sales-table__type",
+                  header: "Type",
+                  id: "type",
+                  render: (order) =>
+                    order.bundleId !== null ? (
+                      <span
+                        className="status-pill ticket-sales-table__type-pill ticket-sales-table__type-pill--bundle"
+                        title={order.bundleTitle || "Bundle"}
+                      >
+                        Bundle
+                      </span>
+                    ) : (
+                      <span className="status-pill status-pill--neutral ticket-sales-table__type-pill ticket-sales-table__type-pill--single">
+                        Single
+                      </span>
+                    ),
+                  sortValue: (order) =>
+                    order.bundleId !== null ? `Bundle ${order.bundleTitle}` : "Single",
                 },
                 {
                   className: "ticket-sales-table__sale-date",

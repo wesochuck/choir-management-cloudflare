@@ -12,6 +12,40 @@ export type OrderState =
 export type TicketingTab =
   "willcall" | "bundles" | "orders" | "share" | "confirmation" | "discounts";
 
+export type WillCallSourceFilter = "all" | "single" | "bundle";
+
+export interface WillCallSourceTicketCounts {
+  readonly all: number;
+  readonly bundle: number;
+  readonly single: number;
+}
+
+export function filterOrdersBySource(
+  orders: readonly OrganizationTicketOrder[],
+  sourceFilter: WillCallSourceFilter,
+): readonly OrganizationTicketOrder[] {
+  if (sourceFilter === "all") return orders;
+  return orders.filter((order) =>
+    sourceFilter === "bundle" ? order.bundleId !== null : order.bundleId === null,
+  );
+}
+
+export function countPaidTicketsBySource(
+  orders: readonly OrganizationTicketOrder[],
+): WillCallSourceTicketCounts {
+  let single = 0;
+  let bundle = 0;
+  for (const order of orders) {
+    if (order.status !== "paid") continue;
+    if (order.bundleId !== null) {
+      bundle += order.quantity;
+    } else {
+      single += order.quantity;
+    }
+  }
+  return { all: single + bundle, bundle, single };
+}
+
 export interface DiscountDraft {
   readonly active: boolean;
   readonly bundleId: string | null;

@@ -146,14 +146,50 @@ test.describe("admin ticket management", () => {
     await expect(orderRows).toHaveCount(3);
     const bundleRow = orderRows.filter({ hasText: "Bundle Buyer" });
     await expect(bundleRow).toHaveCount(1);
+    await expect(bundleRow.getByText("Bundle", { exact: true })).toBeVisible();
     await bundleRow.getByRole("button", { name: "Show details for Bundle Buyer" }).click();
     const bundleDetails = visibleOrders.locator(".ticket-sales-details");
     await expect(bundleDetails.locator("dt").filter({ hasText: "Bundle" })).toBeVisible();
     await expect(bundleDetails).toContainText("Season Pass");
     await visibleOrders.getByRole("button", { name: "Hide details for Bundle Buyer" }).click();
     const standaloneRow = orderRows.filter({ hasText: "Jane Buyer" });
+    await expect(standaloneRow.getByText("Single", { exact: true })).toBeVisible();
     await expect(standaloneRow.locator(".ticketing-bundle-order-pill")).toHaveCount(0);
     await expect(visibleOrders.locator(".ticket-sales-details")).toHaveCount(0);
+
+    const sourceGroup = page.getByRole("group", { name: "Ticket source" });
+    const singleOnlyButton = sourceGroup.getByRole("button", { name: /Single-concert only/i });
+    const bundleOnlyButton = sourceGroup.getByRole("button", { name: /Bundle sales only/i });
+    await singleOnlyButton.click();
+    await expect(singleOnlyButton).toHaveAttribute("aria-pressed", "true");
+    await expect(orderRows).toHaveCount(2);
+    await expect(visibleOrders.getByText("Bundle Buyer", { exact: true })).toHaveCount(0);
+    await expect(visibleOrders.getByText("Jane Buyer", { exact: true })).toBeVisible();
+    await expect(page.locator(".ticket-dashboard__metric--sold")).toContainText(
+      "Single-concert sales only",
+    );
+
+    await bundleOnlyButton.click();
+    await expect(bundleOnlyButton).toHaveAttribute("aria-pressed", "true");
+    await expect(orderRows).toHaveCount(1);
+    await expect(visibleOrders.getByText("Bundle Buyer", { exact: true })).toBeVisible();
+    await expect(visibleOrders.getByText("Jane Buyer", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".ticket-dashboard__metric--sold")).toContainText(
+      "Bundle sales only",
+    );
+
+    await page.getByRole("button", { name: "Show all" }).click();
+    await expect(orderRows).toHaveCount(3);
+
+    const typeSortButton = page.getByRole("button", { name: "Sort by Type" });
+    if ((await typeSortButton.count()) > 0 && (await typeSortButton.isVisible())) {
+      await typeSortButton.click();
+      await expect(typeSortButton.locator("xpath=ancestor::th")).toHaveAttribute(
+        "aria-sort",
+        "ascending",
+      );
+      await expect(orderRows.first().getByText("Bundle Buyer", { exact: true })).toBeVisible();
+    }
     const buyerSortButton = page.getByRole("button", { name: "Sort by Buyer name" });
     if ((await buyerSortButton.count()) > 0 && (await buyerSortButton.isVisible())) {
       await buyerSortButton.click();

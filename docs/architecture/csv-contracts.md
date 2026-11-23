@@ -6,15 +6,15 @@ retain the stored value `Idle`; the UI may display that value as “On Break.”
 use the Organization's configured Performer label, with `Performer` as the fallback; imports
 continue to recognize legacy `Voice Part` aliases.
 
-| Contract           | Header order                                                                                       | Reference implementation                       |
-| ------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Roster             | `Name,Email,Phone,<Performer label>,Status`                                                        | `apps/worker/src/routes/profilesRoutes.ts`     |
-| Music library      | `Title,Composer,Arranger,Copies,Catalog ID,Duration,Voicing,Applies To,Genres,Purchase Date,Notes` | `apps/worker/src/routes/musicLibraryRoutes.ts` |
-| Event RSVP roster  | `Name,Section,<Performer label>,Event Title,RSVP Status`                                           | `apps/worker/src/routes/eventsRoutes.ts`       |
-| Donations          | `ID,Donor Name,Donor Email,Amount,Tribute,Tribute Name,Anonymous,Status,Date`                      | `apps/worker/src/routes/donationsRoutes.ts`    |
-| Attendance report  | `Name,<Performer label>,Absences,Presence Count,Total Rehearsals,Attendance Rate %`                | `apps/worker/src/routes/reportsRoutes.ts`      |
-| Repertoire history | `Title,Composer,Arranger,Catalog ID,Total Performances,Last Performed`                             | `apps/worker/src/routes/reportsRoutes.ts`      |
-| Will call          | `ID,Buyer Name,Buyer Email,Quantity,Paid,Status,Created,Type`                                      | `apps/worker/src/routes/ticketsRoutes.ts`      |
+| Contract           | Header order                                                                                       | Reference implementation                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Roster             | `Name,Email,Phone,<Performer label>,Status`                                                        | `apps/worker/src/routes/profilesRoutes.ts`                                    |
+| Music library      | `Title,Composer,Arranger,Copies,Catalog ID,Duration,Voicing,Applies To,Genres,Purchase Date,Notes` | `apps/worker/src/routes/musicLibraryRoutes.ts`                                |
+| Event RSVP roster  | `Name,Section,<Performer label>,Event Title,RSVP Status`                                           | `apps/worker/src/routes/eventsRoutes.ts`                                      |
+| Donations          | `ID,Donor Name,Donor Email,Amount,Tribute,Tribute Name,Anonymous,Status,Date`                      | `apps/worker/src/routes/donationsRoutes.ts`                                   |
+| Attendance report  | `Name,<Performer label>,Absences,Presence Count,Total Rehearsals,Attendance Rate %`                | `apps/worker/src/routes/reportsRoutes.ts`                                     |
+| Repertoire history | `Title,Composer,Arranger,Catalog ID,Total Performances,Last Performed`                             | `apps/worker/src/routes/reportsRoutes.ts`                                     |
+| Will call          | `ID,Buyer Name,Last Name,Buyer Email,Quantity,Paid,Status,Created,Type`                            | `apps/worker/src/routes/organizationTicketing.ts` (`renderTicketWillCallCsv`) |
 
 ## Structural behavior
 
@@ -31,7 +31,7 @@ continue to recognize legacy `Voice Part` aliases.
   by `Applies To` in the schema.
 - Donations place non-anonymous rows first and insert an `ANONYMOUS DONORS` separator before
   anonymous rows.
-- Will-call `Type` is either `Concert Ticket` or `Season Pass (<title>)`.
+- Will-call `Type` is either `Single` or `Bundle`.
 - Attendance filenames use the performance title with whitespace replaced by underscores.
 - Dates, enum spellings, blank fields, quote escaping, filenames, group ordering, and section-leader
   duplication require fixture tests.

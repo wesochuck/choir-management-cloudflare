@@ -165,13 +165,14 @@ export function canTransitionTicketPurchase(
 
 export interface TicketWillCallRow {
   readonly amountPaidCents: number;
+  readonly bundleId?: string | null;
   readonly buyerEmail: string;
   readonly buyerName: string;
   readonly createdAt: string;
   readonly id: string;
   readonly quantity: number;
   readonly status: "expired" | "paid" | "pending" | "refunded";
-  readonly type?: "Bundle" | "Standard";
+  readonly type?: "Bundle" | "Single" | "Standard";
 }
 
 function csvCell(value: string | number): string {
@@ -216,7 +217,7 @@ export function renderTicketWillCallCsv(rows: readonly TicketWillCallRow[]): str
       (row.amountPaidCents / 100).toFixed(2),
       row.status,
       row.createdAt,
-      row.type ?? "Standard",
+      row.type ?? (row.bundleId ? "Bundle" : "Single"),
     ]),
   ]
     .map((cells) => cells.map(csvCell).join(","))
