@@ -96,7 +96,11 @@ export interface ContactsListResult {
 
 /** Additive Phase 4 detail enrichment over the Phase 3 `{contact}` shape. */
 const contactDetailEnrichmentSchema = z.object({
-  activity: contactDetailActivitySchema.default({ donationCount: 0, ticketPurchaseCount: 0 }),
+  activity: contactDetailActivitySchema.default({
+    donationCount: 0,
+    ticketPurchaseCount: 0,
+    ticketPurchases: [],
+  }),
   lastEmailAt: z.iso.datetime().nullable().default(null),
   linkedProfile: contactDetailLinkedProfileSchema.nullable().default(null),
   listIds: z.array(z.uuid()).default([]),

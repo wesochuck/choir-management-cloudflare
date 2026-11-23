@@ -119,7 +119,20 @@ export interface ContactDetailLinkedProfile {
   readonly id: string;
 }
 
+export interface ContactDetailTicketPurchase {
+  readonly bundleId: string | null;
+  readonly bundleTitle: string;
+  readonly createdAt: string;
+  readonly eventId: string;
+  readonly eventTitle: string;
+  readonly id: string;
+  readonly marketingOptIn: boolean;
+  readonly quantity: number;
+  readonly status: "pending" | "paid" | "expired" | "refunded";
+}
+
 export interface ContactDetailActivity {
   readonly donationCount: number;
   readonly ticketPurchaseCount: number;
+  readonly ticketPurchases: readonly ContactDetailTicketPurchase[];
 }

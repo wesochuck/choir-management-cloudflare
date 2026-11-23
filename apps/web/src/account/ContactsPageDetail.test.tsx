@@ -10,6 +10,10 @@ const CONTACT_JANE = "11111111-1111-4111-8111-111111111111";
 const PROFILE_JANE = "44444444-4444-4444-8444-444444444444";
 const LIST_NEWSLETTER = "33333333-3333-4333-8333-333333333333";
 const LIST_AUDIENCE = "55555555-5555-4555-8555-555555555555";
+const EVENT_EARTH = "66666666-6666-4666-8666-666666666666";
+const PURCHASE_ONE = "77777777-7777-4777-8777-777777777777";
+const PURCHASE_BUNDLE = "88888888-8888-4888-8888-888888888888";
+const BUNDLE_SEASON = "99999999-9999-4999-8999-999999999999";
 
 const janeContact: Contact = contactSchema.parse({
   createdAt: "2026-08-01T00:00:00.000Z",
@@ -22,13 +26,40 @@ const janeContact: Contact = contactSchema.parse({
   normalizedPhone: null,
   phone: null,
   profileId: PROFILE_JANE,
-  source: "Website signup",
+  source: "ticket_purchase",
   updatedAt: "2026-08-02T00:00:00.000Z",
 });
 
 function detailFixture(overrides: Partial<ContactDetail> = {}): ContactDetail {
   return {
-    activity: { donationCount: 2, ticketPurchaseCount: 4 },
+    activity: {
+      donationCount: 2,
+      ticketPurchaseCount: 2,
+      ticketPurchases: [
+        {
+          bundleId: null,
+          bundleTitle: "",
+          createdAt: "2026-08-01T15:00:00.000Z",
+          eventId: EVENT_EARTH,
+          eventTitle: "Earth and Sky and Sea",
+          id: PURCHASE_ONE,
+          marketingOptIn: true,
+          quantity: 2,
+          status: "paid",
+        },
+        {
+          bundleId: BUNDLE_SEASON,
+          bundleTitle: "2026–27 Full Season Pass",
+          createdAt: "2026-07-15T12:00:00.000Z",
+          eventId: EVENT_EARTH,
+          eventTitle: "Earth and Sky and Sea",
+          id: PURCHASE_BUNDLE,
+          marketingOptIn: false,
+          quantity: 1,
+          status: "paid",
+        },
+      ],
+    },
     contact: janeContact,
     lastEmailAt: "2026-08-12T10:00:00.000Z",
     linkedProfile: { displayName: "Jane Singer", id: PROFILE_JANE },
@@ -42,7 +73,7 @@ function detailFixture(overrides: Partial<ContactDetail> = {}): ContactDetail {
         channel: "email",
         contactId: CONTACT_JANE,
         observedAt: "2026-08-01T00:00:00.000Z",
-        source: null,
+        source: "ticket_purchase",
         status: "subscribed",
       },
       {
@@ -62,15 +93,16 @@ function renderDetail(detail: ContactDetail): string {
 }
 
 describe("ContactDetailContent", () => {
-  it("projects the linked profile, lists, activity counts, and communication state", () => {
+  it("projects the linked profile, lists, concert/bundle ticket activity, and marketing opt-in state", () => {
     const html = renderDetail(detailFixture());
-    // The contact name itself is the dialog title; content starts at sections.
     expect(html).toContain("Organization Profile");
     expect(html).toContain("Jane Singer");
     expect(html).toContain("Newsletter");
     expect(html).toContain("Concert Audience");
-    expect(html).toContain("Ticket purchases");
-    expect(html).toContain("Donations");
+    expect(html).toContain("Earth and Sky and Sea");
+    expect(html).toContain("2026–27 Full Season Pass");
+    expect(html).toContain("Marketing opt-in");
+    expect(html).toContain("No marketing opt-in");
     expect(html).toContain("Subscribed");
     expect(html).toContain("Unknown");
     expect(html).toContain("Last email sent");
@@ -80,7 +112,8 @@ describe("ContactDetailContent", () => {
   it("states empty relationships explicitly instead of omitting them", () => {
     const html = renderDetail(
       detailFixture({
-        activity: { donationCount: 0, ticketPurchaseCount: 0 },
+        activity: { donationCount: 0, ticketPurchaseCount: 0, ticketPurchases: [] },
+        contact: { ...janeContact, profileId: null, source: "manual" },
         lastEmailAt: null,
         linkedProfile: null,
         listIds: [],
@@ -90,13 +123,8 @@ describe("ContactDetailContent", () => {
     );
     expect(html).toContain("Not linked to a roster profile.");
     expect(html).toContain("No lists");
+    expect(html).toContain("No ticket purchases linked to this contact.");
     expect(html).toContain("No marketing email sent yet");
     expect(html).toContain("Unknown");
-  });
-
-  it("keeps commerce and roster records out of the dialog: counts only, no snapshots", () => {
-    const html = renderDetail(detailFixture());
-    expect(html).not.toContain("buyer@example.com");
-    expect(html).not.toContain("Spring Concert");
   });
 });

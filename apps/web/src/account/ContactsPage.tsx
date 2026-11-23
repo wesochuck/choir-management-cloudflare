@@ -625,6 +625,11 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
           detail={viewQuery.data}
           key={viewingContactId}
           onClose={closeDetails}
+          onEdit={() => {
+            const contact = viewQuery.data.contact;
+            closeDetails();
+            openEdit(contact);
+          }}
           open
         />
       ) : null}

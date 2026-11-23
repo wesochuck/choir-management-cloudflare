@@ -267,9 +267,22 @@ export const contactListDeleteResponseSchema = z.object({
  * reference (roster data stays in `profiles`), and the last email is a
  * timestamp (delivery rows stay in `communication_deliveries`).
  */
+export const contactDetailTicketPurchaseSchema = z.object({
+  bundleId: z.uuid().nullable(),
+  bundleTitle: z.string().max(500),
+  createdAt: z.iso.datetime(),
+  eventId: z.uuid(),
+  eventTitle: z.string().max(500),
+  id: z.uuid(),
+  marketingOptIn: z.boolean(),
+  quantity: z.number().int().positive(),
+  status: z.enum(["pending", "paid", "expired", "refunded"]),
+});
+
 export const contactDetailActivitySchema = z.object({
   donationCount: z.number().int().nonnegative(),
   ticketPurchaseCount: z.number().int().nonnegative(),
+  ticketPurchases: z.array(contactDetailTicketPurchaseSchema).max(100).default([]),
 });
 
 export const contactDetailLinkedProfileSchema = z.object({
@@ -283,7 +296,11 @@ export const contactDetailListSchema = z.object({
 });
 
 export const contactDetailResponseSchema = z.object({
-  activity: contactDetailActivitySchema.default({ donationCount: 0, ticketPurchaseCount: 0 }),
+  activity: contactDetailActivitySchema.default({
+    donationCount: 0,
+    ticketPurchaseCount: 0,
+    ticketPurchases: [],
+  }),
   contact: contactSchema,
   lastEmailAt: z.iso.datetime().nullable().default(null),
   linkedProfile: contactDetailLinkedProfileSchema.nullable().default(null),
@@ -403,6 +420,7 @@ export type ContactDetailActivity = z.infer<typeof contactDetailActivitySchema>;
 export type ContactDetailLinkedProfile = z.infer<typeof contactDetailLinkedProfileSchema>;
 export type ContactDetailList = z.infer<typeof contactDetailListSchema>;
 export type ContactDetailResponse = z.infer<typeof contactDetailResponseSchema>;
+export type ContactDetailTicketPurchase = z.infer<typeof contactDetailTicketPurchaseSchema>;
 export type ContactCommunicationPreference = z.infer<typeof contactCommunicationPreferenceSchema>;
 export type ContactCommunicationPreferencesResponse = z.infer<
   typeof contactCommunicationPreferencesResponseSchema

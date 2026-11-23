@@ -12,6 +12,7 @@ import {
   type ContactDetailActivity,
   type ContactDetailLinkedProfile,
   type ContactDetailList,
+  type ContactDetailTicketPurchase,
   type ContactStoreStorage,
   type ListContactsInput,
 } from "./contracts";
@@ -64,6 +65,11 @@ function readLinkedProfile(
   return row ? { displayName: row.displayName, id: row.id } : null;
 }
 
+function parseTicketPurchaseStatus(value: string): ContactDetailTicketPurchase["status"] {
+  if (value === "paid" || value === "refunded" || value === "expired") return value;
+  return "pending";
+}
+
 function readContactActivity(
   storage: ContactStoreStorage,
   contactId: string,
@@ -76,6 +82,41 @@ function readContactActivity(
       )
       .toArray()
       .at(0)?.count ?? 0;
+  const ticketPurchases: ContactDetailTicketPurchase[] = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly bundleId: string | null;
+      readonly bundleTitle: string;
+      readonly createdAt: string;
+      readonly eventId: string;
+      readonly eventTitle: string;
+      readonly id: string;
+      readonly marketingOptIn: number;
+      readonly quantity: number;
+      readonly status: string;
+    }>(
+      `SELECT id, event_id AS eventId, event_title AS eventTitle,
+         bundle_id AS bundleId, bundle_title AS bundleTitle,
+         quantity, status, marketing_opt_in AS marketingOptIn,
+         created_at AS createdAt
+       FROM ticket_purchases
+       WHERE contact_id = ?
+       ORDER BY created_at DESC, id DESC
+       LIMIT 100`,
+      contactId,
+    )
+    .toArray()
+    .map((row) => ({
+      bundleId: row.bundleId ?? null,
+      bundleTitle: row.bundleTitle || "",
+      createdAt: row.createdAt,
+      eventId: row.eventId,
+      eventTitle: row.eventTitle,
+      id: row.id,
+      marketingOptIn: row.marketingOptIn === 1,
+      quantity: row.quantity,
+      status: parseTicketPurchaseStatus(row.status),
+    }));
   const donationCount =
     storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
@@ -84,7 +125,7 @@ function readContactActivity(
       )
       .toArray()
       .at(0)?.count ?? 0;
-  return { donationCount, ticketPurchaseCount };
+  return { donationCount, ticketPurchaseCount, ticketPurchases };
 }
 
 function readLastEmailAt(storage: ContactStoreStorage, contactId: string): string | null {

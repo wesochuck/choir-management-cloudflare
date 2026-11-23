@@ -606,7 +606,20 @@ describe("unified contact detail with real SQLite", () => {
     ]);
     expect(detail.listIds.toSorted()).toEqual([uuidFor(4_110), uuidFor(4_111)].toSorted());
     expect(detail.linkedProfile).toEqual({ displayName: "Jane Singer", id: profileId });
-    expect(detail.activity).toEqual({ donationCount: 1, ticketPurchaseCount: 2 });
+    expect(detail.activity).toMatchObject({
+      donationCount: 1,
+      ticketPurchaseCount: 2,
+    });
+    expect(detail.activity.ticketPurchases).toHaveLength(2);
+    expect(detail.activity.ticketPurchases[0]).toMatchObject({
+      bundleId: null,
+      bundleTitle: "",
+      eventId: uuidFor(777),
+      eventTitle: "Spring Concert",
+      marketingOptIn: true,
+      quantity: 1,
+      status: "paid",
+    });
     expect(detail.lastEmailAt).toBe("2026-08-12T10:00:00.000Z");
   });
 
@@ -623,7 +636,11 @@ describe("unified contact detail with real SQLite", () => {
     const detail = getContactFromStore(storage, ORG_ID, contactId);
     expect(detail.lists).toEqual([]);
     expect(detail.linkedProfile).toBeNull();
-    expect(detail.activity).toEqual({ donationCount: 0, ticketPurchaseCount: 0 });
+    expect(detail.activity).toEqual({
+      donationCount: 0,
+      ticketPurchaseCount: 0,
+      ticketPurchases: [],
+    });
     expect(detail.lastEmailAt).toBeNull();
   });
 
@@ -643,7 +660,11 @@ describe("unified contact detail with real SQLite", () => {
     seedTicketPurchaseWithContact(db, 11, second);
     seedDelivery(db, 11, second, "email", "sent", "2026-08-11T10:00:00.000Z");
     const detail = getContactFromStore(storage, ORG_ID, first);
-    expect(detail.activity).toEqual({ donationCount: 0, ticketPurchaseCount: 0 });
+    expect(detail.activity).toEqual({
+      donationCount: 0,
+      ticketPurchaseCount: 0,
+      ticketPurchases: [],
+    });
     expect(detail.lastEmailAt).toBeNull();
     expectContactStoreError(
       () => getContactFromStore(storage, "org-other", first),

@@ -231,12 +231,20 @@ describe("Contact contracts", () => {
       preferences: [{ channel: "email", contactId, observedAt: updatedAt, status: "subscribed" }],
       requestId,
     });
-    expect(parsed.activity).toEqual({ donationCount: 2, ticketPurchaseCount: 4 });
+    expect(parsed.activity).toEqual({
+      donationCount: 2,
+      ticketPurchaseCount: 4,
+      ticketPurchases: [],
+    });
     expect(parsed.linkedProfile).toEqual({ displayName: "Jane Smith", id: profileId });
     expect(parsed.lists).toEqual([{ id: listId, name: "Newsletter" }]);
     // Empty relationships stay explicit rather than omitted.
     const empty = contactDetailResponseSchema.parse({ contact: validContact, requestId });
-    expect(empty.activity).toEqual({ donationCount: 0, ticketPurchaseCount: 0 });
+    expect(empty.activity).toEqual({
+      donationCount: 0,
+      ticketPurchaseCount: 0,
+      ticketPurchases: [],
+    });
     expect(empty.lastEmailAt).toBeNull();
     expect(empty.linkedProfile).toBeNull();
     expect(empty.listIds).toEqual([]);
