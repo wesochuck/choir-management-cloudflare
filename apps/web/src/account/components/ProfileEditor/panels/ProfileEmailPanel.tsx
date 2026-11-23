@@ -141,11 +141,17 @@ export function ProfileEmailPanel({
         </div>
 
         {/* Card 3: Event reminders */}
-        <fieldset className="profile-editor-card" disabled={busy}>
-          <legend className="profile-editor-card__header">
-            <span className="profile-editor-card__title">Email reminder preferences</span>
+        <div
+          aria-labelledby="roster-reminder-preferences-heading"
+          className="profile-editor-card"
+          role="group"
+        >
+          <div className="profile-editor-card__header">
+            <h4 className="profile-editor-card__title" id="roster-reminder-preferences-heading">
+              Email reminder preferences
+            </h4>
             <span className="profile-editor-card__meta">Automatic emails</span>
-          </legend>
+          </div>
           <div className="profile-editor-card__body">
             <p className="field-help" id="roster-reminder-preferences-help">
               Choose which automatic event reminders you receive, currently scheduled about 48 hours
@@ -196,7 +202,7 @@ export function ProfileEmailPanel({
               title="Other events"
             />
           </div>
-        </fieldset>
+        </div>
       </div>
 
       <div className="profile-editor-callout">

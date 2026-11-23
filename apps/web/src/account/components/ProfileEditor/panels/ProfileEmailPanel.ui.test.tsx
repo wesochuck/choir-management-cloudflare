@@ -93,4 +93,23 @@ describe("ProfileEmailPanel notification copy and semantics", () => {
       screen.getByText("Receive alerts when new audition inquiries arrive."),
     ).toBeInTheDocument();
   });
+
+  it("renders Email reminder preferences as a bordered card group without a border-breaking legend", () => {
+    render(
+      <ProfileEmailPanel
+        busy={false}
+        editingProfileRecord={null}
+        profile={baseProfileRequest}
+        setProfile={vi.fn()}
+      />,
+    );
+
+    const group = screen.getByRole("group", { name: "Email reminder preferences" });
+    expect(group).toHaveClass("profile-editor-card");
+    expect(group.tagName).toBe("DIV");
+    expect(group.querySelector("legend")).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 4, name: "Email reminder preferences" }),
+    ).toBeInTheDocument();
+  });
 });
