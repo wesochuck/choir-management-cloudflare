@@ -3,8 +3,11 @@ import type { PublicTicketReceipt } from "@choir/contracts";
 import { renderCommunicationText } from "../communications/provider";
 import type { Env } from "../env";
 
-export function walletApiKey(env: Env) {
-  if (env.APP_ENV === "local" || env.EXTERNAL_EFFECTS_MODE !== "sandbox") return undefined;
+export function walletApiKey(
+  env: Pick<Env, "EXTERNAL_EFFECTS_MODE" | "WALLETWALLET_API_KEY"> & Partial<Pick<Env, "APP_ENV">>,
+) {
+  if (!env.APP_ENV || env.APP_ENV === "local" || env.EXTERNAL_EFFECTS_MODE !== "sandbox")
+    return undefined;
   return env.WALLETWALLET_API_KEY?.trim();
 }
 

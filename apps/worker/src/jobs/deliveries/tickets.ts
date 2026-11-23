@@ -1,3 +1,4 @@
+import { walletApiKey } from "../../payments/ticketWallet";
 import { withDefaultTicketDoorsOpenTime } from "../../organization/ticketMessageTemplates";
 import { renderCommunicationTemplate } from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
@@ -6,6 +7,7 @@ import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
 import { formatTicketBundleEventList } from "./ticketEventList";
 import {
+  addTicketWalletHint,
   deliveryOrigin,
   readOrganizationBrandingConfig,
   readOrganizationEmailSenderConfig,
@@ -79,7 +81,7 @@ export async function deliverTicketNotificationJob(
     venueAddress: notification.data.venueAddress,
     venueName: notification.data.venueName,
   };
-  const templatedContent = renderCommunicationTemplate(
+  const renderedContent = renderCommunicationTemplate(
     withDefaultTicketDoorsOpenTime(
       notification.data.contentMarkdown,
       notification.data.kind,
@@ -87,6 +89,10 @@ export async function deliverTicketNotificationJob(
     ),
     notification.data.buyerName,
     templateValues,
+  );
+  const templatedContent = addTicketWalletHint(
+    renderedContent,
+    notification.data.kind === "confirmation" && Boolean(walletApiKey(env)),
   );
   const contentWithTicketLink = await renderTicketLinks(
     env,

@@ -4,7 +4,11 @@ import {
   ticketMessageTemplates,
   withDefaultTicketDoorsOpenTime,
 } from "../../organization/ticketMessageTemplates";
-import { ticketNotificationJobSchema } from "./shared";
+import {
+  addTicketWalletHint,
+  renderSafeTicketSnapshotContent,
+  ticketNotificationJobSchema,
+} from "./shared";
 
 const notification = {
   amountPaidCents: 1500,
@@ -28,6 +32,23 @@ const notification = {
   subject: "Tickets confirmed",
   timezone: "America/New_York",
 };
+
+describe("purchase email wallet instructions", () => {
+  it.each(["confirmation", "bundle_confirmation"] as const)(
+    "explains wallet delivery beside the %s receipt link",
+    (kind) => {
+      const content =
+        ticketMessageTemplates.find((template) => template.kind === kind)?.contentMarkdown ?? "";
+      const rendered = renderSafeTicketSnapshotContent(addTicketWalletHint(content, true));
+      expect(rendered).toContain("[View ticket / QR code](#)\n\nTo save your ticket");
+      expect(rendered).toContain("WalletWallet");
+      expect(addTicketWalletHint(content, false)).toBe(content);
+    },
+  );
+  it("preserves custom content without an admission link", () => {
+    expect(addTicketWalletHint("Contact the box office.", true)).toBe("Contact the box office.");
+  });
+});
 
 describe("optional ticket doors-open details", () => {
   it.each(["confirmation", "reminder"] as const)(

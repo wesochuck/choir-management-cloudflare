@@ -20,6 +20,8 @@ export type JobConsumerEnv = Pick<
   Partial<
     Pick<
       Env,
+      | "APP_ENV"
+      | "WALLETWALLET_API_KEY"
       | "CONTROL_DB"
       | "PLATFORM_EMAIL"
       | "PLATFORM_EMAIL_ALLOWED_RECIPIENTS"
@@ -451,6 +453,16 @@ export async function renderPlayerLinks(
   const playerLink = `${await deliveryOrigin(env, organizationId, delivery, canonicalOrigin)}/player?token=${encodeURIComponent(token)}`;
   const replacement = `[Open practice player](${playerLink})\n\n(No login required.)`;
   return content.replace(playerPlaceholderReplacementPattern, () => replacement);
+}
+
+export function addTicketWalletHint(content: string, enabled: boolean): string {
+  if (!enabled) return content;
+  return content.replace(
+    ticketLinkPlaceholderPattern,
+    (link) =>
+      link +
+      "\n\nTo save your ticket to Apple Wallet or Google Wallet, open your ticket and choose **Add to Wallet**. WalletWallet will open so you can save the pass.",
+  );
 }
 
 export async function renderTicketLinks(
