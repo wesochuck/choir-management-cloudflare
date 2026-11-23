@@ -128,6 +128,25 @@ export async function teardownTicketingIntegration(): Promise<void> {
   await reset();
 }
 
+export async function markPurchaseCompletedBeforeReminderWindow(
+  stub: DurableObjectStub<OrganizationStore>,
+  purchaseId: string,
+  purchasedAtIso: string,
+): Promise<void> {
+  await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+    state.storage.sql.exec(
+      `UPDATE ticket_purchases
+       SET created_at = ?, updated_at = ?, fulfilled_at = ?
+       WHERE id = ?`,
+      purchasedAtIso,
+      purchasedAtIso,
+      purchasedAtIso,
+      purchaseId,
+    );
+    return undefined;
+  });
+}
+
 export async function triggerScheduler(stub: DurableObjectStub<OrganizationStore>): Promise<void> {
   const overdueAt = new Date(Date.now() - 1_000).toISOString();
   await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {

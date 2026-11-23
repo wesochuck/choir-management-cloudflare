@@ -1,7 +1,15 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
-import { computePrefixUpperBound } from "./schedulerDueJobs";
+import {
+  TICKET_REMINDER_LEAD_SQL_MODIFIER,
+  isTicketPurchaseEligibleForReminder,
+} from "./communicationSchedule";
+import {
+  TICKET_REMINDER_BATCH_SIZE,
+  TICKET_REMINDER_CANDIDATE_SQL,
+  computePrefixUpperBound,
+} from "./schedulerDueJobs";
 import { organizationSchemaMigrations } from "./schema/migrations";
 
 function seedDatabase(): DatabaseSync {
@@ -218,4 +226,174 @@ it("uses the pending-job index to select only jobs that are due", () => {
   } finally {
     db.close();
   }
+});
+
+describe("ticket reminder candidate selection", () => {
+  it("treats purchases completed at or before the 36-hour window as eligible and skips later checkouts", () => {
+    const startsAt = "2026-11-16T20:00:00.000Z";
+    expect(isTicketPurchaseEligibleForReminder("2026-11-15T07:59:59.999Z", startsAt)).toBe(true);
+    expect(isTicketPurchaseEligibleForReminder("2026-11-15T08:00:00.000Z", startsAt)).toBe(true);
+    expect(isTicketPurchaseEligibleForReminder("2026-11-15T08:00:00.001Z", startsAt)).toBe(false);
+    expect(isTicketPurchaseEligibleForReminder("2026-11-16T19:00:00.000Z", startsAt)).toBe(false);
+    expect(isTicketPurchaseEligibleForReminder("not-a-date", startsAt)).toBe(false);
+  });
+
+  it("uses indexes with zero table scans for ticket reminder candidate lookups", () => {
+    const db = seedDatabase();
+    try {
+      const nowIso = "2026-11-15T08:45:00.000Z";
+      const horizonIso = "2026-11-16T20:45:00.000Z";
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- test query plan inspection
+      const plan = db
+        .prepare(`EXPLAIN QUERY PLAN ${TICKET_REMINDER_CANDIDATE_SQL}`)
+        .all(
+          nowIso,
+          horizonIso,
+          TICKET_REMINDER_LEAD_SQL_MODIFIER,
+          nowIso,
+          horizonIso,
+          TICKET_REMINDER_LEAD_SQL_MODIFIER,
+          TICKET_REMINDER_BATCH_SIZE,
+        ) as unknown as QueryPlanRow[];
+
+      const details = plan.map((row) => row.detail);
+      expect(details.filter((detail) => /\bSCAN\b/.test(detail))).toEqual([]);
+      expect(details.some((detail) => detail.includes("idx_events_active_calendar"))).toBe(true);
+      expect(details.some((detail) => detail.includes("idx_ticket_purchases_event_status"))).toBe(
+        true,
+      );
+      expect(details.some((detail) => detail.includes("idx_ticket_bundle_allocations_event"))).toBe(
+        true,
+      );
+      expect(
+        details.some(
+          (detail) =>
+            detail.includes(
+              "SEARCH n USING COVERING INDEX sqlite_autoindex_ticket_notifications_",
+            ) && detail.includes("dedupe_key=?"),
+        ),
+      ).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("filters out late checkouts and already-reminded purchases before applying LIMIT", () => {
+    const db = seedDatabase();
+    try {
+      const eventStartsAt = "2026-11-16T20:00:00.000Z";
+      const nowIso = "2026-11-15T08:45:00.000Z";
+      const horizonIso = "2026-11-16T20:45:00.000Z";
+      const beforeCutoffIso = "2026-11-14T12:00:00.000Z";
+      const exactCutoffIso = "2026-11-15T08:00:00.000Z";
+      const afterCutoffIso = "2026-11-15T08:00:00.001Z";
+
+      db.prepare(
+        `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+         VALUES ('event-1', 'Earth and Sky and Sea', 'Performance', ?, ?, ?)`,
+      ).run(eventStartsAt, beforeCutoffIso, beforeCutoffIso);
+
+      const insertPurchase = db.prepare(
+        `INSERT INTO ticket_purchases
+          (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
+           buyer_name, buyer_email, quantity, unit_price_cents, fee_cents, amount_paid_cents,
+           currency, provider_session_id, provider_payment_id, status, created_at, updated_at, fulfilled_at)
+         VALUES (?, ?, 'event-1', 'Earth and Sky and Sea', ?, 'America/New_York',
+           'Buyer', ?, 1, 2000, 0, 2000, 'usd', ?, '', 'paid', ?, ?, ?)`,
+      );
+      const insertNotification = db.prepare(
+        `INSERT INTO ticket_notifications
+          (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+           content_markdown, status, scheduled_for, created_at, updated_at)
+         VALUES (?, ?, 'event-1', ?, 'reminder', ?, 'Reminder', 'Body', 'sent', ?, ?, ?)`,
+      );
+
+      // 105 advance purchases where the first 100 already have reminders
+      for (let index = 0; index < 105; index++) {
+        const purchaseId = `purchase-${String(index).padStart(3, "0")}`;
+        const email = `${purchaseId}@example.test`;
+        insertPurchase.run(
+          purchaseId,
+          `req-${purchaseId}`,
+          eventStartsAt,
+          email,
+          `sess-${purchaseId}`,
+          beforeCutoffIso,
+          beforeCutoffIso,
+          index === 104 ? null : beforeCutoffIso,
+        );
+        if (index < 100) {
+          insertNotification.run(
+            `notif-${purchaseId}`,
+            purchaseId,
+            `ticket-reminder:${purchaseId}:event-1:${eventStartsAt}`,
+            email,
+            nowIso,
+            nowIso,
+            nowIso,
+          );
+        }
+      }
+
+      // Boundary purchase at exact 36-hour mark: eligible
+      insertPurchase.run(
+        "purchase-exact-cutoff",
+        "req-exact",
+        eventStartsAt,
+        "exact@example.test",
+        "sess-exact",
+        exactCutoffIso,
+        exactCutoffIso,
+        exactCutoffIso,
+      );
+
+      // Checkout started before cutoff but paid inside 36-hour window: excluded
+      insertPurchase.run(
+        "purchase-late-fulfilled",
+        "req-late-fulfilled",
+        eventStartsAt,
+        "late-fulfilled@example.test",
+        "sess-late-fulfilled",
+        beforeCutoffIso,
+        afterCutoffIso,
+        afterCutoffIso,
+      );
+
+      // Checkout created and paid inside 36-hour window: excluded
+      insertPurchase.run(
+        "purchase-same-day",
+        "req-same-day",
+        eventStartsAt,
+        "same-day@example.test",
+        "sess-same-day",
+        afterCutoffIso,
+        afterCutoffIso,
+        afterCutoffIso,
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- test query result
+      const candidates = db
+        .prepare(TICKET_REMINDER_CANDIDATE_SQL)
+        .all(
+          nowIso,
+          horizonIso,
+          TICKET_REMINDER_LEAD_SQL_MODIFIER,
+          nowIso,
+          horizonIso,
+          TICKET_REMINDER_LEAD_SQL_MODIFIER,
+          TICKET_REMINDER_BATCH_SIZE,
+        ) as unknown as { readonly purchaseId: string }[];
+
+      expect(candidates.map((row) => row.purchaseId)).toEqual([
+        "purchase-100",
+        "purchase-101",
+        "purchase-102",
+        "purchase-103",
+        "purchase-104",
+        "purchase-exact-cutoff",
+      ]);
+    } finally {
+      db.close();
+    }
+  });
 });

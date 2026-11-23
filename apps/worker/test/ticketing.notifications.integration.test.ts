@@ -13,6 +13,7 @@ import {
   jsonWrite,
   signIn,
   deliverQueuedTicketNotification,
+  markPurchaseCompletedBeforeReminderWindow,
   triggerScheduler,
 } from "./ticketing.integration.fixture";
 
@@ -68,19 +69,27 @@ describe("Organization ticketing notifications and reminders", () => {
           )
         ).json(),
       );
-      expect(
-        (
-          await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
-            buyerEmail: "reminder@example.test",
-            buyerName: "Reminder Buyer",
-            checkoutRequestId: crypto.randomUUID(),
-            eventId: event.id,
-            marketingOptIn: false,
-            quantity: 1,
-          })
-        ).status,
-      ).toBe(201);
+      const checkoutResponse = await jsonWrite(
+        "tickets.example.test",
+        "/api/public/tickets/checkout",
+        "POST",
+        {
+          buyerEmail: "reminder@example.test",
+          buyerName: "Reminder Buyer",
+          checkoutRequestId: crypto.randomUUID(),
+          eventId: event.id,
+          marketingOptIn: false,
+          quantity: 1,
+        },
+      );
+      expect(checkoutResponse.status).toBe(201);
+      const checkout = ticketCheckoutResponseSchema.parse(await checkoutResponse.json());
       const stub = stores.get(stores.idFromName("organization-alpha"));
+      await markPurchaseCompletedBeforeReminderWindow(
+        stub,
+        checkout.purchase.id,
+        new Date(Date.parse(startsAt) - 48 * 60 * 60 * 1000).toISOString(),
+      );
       const overdueAt = new Date(Date.now() - 1_000).toISOString();
       await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
         state.storage.sql.exec(
@@ -458,6 +467,11 @@ describe("Organization ticketing notifications and reminders", () => {
     expect(checkout1.purchase.status).toBe("paid");
 
     const stub = stores.get(stores.idFromName("organization-alpha"));
+    await markPurchaseCompletedBeforeReminderWindow(
+      stub,
+      checkout1.purchase.id,
+      new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    );
 
     // 2. Scheduler runs while outside horizon: no reminder generated
     await triggerScheduler(stub);
@@ -652,6 +666,11 @@ describe("Organization ticketing notifications and reminders", () => {
     );
     // Deliver confirmation for checkout2
     await deliverQueuedTicketNotification("organization-alpha");
+    await markPurchaseCompletedBeforeReminderWindow(
+      stub,
+      checkout2.purchase.id,
+      new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    );
 
     // 2. Scheduler runs and creates reminder for original date (queued)
     await triggerScheduler(stub);
@@ -840,6 +859,11 @@ describe("Organization ticketing notifications and reminders", () => {
     await deliverQueuedTicketNotification("organization-alpha"); // confirmation
 
     const stub = stores.get(stores.idFromName("organization-alpha"));
+    await markPurchaseCompletedBeforeReminderWindow(
+      stub,
+      checkout.purchase.id,
+      new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    );
     await triggerScheduler(stub);
 
     // Cancel the event
@@ -887,5 +911,283 @@ describe("Organization ticketing notifications and reminders", () => {
           .one().count,
     );
     expect(reminderCount).toBe(1);
+  });
+
+  it("skips reminders for tickets purchased inside the 36-hour window while still reminding advance buyers and postponed performances", async () => {
+    const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "7 Cutoff Road", name: "Cutoff Hall" },
+          cookie,
+        )
+      ).json(),
+    );
+    const now = Date.now();
+    const startsAt = new Date(now + 12 * 60 * 60 * 1000).toISOString();
+    const eventBody = {
+      advancePriceCents: 1_500,
+      callTime: "",
+      dayOfPriceCents: 1_500,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 60,
+      isTicketingEnabled: true,
+      location: "Cutoff Hall",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: true,
+      rsvpDeadlineDate: "2030-01-01",
+      setList: [],
+      setListApproved: false,
+      startsAt,
+      ticketCapacity: 20,
+      title: "Earth and Sky and Sea",
+      type: "Performance" as const,
+      venueId: venue.id,
+    };
+    const event = organizationEventSchema.parse(
+      await (
+        await jsonWrite("alpha.localhost", "/api/organization/events", "POST", eventBody, cookie)
+      ).json(),
+    );
+
+    const advanceCheckout = ticketCheckoutResponseSchema.parse(
+      await (
+        await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
+          buyerEmail: "advance.buyer@example.test",
+          buyerName: "Advance Buyer",
+          checkoutRequestId: crypto.randomUUID(),
+          eventId: event.id,
+          marketingOptIn: false,
+          quantity: 1,
+        })
+      ).json(),
+    );
+    const lateCheckout = ticketCheckoutResponseSchema.parse(
+      await (
+        await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
+          buyerEmail: "late.buyer@example.test",
+          buyerName: "Late Buyer",
+          checkoutRequestId: crypto.randomUUID(),
+          eventId: event.id,
+          marketingOptIn: false,
+          quantity: 1,
+        })
+      ).json(),
+    );
+
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    await markPurchaseCompletedBeforeReminderWindow(
+      stub,
+      advanceCheckout.purchase.id,
+      new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    );
+
+    await triggerScheduler(stub);
+    await triggerScheduler(stub);
+
+    const remindedPurchaseIds = await runInDurableObject<OrganizationStore, string[]>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ purchaseId: string }>(
+            "SELECT purchase_id AS purchaseId FROM ticket_notifications WHERE kind = 'reminder' ORDER BY purchase_id",
+          )
+          .toArray()
+          .map((row) => row.purchaseId),
+    );
+    expect(remindedPurchaseIds).toEqual([advanceCheckout.purchase.id]);
+
+    // Late buyer still receives their ticket confirmation notification.
+    const lateNotifications = await runInDurableObject<OrganizationStore, string[]>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ kind: string }>(
+            "SELECT kind FROM ticket_notifications WHERE purchase_id = ? ORDER BY kind",
+            lateCheckout.purchase.id,
+          )
+          .toArray()
+          .map((row) => row.kind),
+    );
+    expect(lateNotifications).toEqual(["confirmation"]);
+
+    // If the event is postponed so the previously-late purchase is now > 36h before the new date,
+    // that buyer becomes eligible once the new 36-hour reminder window opens.
+    const postponedStartsAt = new Date(now + 72 * 60 * 60 * 1000).toISOString();
+    await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${event.id}`,
+      "PUT",
+      { ...eventBody, id: event.id, startsAt: postponedStartsAt },
+      cookie,
+    );
+    await markPurchaseCompletedBeforeReminderWindow(
+      stub,
+      lateCheckout.purchase.id,
+      new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    );
+    const postponedHorizonStartsAt = new Date(now + 24 * 60 * 60 * 1000).toISOString();
+    await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${event.id}`,
+      "PUT",
+      { ...eventBody, id: event.id, startsAt: postponedHorizonStartsAt },
+      cookie,
+    );
+    await triggerScheduler(stub);
+
+    const lateRemindersAfterPostpone = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'",
+            lateCheckout.purchase.id,
+          )
+          .one().count,
+    );
+    expect(lateRemindersAfterPostpone).toBe(1);
+  });
+
+  it("queues reminders for more than 100 eligible paid purchases in one scheduler tick without skipping or duplicating", async () => {
+    const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "8 Capacity Road", name: "Big Hall" },
+          cookie,
+        )
+      ).json(),
+    );
+    const now = Date.now();
+    const startsAt = new Date(now + 30 * 60 * 60 * 1000).toISOString();
+    const advancePurchasedAt = new Date(now - 48 * 60 * 60 * 1000).toISOString();
+    const latePurchasedAt = new Date(now - 60 * 60 * 1000).toISOString();
+    const event = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          {
+            advancePriceCents: 1_500,
+            callTime: "",
+            dayOfPriceCents: 1_500,
+            details: "",
+            doorsOpenTime: "",
+            durationMinutes: 60,
+            isTicketingEnabled: true,
+            location: "Big Hall",
+            parentPerformanceId: null,
+            publicDetails: "",
+            publicGraphicFileId: null,
+            publishOnWebsite: true,
+            rsvpDeadlineDate: "2030-01-01",
+            setList: [],
+            setListApproved: false,
+            startsAt,
+            ticketCapacity: 250,
+            title: "Large Audience Concert",
+            type: "Performance" as const,
+            venueId: venue.id,
+          },
+          cookie,
+        )
+      ).json(),
+    );
+
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const advancePurchaseIds: string[] = [];
+    const latePurchaseIds: string[] = [];
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      for (let index = 0; index < 125; index++) {
+        const purchaseId = `advance-${String(index).padStart(3, "0")}`;
+        advancePurchaseIds.push(purchaseId);
+        state.storage.sql.exec(
+          `INSERT INTO ticket_purchases
+            (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
+             buyer_name, buyer_email, quantity, unit_price_cents, fee_cents, amount_paid_cents,
+             currency, provider_session_id, provider_payment_id, status, created_at, updated_at, fulfilled_at)
+           VALUES (?, ?, ?, 'Large Audience Concert', ?, 'America/New_York',
+             'Advance Patron', ?, 1, 1500, 0, 1500, 'usd', ?, '', 'paid', ?, ?, ?)`,
+          purchaseId,
+          `req-${purchaseId}`,
+          event.id,
+          startsAt,
+          `${purchaseId}@example.test`,
+          `sess-${purchaseId}`,
+          advancePurchasedAt,
+          advancePurchasedAt,
+          advancePurchasedAt,
+        );
+      }
+      for (let index = 0; index < 10; index++) {
+        const purchaseId = `late-${String(index).padStart(2, "0")}`;
+        latePurchaseIds.push(purchaseId);
+        state.storage.sql.exec(
+          `INSERT INTO ticket_purchases
+            (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
+             buyer_name, buyer_email, quantity, unit_price_cents, fee_cents, amount_paid_cents,
+             currency, provider_session_id, provider_payment_id, status, created_at, updated_at, fulfilled_at)
+           VALUES (?, ?, ?, 'Large Audience Concert', ?, 'America/New_York',
+             'Late Patron', ?, 1, 1500, 0, 1500, 'usd', ?, '', 'paid', ?, ?, ?)`,
+          purchaseId,
+          `req-${purchaseId}`,
+          event.id,
+          startsAt,
+          `${purchaseId}@example.test`,
+          `sess-${purchaseId}`,
+          latePurchasedAt,
+          latePurchasedAt,
+          latePurchasedAt,
+        );
+      }
+      return undefined;
+    });
+
+    await triggerScheduler(stub);
+
+    const reminders = await runInDurableObject<
+      OrganizationStore,
+      { readonly purchaseId: string; readonly scheduledFor: string }[]
+    >(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ readonly purchaseId: string; readonly scheduledFor: string }>(
+          `SELECT purchase_id AS purchaseId, scheduled_for AS scheduledFor
+           FROM ticket_notifications
+           WHERE event_id = ? AND kind = 'reminder'
+           ORDER BY purchase_id`,
+          event.id,
+        )
+        .toArray(),
+    );
+
+    expect(reminders.map((row) => row.purchaseId)).toEqual(advancePurchaseIds);
+    expect(reminders.some((row) => latePurchaseIds.includes(row.purchaseId))).toBe(false);
+    // Every reminder created in the wave shares the exact same scheduled_for timestamp.
+    expect(new Set(reminders.map((row) => row.scheduledFor)).size).toBe(1);
+
+    // Re-running the scheduler creates zero duplicate reminders.
+    await triggerScheduler(stub);
+    const countAfterReplay = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_notifications WHERE event_id = ? AND kind = 'reminder'",
+            event.id,
+          )
+          .one().count,
+    );
+    expect(countAfterReplay).toBe(125);
   });
 });

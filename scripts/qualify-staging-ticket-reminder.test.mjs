@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   safeTicketReminderQualificationSummary,
+  shortNoticeReminderSuppressed,
   ticketReminderBoundaryResponsesSafe,
   ticketReminderQualificationPlan,
   ticketReminderReady,
@@ -15,17 +16,25 @@ describe("staging ticket-reminder qualification helpers", () => {
   it("describes a non-mutating checkout and cleanup sequence", () => {
     const plan = ticketReminderQualificationPlan().join(" ");
     expect(plan).toContain("zero-dollar");
+    expect(plan).toContain("48 hours out");
+    expect(plan).toContain("short-notice");
     expect(plan).toContain("canonical signed receipt");
     expect(plan).toContain("ticket-confirmation resend");
-    expect(plan).toContain("refund the free simulated order");
+    expect(plan).toContain("refund the free simulated orders");
     expect(plan).toContain("wrong Organization host");
-    expect(plan).toContain("archive the qualification Performance");
+    expect(plan).toContain("archive the qualification Performances");
   });
 
   it("keeps only the target event's confirmation and reminder rows", () => {
     const snapshot = ticketReminderSnapshot(
       [
-        { eventId: "target", id: "b", kind: "ticket_reminder", recipientCount: 1, status: "Sent" },
+        {
+          eventId: "target",
+          id: "b",
+          kind: "ticket_reminder",
+          recipientCount: 1,
+          status: "Scheduled",
+        },
         {
           eventId: "target",
           id: "a",
@@ -40,6 +49,42 @@ describe("staging ticket-reminder qualification helpers", () => {
     );
     expect(snapshot.rows.map((row) => row.id)).toEqual(["a", "b"]);
     expect(ticketReminderReady(snapshot)).toBe(true);
+  });
+
+  it("verifies short-notice checkouts send confirmation without queuing a reminder", () => {
+    expect(
+      shortNoticeReminderSuppressed({
+        rows: [
+          {
+            eventId: "short",
+            id: "conf-1",
+            kind: "ticket_confirmation",
+            recipientCount: 1,
+            status: "Sent",
+          },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      shortNoticeReminderSuppressed({
+        rows: [
+          {
+            eventId: "short",
+            id: "conf-1",
+            kind: "ticket_confirmation",
+            recipientCount: 1,
+            status: "Sent",
+          },
+          {
+            eventId: "short",
+            id: "rem-1",
+            kind: "ticket_reminder",
+            recipientCount: 1,
+            status: "Sent",
+          },
+        ],
+      }),
+    ).toBe(false);
   });
 
   it("detects replay changes while allowing stable snapshots", () => {
@@ -192,11 +237,12 @@ describe("staging ticket-reminder qualification helpers", () => {
           status: "Sent",
         },
         reminder: {
-          deliveryState: "Sent",
+          deliveryState: "Scheduled",
           jobCount: 1,
           recipientCount: 1,
           replayStable: true,
-          status: "Sent",
+          shortNoticeCutoffVerified: true,
+          status: "Scheduled",
         },
         successToken: "must-not-be-returned",
       }),
@@ -215,11 +261,12 @@ describe("staging ticket-reminder qualification helpers", () => {
         status: "Sent",
       },
       reminder: {
-        deliveryState: "Sent",
+        deliveryState: "Scheduled",
         jobCount: 1,
         recipientCount: 1,
         replayStable: true,
-        status: "Sent",
+        shortNoticeCutoffVerified: true,
+        status: "Scheduled",
       },
     });
   });

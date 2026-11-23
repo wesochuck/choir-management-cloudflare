@@ -7,7 +7,9 @@ import {
 import type { OrganizationRosterConfiguration } from "@choir/contracts";
 
 export const EVENT_REMINDER_LEAD_MS = 48 * 60 * 60 * 1000;
-export const TICKET_REMINDER_LEAD_MS = 36 * 60 * 60 * 1000;
+export const TICKET_REMINDER_LEAD_HOURS = 36;
+export const TICKET_REMINDER_LEAD_MS = TICKET_REMINDER_LEAD_HOURS * 60 * 60 * 1000;
+export const TICKET_REMINDER_LEAD_SQL_MODIFIER = `-${String(TICKET_REMINDER_LEAD_HOURS)} hours`;
 export const ATTENDANCE_REPORT_LOOKBACK_MS = 48 * 60 * 60 * 1000;
 export const COMMUNICATION_PREVIEW_DAYS = 90;
 
@@ -17,6 +19,20 @@ export function eventReminderDueAt(startsAt: string): number {
 
 export function ticketReminderDueAt(startsAt: string): number {
   return Date.parse(startsAt) - TICKET_REMINDER_LEAD_MS;
+}
+
+/**
+ * Only purchases completed before the 36-hour reminder window opens receive an
+ * automated reminder; buyers checking out inside that window rely on their
+ * immediate confirmation email instead of receiving a staggered reminder.
+ */
+export function isTicketPurchaseEligibleForReminder(
+  purchasedAt: string,
+  eventStartsAt: string,
+): boolean {
+  const purchasedAtMs = Date.parse(purchasedAt);
+  const dueAtMs = ticketReminderDueAt(eventStartsAt);
+  return Number.isFinite(purchasedAtMs) && Number.isFinite(dueAtMs) && purchasedAtMs <= dueAtMs;
 }
 
 export function attendanceReportDueAt(startsAt: string, timezone: string): number {

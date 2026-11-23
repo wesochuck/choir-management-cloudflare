@@ -7,12 +7,53 @@ import { prepareMusicTrackImportCleanupSweepInStore } from "./music/trackImportS
 import {
   EVENT_REMINDER_LEAD_MS,
   TICKET_REMINDER_LEAD_MS,
+  TICKET_REMINDER_LEAD_SQL_MODIFIER,
   attendanceReportDueAt,
+  isTicketPurchaseEligibleForReminder,
   rsvpFollowUpSchedule,
 } from "./communicationSchedule";
 
 const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000;
 const FEE_RECONCILIATION_BATCH_SIZE = 10;
+export const TICKET_REMINDER_BATCH_SIZE = 100;
+const MAX_TICKET_REMINDER_EXTRA_BATCHES = 9;
+
+export const TICKET_REMINDER_CANDIDATE_SQL = `SELECT p.id AS purchaseId, p.buyer_name AS buyerName, p.buyer_email AS buyerEmail,
+  p.quantity, e.id AS eventId, e.title AS eventTitle, e.starts_at AS eventStartsAt,
+  COALESCE(p.fulfilled_at, p.created_at) AS purchasedAt
+ FROM events e INDEXED BY idx_events_active_calendar
+ JOIN ticket_purchases p ON p.event_id = e.id
+ WHERE e.is_archived = 0 AND e.is_canceled = 0
+   AND e.starts_at > ? AND e.starts_at <= ?
+   AND p.bundle_id IS NULL AND p.status = 'paid'
+   AND strftime('%Y-%m-%dT%H:%M:%fZ', COALESCE(p.fulfilled_at, p.created_at))
+       <= strftime('%Y-%m-%dT%H:%M:%fZ', e.starts_at, ?)
+   AND NOT EXISTS (
+     SELECT 1 FROM ticket_notifications n
+     WHERE n.dedupe_key = (
+       'ticket-reminder:' || p.id || ':' || e.id || ':' || strftime('%Y-%m-%dT%H:%M:%fZ', e.starts_at)
+     )
+   )
+ UNION ALL
+ SELECT p.id AS purchaseId, p.buyer_name AS buyerName, p.buyer_email AS buyerEmail,
+  p.quantity, e.id AS eventId, e.title AS eventTitle, e.starts_at AS eventStartsAt,
+  COALESCE(p.fulfilled_at, p.created_at) AS purchasedAt
+ FROM events e INDEXED BY idx_events_active_calendar
+ JOIN ticket_bundle_allocations a ON a.event_id = e.id
+ JOIN ticket_purchases p ON p.id = a.purchase_id
+ WHERE e.is_archived = 0 AND e.is_canceled = 0
+   AND e.starts_at > ? AND e.starts_at <= ?
+   AND p.status = 'paid'
+   AND strftime('%Y-%m-%dT%H:%M:%fZ', COALESCE(p.fulfilled_at, p.created_at))
+       <= strftime('%Y-%m-%dT%H:%M:%fZ', e.starts_at, ?)
+   AND NOT EXISTS (
+     SELECT 1 FROM ticket_notifications n
+     WHERE n.dedupe_key = (
+       'ticket-reminder:' || p.id || ':' || e.id || ':' || strftime('%Y-%m-%dT%H:%M:%fZ', e.starts_at)
+     )
+   )
+ ORDER BY eventStartsAt, purchaseId, eventId
+ LIMIT ?`;
 
 interface FeeReconciliationCandidateRow {
   readonly [column: string]: SqlStorageValue;
@@ -26,6 +67,7 @@ interface ReminderCandidateRow {
   readonly eventId: string;
   readonly eventStartsAt: string;
   readonly eventTitle: string;
+  readonly purchasedAt: string;
   readonly purchaseId: string;
   readonly quantity: number;
 }
@@ -72,71 +114,79 @@ function nextSchedulerDue(now: Date): string {
   return new Date(now.getTime() + SCHEDULER_INTERVAL_MS).toISOString();
 }
 
-function createTicketReminderJobs(storage: DurableObjectStorage, now: Date): void {
+function createTicketReminderBatch(
+  storage: DurableObjectStorage,
+  now: Date,
+): { readonly candidateCount: number; readonly insertedCount: number } {
+  const nowIso = now.toISOString();
   const horizon = new Date(now.getTime() + TICKET_REMINDER_LEAD_MS).toISOString();
-  const candidates = storage.sql
-    .exec<ReminderCandidateRow>(
-      `SELECT p.id AS purchaseId, p.buyer_name AS buyerName, p.buyer_email AS buyerEmail,
-        p.quantity, e.id AS eventId, e.title AS eventTitle, e.starts_at AS eventStartsAt
-       FROM ticket_purchases p JOIN events e ON e.id = p.event_id
-       WHERE p.bundle_id IS NULL AND p.status = 'paid'
-         AND e.is_archived = 0 AND e.is_canceled = 0
-         AND e.starts_at > ? AND e.starts_at <= ?
-       UNION ALL
-       SELECT p.id, p.buyer_name, p.buyer_email, p.quantity,
-        e.id, e.title, e.starts_at
-       FROM ticket_bundle_allocations a
-       JOIN ticket_purchases p ON p.id = a.purchase_id
-       JOIN events e ON e.id = a.event_id
-       WHERE p.status = 'paid'
-         AND e.is_archived = 0 AND e.is_canceled = 0
-         AND e.starts_at > ? AND e.starts_at <= ?
-       ORDER BY eventStartsAt, purchaseId, eventId LIMIT 100`,
-      now.toISOString(),
-      horizon,
-      now.toISOString(),
-      horizon,
-    )
-    .toArray();
-  const notificationTemplate = readTicketMessageTemplate(storage, "reminder");
-  for (const candidate of candidates) {
-    const normalizedStartsAt = new Date(candidate.eventStartsAt).toISOString();
-    const dedupeKey = `ticket-reminder:${candidate.purchaseId}:${candidate.eventId}:${normalizedStartsAt}`;
-    const exists = storage.sql
-      .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
-        "SELECT id FROM ticket_notifications WHERE dedupe_key = ? LIMIT 1",
+  const cursor = storage.sql.exec<ReminderCandidateRow>(
+    TICKET_REMINDER_CANDIDATE_SQL,
+    nowIso,
+    horizon,
+    TICKET_REMINDER_LEAD_SQL_MODIFIER,
+    nowIso,
+    horizon,
+    TICKET_REMINDER_LEAD_SQL_MODIFIER,
+    TICKET_REMINDER_BATCH_SIZE,
+  );
+  const candidates = cursor.toArray();
+  let rowsWritten = 0;
+  let insertedCount = 0;
+  if (candidates.length > 0) {
+    const notificationTemplate = readTicketMessageTemplate(storage, "reminder");
+    for (const candidate of candidates) {
+      if (!isTicketPurchaseEligibleForReminder(candidate.purchasedAt, candidate.eventStartsAt)) {
+        continue;
+      }
+      const normalizedStartsAt = new Date(candidate.eventStartsAt).toISOString();
+      const dedupeKey = `ticket-reminder:${candidate.purchaseId}:${candidate.eventId}:${normalizedStartsAt}`;
+      const exists = storage.sql
+        .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+          "SELECT id FROM ticket_notifications WHERE dedupe_key = ? LIMIT 1",
+          dedupeKey,
+        )
+        .toArray()
+        .at(0);
+      if (exists) continue;
+      const notificationId = crypto.randomUUID();
+      const jobId = crypto.randomUUID();
+      const notificationInsert = storage.sql.exec(
+        `INSERT INTO ticket_notifications
+          (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+           content_markdown, status, scheduled_for, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'reminder', ?, ?, ?, 'queued', ?, ?, ?)`,
+        notificationId,
+        candidate.purchaseId,
+        candidate.eventId,
         dedupeKey,
-      )
-      .toArray()
-      .at(0);
-    if (exists) continue;
-    const notificationId = crypto.randomUUID();
-    const jobId = crypto.randomUUID();
-    storage.sql.exec(
-      `INSERT INTO ticket_notifications
-        (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
-         content_markdown, status, scheduled_for, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'reminder', ?, ?, ?, 'queued', ?, ?, ?)`,
-      notificationId,
-      candidate.purchaseId,
-      candidate.eventId,
-      dedupeKey,
-      candidate.buyerEmail,
-      notificationTemplate.subject,
-      notificationTemplate.contentMarkdown,
-      now.toISOString(),
-      now.toISOString(),
-      now.toISOString(),
-    );
-    storage.sql.exec(
-      `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
-       VALUES (?, 'ticket_notification', ?, ?, ?)`,
-      jobId,
-      `ticket-notification:${notificationId}`,
-      now.toISOString(),
-      now.toISOString(),
-    );
+        candidate.buyerEmail,
+        notificationTemplate.subject,
+        notificationTemplate.contentMarkdown,
+        nowIso,
+        nowIso,
+        nowIso,
+      );
+      const outboxInsert = storage.sql.exec(
+        `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+         VALUES (?, 'ticket_notification', ?, ?, ?)`,
+        jobId,
+        `ticket-notification:${notificationId}`,
+        nowIso,
+        nowIso,
+      );
+      rowsWritten += notificationInsert.rowsWritten + outboxInsert.rowsWritten;
+      insertedCount += 1;
+    }
   }
+  recordDatabaseCost({
+    operation: "organization_sqlite.scheduler.ticket_reminders",
+    rowsRead: cursor.rowsRead,
+    rowsReturned: candidates.length,
+    rowsWritten,
+    store: "organization_sqlite",
+  });
+  return { candidateCount: candidates.length, insertedCount };
 }
 
 function readOrganizationTimezone(storage: DurableObjectStorage): string {
@@ -343,7 +393,7 @@ export function createDueJobs(
   now: Date,
   force: boolean,
 ): void {
-  storage.transactionSync(() => {
+  const ticketReminderBatchFull = storage.transactionSync(() => {
     const scheduler = storage.sql
       .exec<SchedulerDueStateRow>(
         "SELECT next_due_at AS nextDueAt FROM scheduler_state WHERE singleton = 1",
@@ -365,9 +415,9 @@ export function createDueJobs(
       )
       .toArray()
       .at(0);
-    if (!initializedScheduler) return;
+    if (!initializedScheduler) return false;
     const schedulerDueAt = new Date(initializedScheduler.nextDueAt);
-    if (!force && schedulerDueAt.getTime() > now.getTime()) return;
+    if (!force && schedulerDueAt.getTime() > now.getTime()) return false;
     const idempotencyKey = `scheduler:${organizationId}:stale_checkout_cleanup:${initializedScheduler.nextDueAt}`;
     const cleanupDueAt =
       force && schedulerDueAt.getTime() > now.getTime()
@@ -382,7 +432,7 @@ export function createDueJobs(
       cleanupDueAt,
       now.toISOString(),
     );
-    createTicketReminderJobs(storage, now);
+    const firstTicketReminderBatch = createTicketReminderBatch(storage, now);
     createEventReminderJobs(storage, organizationId, now);
     createRsvpFollowUpJobs(storage, organizationId, now);
     createPostEventReportJobs(storage, organizationId, now);
@@ -396,7 +446,22 @@ export function createDueJobs(
         now.toISOString(),
       );
     }
+    return (
+      firstTicketReminderBatch.candidateCount === TICKET_REMINDER_BATCH_SIZE &&
+      firstTicketReminderBatch.insertedCount > 0
+    );
   });
+  if (ticketReminderBatchFull) {
+    for (let batchIndex = 0; batchIndex < MAX_TICKET_REMINDER_EXTRA_BATCHES; batchIndex++) {
+      const batchResult = storage.transactionSync(() => createTicketReminderBatch(storage, now));
+      if (
+        batchResult.candidateCount < TICKET_REMINDER_BATCH_SIZE ||
+        batchResult.insertedCount === 0
+      ) {
+        break;
+      }
+    }
+  }
 }
 
 function readFeeReconciliationCandidatePage(

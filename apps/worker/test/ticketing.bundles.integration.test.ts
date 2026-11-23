@@ -16,6 +16,7 @@ import {
   api,
   deliverQueuedTicketNotification,
   jsonWrite,
+  markPurchaseCompletedBeforeReminderWindow,
   setupTicketingIntegration,
   signIn,
   stores,
@@ -325,6 +326,11 @@ describe("Organization ticket bundles", () => {
     expect(checkout.purchase.status).toBe("paid");
 
     const stub = stores.get(stores.idFromName("organization-alpha"));
+    await markPurchaseCompletedBeforeReminderWindow(
+      stub,
+      checkout.purchase.id,
+      new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    );
     await triggerScheduler(stub);
 
     const reminderRows = await runInDurableObject<
@@ -684,5 +690,119 @@ describe("Organization ticket bundles", () => {
     );
     expect(updatedProjection.payload.ticketBundles[0]?.graphicFileId).toBeNull();
     expect(updatedProjection.payload.mediaFileIds).not.toContain(graphicFileId);
+  });
+
+  it("applies the 36-hour purchase cutoff per concert for bundle purchases", async () => {
+    const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "2 Stage Road", name: "Cutoff Hall" },
+          cookie,
+        )
+      ).json(),
+    );
+    const now = Date.now();
+    // Purchase timestamp is 10 hours before now:
+    // - firstEvent (now + 10h) is 20h after purchase -> inside 36h cutoff (skip reminder)
+    // - secondEvent (now + 30h) is 40h after purchase -> before 36h cutoff (queue reminder)
+    const purchasedAt = new Date(now - 10 * 60 * 60 * 1000).toISOString();
+    const firstStartsAt = new Date(now + 10 * 60 * 60 * 1000).toISOString();
+    const secondStartsAt = new Date(now + 30 * 60 * 60 * 1000).toISOString();
+    const eventBody = {
+      advancePriceCents: 2_000,
+      callTime: "",
+      dayOfPriceCents: 2_000,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 60,
+      isTicketingEnabled: true,
+      location: "Cutoff Hall",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: true,
+      rsvpDeadlineDate: "2030-01-01",
+      setList: [],
+      setListApproved: false,
+      ticketCapacity: 10,
+      type: "Performance" as const,
+      venueId: venue.id,
+    };
+    const firstEvent = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          { ...eventBody, startsAt: firstStartsAt, title: "Tonight Concert" },
+          cookie,
+        )
+      ).json(),
+    );
+    const secondEvent = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          { ...eventBody, startsAt: secondStartsAt, title: "Tomorrow Night Concert" },
+          cookie,
+        )
+      ).json(),
+    );
+    const bundle = ticketBundleSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/tickets/bundles",
+          "POST",
+          {
+            capacity: 10,
+            eventIds: [firstEvent.id, secondEvent.id],
+            isActive: true,
+            priceCents: 3_500,
+            saleEndAt: new Date(now + 5 * 60 * 60 * 1000).toISOString(),
+            title: "Per-Concert Cutoff Bundle",
+          },
+          cookie,
+        )
+      ).json(),
+    );
+    const checkout = ticketCheckoutResponseSchema.parse(
+      await (
+        await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
+          bundleId: bundle.id,
+          buyerEmail: "bundle.cutoff@example.test",
+          buyerName: "Bundle Cutoff Buyer",
+          checkoutRequestId: crypto.randomUUID(),
+          marketingOptIn: false,
+          quantity: 1,
+        })
+      ).json(),
+    );
+
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    await markPurchaseCompletedBeforeReminderWindow(stub, checkout.purchase.id, purchasedAt);
+    await triggerScheduler(stub);
+
+    const remindedEventIds = await runInDurableObject<OrganizationStore, (string | null)[]>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ eventId: string | null }>(
+            `SELECT event_id AS eventId
+             FROM ticket_notifications
+             WHERE purchase_id = ? AND kind = 'reminder'
+             ORDER BY event_id`,
+            checkout.purchase.id,
+          )
+          .toArray()
+          .map((row) => row.eventId),
+    );
+    expect(remindedEventIds).toEqual([secondEvent.id]);
   });
 });

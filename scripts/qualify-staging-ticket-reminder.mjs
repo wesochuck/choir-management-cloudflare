@@ -43,14 +43,15 @@ function requestFailure(status, body) {
 export function ticketReminderQualificationPlan() {
   return [
     "sign in and verify the fresh Platform Administrator factor in memory",
-    "create one zero-dollar, ticket-enabled Performance inside the 36-hour reminder horizon",
+    "create one zero-dollar, ticket-enabled Performance 48 hours out (before the 36-hour reminder window)",
     "complete one controlled ticket checkout for an allowed recipient without creating a charge",
-    "run canonical-LCC maintenance and prove exactly one ticket_reminder reaches Sent with one recipient",
+    "run canonical-LCC maintenance and prove ticket_confirmation reaches Sent while exactly one ticket_reminder is Scheduled for the 36-hour wave",
     "run maintenance again and prove the ticket reminder snapshot is idempotently unchanged",
+    "create one short-notice zero-dollar Performance inside the 36-hour window, complete checkout, run maintenance, and prove no redundant ticket_reminder is queued",
     "prove the canonical signed receipt remains readable before cleanup",
     "queue and deliver one ticket-confirmation resend for the paid qualification order",
     "prove the wrong Organization host cannot read, resend, or refund the qualification order, receipt, or reminder row",
-    "refund the free simulated order, archive the qualification Performance, and print only safe IDs, counts, and statuses",
+    "refund the free simulated orders, archive the qualification Performances, and print only safe IDs, counts, and statuses",
   ];
 }
 
@@ -76,9 +77,26 @@ export function ticketReminderSnapshot(messages, eventId) {
 }
 
 export function ticketReminderReady(snapshot) {
+  const confirmations = snapshot?.rows?.filter((row) => row.kind === "ticket_confirmation") ?? [];
   const reminders = snapshot?.rows?.filter((row) => row.kind === "ticket_reminder") ?? [];
   return (
-    reminders.length === 1 && reminders[0].status === "Sent" && reminders[0].recipientCount === 1
+    confirmations.length === 1 &&
+    confirmations[0].status === "Sent" &&
+    confirmations[0].recipientCount === 1 &&
+    reminders.length === 1 &&
+    reminders[0].status === "Scheduled" &&
+    reminders[0].recipientCount === 1
+  );
+}
+
+export function shortNoticeReminderSuppressed(snapshot) {
+  const confirmations = snapshot?.rows?.filter((row) => row.kind === "ticket_confirmation") ?? [];
+  const reminders = snapshot?.rows?.filter((row) => row.kind === "ticket_reminder") ?? [];
+  return (
+    confirmations.length === 1 &&
+    confirmations[0].status === "Sent" &&
+    confirmations[0].recipientCount === 1 &&
+    reminders.length === 0
   );
 }
 
@@ -150,6 +168,7 @@ export function safeTicketReminderQualificationSummary(input) {
       jobCount: input.reminder?.jobCount ?? 0,
       recipientCount: input.reminder?.recipientCount ?? 0,
       replayStable: input.reminder?.replayStable === true,
+      shortNoticeCutoffVerified: input.reminder?.shortNoticeCutoffVerified === true,
       status: input.reminder?.status ?? "unknown",
     },
   };
@@ -322,7 +341,27 @@ async function waitForReminder(cookie, eventId, purchaseId) {
     if (state.order?.status === "paid" && ticketReminderReady(state.snapshot)) return state;
     if (attempt < pollingAttempts - 1) await sleep(pollingDelayMs);
   }
-  throw new Error("ticket_reminder did not reach exactly-one sent state in time.");
+  throw new Error(
+    "Advance ticket checkout did not reach Sent confirmation + Scheduled ticket_reminder in time.",
+  );
+}
+
+async function waitForShortNoticeConfirmation(cookie, eventId, purchaseId) {
+  for (let attempt = 0; attempt < pollingAttempts; attempt += 1) {
+    if (attempt === 0 || (attempt + 1) % 3 === 0) {
+      console.log(
+        `WAIT short_notice_ticket_confirmation (${String(attempt + 1)}/${String(pollingAttempts)})`,
+      );
+    }
+    const state = await inspect(cookie, eventId, purchaseId);
+    if (state.order?.status === "paid" && shortNoticeReminderSuppressed(state.snapshot)) {
+      return state;
+    }
+    if (attempt < pollingAttempts - 1) await sleep(pollingDelayMs);
+  }
+  throw new Error(
+    "Short-notice ticket checkout did not reach Sent confirmation with zero ticket_reminder rows in time.",
+  );
 }
 
 async function waitForConfirmationResend(cookie, eventId, purchaseId, before) {
@@ -428,6 +467,9 @@ async function main() {
   let eventId = null;
   let purchaseId;
   let successToken;
+  let shortNoticeEventId = null;
+  let shortNoticePurchaseId;
+  let shortNoticeRefundCompleted = false;
   let cleanupCompleted = true;
   let receiptAccessible;
   let refundCompleted = false;
@@ -439,9 +481,9 @@ async function main() {
     eventId = await createEvent(
       cookie,
       fixtureTitle(),
-      new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+      new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
     );
-    console.log(`PASS ticket-reminder Performance created (${eventId})`);
+    console.log(`PASS ticket-reminder advance Performance created (${eventId})`);
 
     const checkout = await completeFreeCheckout(eventId);
     purchaseId = checkout.purchaseId;
@@ -451,7 +493,7 @@ async function main() {
     const firstMaintenance = await runMaintenance(cookie);
     console.log(`PASS ticket-reminder maintenance — ${String(firstMaintenance)} job(s) enqueued`);
     const first = await waitForReminder(cookie, eventId, purchaseId);
-    console.log("PASS ticket reminder scheduled job and sent delivery");
+    console.log("PASS ticket confirmation delivered and 36-hour reminder scheduled");
 
     const replayMaintenance = await runMaintenance(cookie);
     const replay = await inspect(cookie, eventId, purchaseId);
@@ -461,6 +503,27 @@ async function main() {
     );
     if (!replayStable)
       throw new Error("Ticket reminder replay changed the scheduled notification snapshot.");
+
+    shortNoticeEventId = await createEvent(
+      cookie,
+      `${fixtureTitle()} Short Notice`,
+      new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+    );
+    const shortNoticeCheckout = await completeFreeCheckout(shortNoticeEventId);
+    shortNoticePurchaseId = shortNoticeCheckout.purchaseId;
+    await runMaintenance(cookie);
+    const shortNoticeState = await waitForShortNoticeConfirmation(
+      cookie,
+      shortNoticeEventId,
+      shortNoticePurchaseId,
+    );
+    const shortNoticeCutoffVerified = shortNoticeReminderSuppressed(shortNoticeState.snapshot);
+    console.log(
+      `${shortNoticeCutoffVerified ? "PASS" : "FAIL"} short-notice 36-hour reminder cutoff (0 reminders queued)`,
+    );
+    if (!shortNoticeCutoffVerified) {
+      throw new Error("Short-notice purchase inside the 36-hour window queued a ticket reminder.");
+    }
 
     await readCanonicalReceipt(successToken, eventId, purchaseId);
     receiptAccessible = true;
@@ -503,7 +566,9 @@ async function main() {
 
     await refundPurchase(cookie, purchaseId);
     refundCompleted = true;
-    console.log("PASS free simulated ticket refund completed");
+    await refundPurchase(cookie, shortNoticePurchaseId);
+    shortNoticeRefundCompleted = true;
+    console.log("PASS free simulated ticket refunds completed");
 
     const reminder = first.snapshot.rows.find((row) => row.kind === "ticket_reminder");
     summary = safeTicketReminderQualificationSummary({
@@ -521,6 +586,7 @@ async function main() {
         jobCount: first.snapshot.rows.filter((row) => row.kind === "ticket_reminder").length,
         recipientCount: reminder?.recipientCount ?? 0,
         replayStable,
+        shortNoticeCutoffVerified,
         status: reminder?.status ?? "unknown",
       },
     });
@@ -534,6 +600,15 @@ async function main() {
         console.error("Ticket-reminder qualification order cleanup did not complete.");
       }
     }
+    if (cookie && shortNoticePurchaseId && !shortNoticeRefundCompleted) {
+      try {
+        await refundPurchase(cookie, shortNoticePurchaseId);
+        shortNoticeRefundCompleted = true;
+      } catch {
+        cleanupCompleted = false;
+        console.error("Short-notice ticket-reminder qualification order cleanup did not complete.");
+      }
+    }
     if (cookie && eventId) {
       try {
         await archiveEvent(cookie, eventId);
@@ -542,6 +617,16 @@ async function main() {
         console.error("Ticket-reminder qualification event cleanup did not complete.");
       }
     } else if (eventId) {
+      cleanupCompleted = false;
+    }
+    if (cookie && shortNoticeEventId) {
+      try {
+        await archiveEvent(cookie, shortNoticeEventId);
+      } catch {
+        cleanupCompleted = false;
+        console.error("Short-notice ticket-reminder qualification event cleanup did not complete.");
+      }
+    } else if (shortNoticeEventId) {
       cleanupCompleted = false;
     }
   }
