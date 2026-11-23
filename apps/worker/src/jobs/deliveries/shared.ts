@@ -264,6 +264,7 @@ export const scheduledEventTemplateIds = {
   otherEventReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000019",
   performanceReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000006",
   rehearsalReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000005",
+  ticketCloseout: "5f0ca4a5-7e4c-4e1a-9a1c-000000000020",
 } as const;
 
 export async function renderAuditionLink(

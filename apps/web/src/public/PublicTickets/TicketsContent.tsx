@@ -1,6 +1,6 @@
 import type { CheckoutRecoveryChoices } from "@choir/contracts";
 import { publicPageHeading } from "../publicPageLabels";
-import { ticketSalesPath } from "@choir/domain";
+import { ticketSalesPath, ticketUnitPriceCents } from "@choir/domain";
 import type { PublishedOrganizationProjection, TransactionFeeSettings } from "@choir/contracts";
 import { PublicGraphicImage } from "../PublicGraphicImage";
 import { mediaUrl } from "../publicMedia";
@@ -111,6 +111,13 @@ export function TicketsContent({
           ))}
           {events.map((event) => {
             const venueDetails = getEventVenueDetails(event);
+            const priceCents = ticketUnitPriceCents({
+              advancePriceCents: event.advancePriceCents,
+              dayOfPriceCents: event.dayOfPriceCents,
+              now: new Date(nowMs),
+              startsAt: event.startsAt,
+              timezone: projection.payload.timezone,
+            });
             return (
               <article
                 className="public-performance-card public-performance-card--ticket"
@@ -153,7 +160,7 @@ export function TicketsContent({
                     ) : null}
                   </div>
                   <div className="public-performance-card__purchase">
-                    <p>From {money(event.advancePriceCents)}</p>
+                    <p>From {money(priceCents)}</p>
                     <a
                       className="button button--primary ticket-card__link"
                       href={ticketSalesPath(event)}

@@ -8,6 +8,11 @@ import {
   type DonationRecord,
   type PatronRecord,
 } from "@choir/contracts";
+import {
+  renderDonationCsv,
+  timestampedExportFilename,
+  type DonationExportRow,
+} from "@choir/domain";
 import { z } from "zod";
 
 import type { Env } from "../env";
@@ -379,6 +384,31 @@ export async function listOrganizationDonations(
   if (!response.ok) throw new DonationError("donations_unavailable", 503, "Donations unavailable.");
   return donationRecordsResponseSchema.omit({ requestId: true }).parse(await response.json())
     .donations;
+}
+
+export async function readOrganizationDonationCsv(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+): Promise<{ readonly content: string; readonly filename: string }> {
+  const donations = await listOrganizationDonations(env, organizationId);
+  const rows: DonationExportRow[] = donations.map((donation) => ({
+    amountPaidCents: donation.amountCents,
+    anonymous: donation.anonymous,
+    createdAt: donation.createdAt,
+    donorEmail: donation.anonymous ? "" : donation.buyerEmail,
+    donorName: donation.anonymous ? "Anonymous" : donation.buyerName,
+    id: donation.id,
+    paymentMethod: donation.paymentMethod,
+    paymentReference: donation.paymentReference,
+    status: donation.status,
+    thankYouSentAt: donation.thankYouSentAt,
+    tributeName: donation.tributeName,
+    tributeType: donation.tributeType,
+  }));
+  return {
+    content: renderDonationCsv(rows),
+    filename: timestampedExportFilename("donations.csv", new Date()),
+  };
 }
 
 export async function listOrganizationPatrons(

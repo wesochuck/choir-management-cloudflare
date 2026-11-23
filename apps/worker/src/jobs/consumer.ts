@@ -26,6 +26,9 @@ import { cleanupStaleCheckout } from "./deliveries/cleanup";
 import { deliverComplianceReminderJob } from "./deliveries/compliance";
 import { deliverMusicTrackImportCleanupJob } from "./deliveries/musicTrackImportCleanup";
 import { deliverPaymentFeeReconciliationJob } from "./deliveries/reconciliation";
+import { deliverTicketCloseoutJob } from "./deliveries/ticketCloseout";
+import { deliverTicketWillCallJob } from "./deliveries/ticketWillCall";
+import { deliverDonorListReminderJob } from "./deliveries/donorList";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { mutateOrganizationStore } from "../organization/rpc/repository";
 
@@ -91,6 +94,36 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
       return;
     }
     await deliverComplianceReminderJob(env, job);
+    return;
+  }
+  if (job.kind === "ticket_closeout") {
+    if (
+      !env.CONTROL_DB &&
+      (env.EXTERNAL_EFFECTS_MODE === "fake" || env.EXTERNAL_EFFECTS_MODE === "disabled")
+    ) {
+      return;
+    }
+    await deliverTicketCloseoutJob(env, job);
+    return;
+  }
+  if (job.kind === "ticket_will_call") {
+    if (
+      !env.CONTROL_DB &&
+      (env.EXTERNAL_EFFECTS_MODE === "fake" || env.EXTERNAL_EFFECTS_MODE === "disabled")
+    ) {
+      return;
+    }
+    await deliverTicketWillCallJob(env, job);
+    return;
+  }
+  if (job.kind === "donor_list_reminder") {
+    if (
+      !env.CONTROL_DB &&
+      (env.EXTERNAL_EFFECTS_MODE === "fake" || env.EXTERNAL_EFFECTS_MODE === "disabled")
+    ) {
+      return;
+    }
+    await deliverDonorListReminderJob(env, job);
     return;
   }
   if (

@@ -89,6 +89,29 @@ export function suppressCommunicationBatch(
                    AND json_extract(m.automation_json, '$.eventType') NOT IN ('Rehearsal', 'Performance')
                    AND p.receive_other_event_reminders = 0
                  )
+                 OR (
+                   json_extract(m.automation_json, '$.kind') IN ('ticket_closeout', 'ticket_will_call', 'donor_list_reminder')
+                   AND (
+                     p.receive_financial_alerts = 0
+                     OR (
+                       json_extract(m.automation_json, '$.kind') IN ('ticket_will_call', 'donor_list_reminder')
+                       AND p.global_status <> 'Active'
+                     )
+                   )
+                 )
+               )
+           )
+           OR EXISTS (
+             SELECT 1 FROM communication_messages m
+             JOIN events e ON e.id = json_extract(m.automation_json, '$.eventId')
+             WHERE m.id = communication_deliveries.message_id
+               AND json_extract(m.automation_json, '$.kind') IN ('ticket_closeout', 'ticket_will_call', 'donor_list_reminder')
+               AND (
+                 e.is_archived = 1 OR e.is_canceled = 1
+                 OR (
+                   json_extract(m.automation_json, '$.kind') = 'ticket_will_call'
+                   AND e.is_ticketing_enabled = 0
+                 )
                )
            )
          )`,

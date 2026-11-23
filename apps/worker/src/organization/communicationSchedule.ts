@@ -11,6 +11,9 @@ export const TICKET_REMINDER_LEAD_HOURS = 36;
 export const TICKET_REMINDER_LEAD_MS = TICKET_REMINDER_LEAD_HOURS * 60 * 60 * 1000;
 export const TICKET_REMINDER_LEAD_SQL_MODIFIER = `-${String(TICKET_REMINDER_LEAD_HOURS)} hours`;
 export const ATTENDANCE_REPORT_LOOKBACK_MS = 48 * 60 * 60 * 1000;
+export const TICKET_CLOSEOUT_DELAY_MS = 12 * 60 * 60 * 1000;
+export const TICKET_WILL_CALL_LEAD_MS = 24 * 60 * 60 * 1000;
+export const DONOR_LIST_LEAD_MS = 7 * 24 * 60 * 60 * 1000;
 export const COMMUNICATION_PREVIEW_DAYS = 90;
 
 export function eventReminderDueAt(startsAt: string): number {
@@ -42,6 +45,18 @@ export function attendanceReportDueAt(startsAt: string, timezone: string): numbe
   const nextDatePart = addCalendarDays(eventDatePart, 1);
   const dueUtcIso = zonedLocalDateTimeToUtc(`${nextDatePart}T01:00`, timezone);
   return dueUtcIso ? Date.parse(dueUtcIso) : Number.NaN;
+}
+
+export function ticketCloseoutDueAt(startsAt: string): number {
+  return Date.parse(startsAt) + TICKET_CLOSEOUT_DELAY_MS;
+}
+
+export function ticketWillCallDueAt(startsAt: string): number {
+  return Date.parse(startsAt) - TICKET_WILL_CALL_LEAD_MS;
+}
+
+export function donorListDueAt(startsAt: string): number {
+  return Date.parse(startsAt) - DONOR_LIST_LEAD_MS;
 }
 
 export function rsvpFollowUpSchedule(

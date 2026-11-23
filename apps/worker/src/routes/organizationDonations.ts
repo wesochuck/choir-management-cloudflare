@@ -15,6 +15,7 @@ import {
   DonationError,
   listOrganizationDonations,
   readOrganizationDonationById,
+  readOrganizationDonationCsv,
   recordManualOrganizationDonation,
   updateOrganizationDonationThankYou,
 } from "../organization/organizationDonations";
@@ -25,6 +26,7 @@ import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import { authorizeCalendarRoute } from "./helpers";
+import { isActiveFinancialAlertRecipient } from "./helpers/financialAlertAccess";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/donation-publications", async (context) => {
@@ -147,6 +149,58 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,
+      );
+    }
+  });
+
+  router.get("/api/organization/donations/export.csv", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, false);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    if (authorization.role === "member") {
+      try {
+        if (!(await isActiveFinancialAlertRecipient(context, authorization))) {
+          return context.json(
+            {
+              code: "forbidden",
+              message:
+                "Only donation managers and active financial alert recipients may download donation lists.",
+              requestId: context.get("requestId"),
+            } satisfies ProblemDetails,
+            403,
+          );
+        }
+      } catch {
+        return context.json(
+          {
+            code: "donation_export_unavailable",
+            message: "The donation list is temporarily unavailable.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          503,
+        );
+      }
+    }
+    try {
+      const csv = await readOrganizationDonationCsv(context.env, authorization.organizationId);
+      context.header("content-disposition", `attachment; filename="${csv.filename}"`);
+      context.header("content-type", "text/csv; charset=utf-8");
+      return context.body(csv.content);
+    } catch (error: unknown) {
+      return context.json(
+        {
+          code: error instanceof DonationError ? error.code : "donation_export_unavailable",
+          message:
+            error instanceof DonationError
+              ? error.message
+              : "The donation list is temporarily unavailable.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        error instanceof DonationError && error.status === 404 ? 404 : 503,
       );
     }
   });

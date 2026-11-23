@@ -8,6 +8,9 @@ import {
   EVENT_REMINDER_LEAD_MS,
   TICKET_REMINDER_LEAD_MS,
   TICKET_REMINDER_LEAD_SQL_MODIFIER,
+  TICKET_CLOSEOUT_DELAY_MS,
+  TICKET_WILL_CALL_LEAD_MS,
+  DONOR_LIST_LEAD_MS,
   attendanceReportDueAt,
   isTicketPurchaseEligibleForReminder,
   rsvpFollowUpSchedule,
@@ -387,6 +390,173 @@ export function createPostEventReportJobs(
   }
 }
 
+export function createTicketCloseoutJobs(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): void {
+  const dueBefore = new Date(now.getTime() - TICKET_CLOSEOUT_DELAY_MS).toISOString();
+  const candidates = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly eventId: string }>(
+      `SELECT e.id AS eventId
+       FROM events e
+       WHERE e.type = 'Performance' AND e.is_archived = 0 AND e.is_canceled = 0
+         AND e.starts_at < ?
+         AND (
+           EXISTS (
+             SELECT 1 FROM ticket_purchases p
+             WHERE p.event_id = e.id AND p.bundle_id IS NULL
+               AND p.status IN ('paid', 'refunded')
+           )
+           OR EXISTS (
+             SELECT 1 FROM ticket_bundle_allocations a
+             JOIN ticket_purchases p ON p.id = a.purchase_id
+             WHERE a.event_id = e.id AND p.status IN ('paid', 'refunded')
+           )
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM scheduled_job_outbox o
+           WHERE o.idempotency_key = ('ticket-closeout:' || ? || ':' || e.id)
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM job_ledger l
+           WHERE l.idempotency_key = ('ticket-closeout:' || ? || ':' || e.id)
+         )
+       ORDER BY e.starts_at DESC, e.id
+       LIMIT 50`,
+      dueBefore,
+      organizationId,
+      organizationId,
+    )
+    .toArray();
+  for (const candidate of candidates) {
+    const nowIso = now.toISOString();
+    storage.sql.exec(
+      `INSERT OR IGNORE INTO scheduled_job_outbox
+        (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'ticket_closeout', ?, ?, ?)`,
+      crypto.randomUUID(),
+      `ticket-closeout:${organizationId}:${candidate.eventId}`,
+      nowIso,
+      nowIso,
+    );
+  }
+}
+
+interface ScheduledEventCandidateRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly eventId: string;
+  readonly eventStartsAt: string;
+}
+
+function createTicketWillCallJobs(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): void {
+  const startsBefore = new Date(now.getTime() + TICKET_WILL_CALL_LEAD_MS).toISOString();
+  const candidates = storage.sql
+    .exec<ScheduledEventCandidateRow>(
+      `SELECT e.id AS eventId, e.starts_at AS eventStartsAt
+       FROM events e
+       WHERE e.type = 'Performance' AND e.is_archived = 0 AND e.is_canceled = 0
+         AND e.is_ticketing_enabled = 1
+         AND e.starts_at > ? AND e.starts_at <= ?
+         AND (
+           EXISTS (
+             SELECT 1 FROM ticket_purchases p
+             WHERE p.event_id = e.id AND p.bundle_id IS NULL AND p.status = 'paid'
+           )
+           OR EXISTS (
+             SELECT 1 FROM ticket_bundle_allocations a
+             JOIN ticket_purchases p ON p.id = a.purchase_id
+             WHERE a.event_id = e.id AND p.status = 'paid'
+           )
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM scheduled_job_outbox o
+           WHERE o.idempotency_key = ('ticket-will-call:' || ? || ':' || e.id || ':' || e.starts_at)
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM job_ledger l
+           WHERE l.idempotency_key = ('ticket-will-call:' || ? || ':' || e.id || ':' || e.starts_at)
+         )
+       ORDER BY e.starts_at, e.id
+       LIMIT 50`,
+      now.toISOString(),
+      startsBefore,
+      organizationId,
+      organizationId,
+    )
+    .toArray();
+  for (const candidate of candidates) {
+    const dueAt = Date.parse(candidate.eventStartsAt) - TICKET_WILL_CALL_LEAD_MS;
+    if (!Number.isFinite(dueAt)) continue;
+    const nowIso = now.toISOString();
+    storage.sql.exec(
+      `INSERT OR IGNORE INTO scheduled_job_outbox
+        (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'ticket_will_call', ?, ?, ?)`,
+      crypto.randomUUID(),
+      `ticket-will-call:${organizationId}:${candidate.eventId}:${candidate.eventStartsAt}`,
+      new Date(dueAt).toISOString(),
+      nowIso,
+    );
+  }
+}
+
+function createDonorListReminderJobs(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): void {
+  const hasDonations =
+    storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+        "SELECT id FROM donations ORDER BY created_at DESC, id DESC LIMIT 1",
+      )
+      .toArray().length > 0;
+  if (!hasDonations) return;
+
+  const startsBefore = new Date(now.getTime() + DONOR_LIST_LEAD_MS).toISOString();
+  const candidates = storage.sql
+    .exec<ScheduledEventCandidateRow>(
+      `SELECT e.id AS eventId, e.starts_at AS eventStartsAt
+       FROM events e
+       WHERE e.type = 'Performance' AND e.is_archived = 0 AND e.is_canceled = 0
+         AND e.starts_at > ? AND e.starts_at <= ?
+         AND NOT EXISTS (
+           SELECT 1 FROM scheduled_job_outbox o
+           WHERE o.idempotency_key = ('donor-list:' || ? || ':' || e.id || ':' || e.starts_at)
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM job_ledger l
+           WHERE l.idempotency_key = ('donor-list:' || ? || ':' || e.id || ':' || e.starts_at)
+         )
+       ORDER BY e.starts_at, e.id
+       LIMIT 50`,
+      now.toISOString(),
+      startsBefore,
+      organizationId,
+      organizationId,
+    )
+    .toArray();
+  for (const candidate of candidates) {
+    const dueAt = Date.parse(candidate.eventStartsAt) - DONOR_LIST_LEAD_MS;
+    if (!Number.isFinite(dueAt)) continue;
+    const nowIso = now.toISOString();
+    storage.sql.exec(
+      `INSERT OR IGNORE INTO scheduled_job_outbox
+        (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'donor_list_reminder', ?, ?, ?)`,
+      crypto.randomUUID(),
+      `donor-list:${organizationId}:${candidate.eventId}:${candidate.eventStartsAt}`,
+      new Date(dueAt).toISOString(),
+      nowIso,
+    );
+  }
+}
+
 export function createDueJobs(
   storage: DurableObjectStorage,
   organizationId: string,
@@ -433,9 +603,12 @@ export function createDueJobs(
       now.toISOString(),
     );
     const firstTicketReminderBatch = createTicketReminderBatch(storage, now);
+    createTicketWillCallJobs(storage, organizationId, now);
+    createDonorListReminderJobs(storage, organizationId, now);
     createEventReminderJobs(storage, organizationId, now);
     createRsvpFollowUpJobs(storage, organizationId, now);
     createPostEventReportJobs(storage, organizationId, now);
+    createTicketCloseoutJobs(storage, organizationId, now);
     createFeeReconciliationJobs(storage, organizationId, now);
     createComplianceReminderJobs(storage, organizationId, now);
     createMusicTrackImportCleanupJobs(storage, organizationId, now);

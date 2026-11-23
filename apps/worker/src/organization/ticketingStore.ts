@@ -32,6 +32,7 @@ export {
   readTicketPurchaseFromStore,
   readTicketWillCallFromStore,
 } from "./ticketingStore/queries";
+export { readTicketWillCallNoticeFromStore } from "./ticketingStore/willCallNotice";
 
 interface StripeTicketOperationResult {
   readonly response: Response;

@@ -2576,6 +2576,11 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       `CREATE INDEX communication_overview_jobs ON job_ledger(kind,job_id) WHERE kind IN ('attendance_report','event_reminder','rsvp_follow_up')`,
     ],
   },
+  {
+    apply: seedScheduledEventSystemCommunicationTemplates,
+    statements: [],
+    version: 143,
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

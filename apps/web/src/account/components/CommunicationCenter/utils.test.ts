@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { CommunicationScheduledMessage } from "@choir/contracts";
-import { parseCommunicationSearch, scheduledMessageActionLink } from "./utils";
+import {
+  parseCommunicationSearch,
+  scheduledMessageActionLink,
+  scheduledMessageKindLabel,
+} from "./utils";
 
 describe("parseCommunicationSearch", () => {
   it("only accepts the attendee event in compose mode and gives drafts precedence", () => {
@@ -192,6 +196,17 @@ describe("scheduledMessageActionLink", () => {
       kind: "ticket_refund",
     });
     expect(link).toEqual({ href: "/admin/tickets", label: "View ticketing" });
+  });
+
+  it("routes ticket closeouts to the ticketing view and labels the message", () => {
+    const eventId = "33333333-3333-4333-8333-333333333333";
+    expect(
+      scheduledMessageActionLink({ ...baseMessage, eventId, kind: "ticket_closeout" }),
+    ).toEqual({
+      href: `/admin/tickets?eventId=${eventId}`,
+      label: "View ticketing",
+    });
+    expect(scheduledMessageKindLabel("ticket_closeout")).toBe("Ticket Closeout");
   });
 
   it("routes audition confirmations and reminders to /admin/auditions with 'View auditions'", () => {

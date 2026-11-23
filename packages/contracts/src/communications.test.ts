@@ -351,6 +351,24 @@ describe("upcoming communication compatibility", () => {
       }).success,
     ).toBe(true);
     expect(
+      communicationScheduledMessageSchema.safeParse({
+        ...message,
+        eventId: PROFILE_ID,
+        id: `planned:ticket-closeout:${PROFILE_ID}`,
+        kind: "ticket_closeout",
+        projected: true,
+        timezone: "America/New_York",
+      }).success,
+    ).toBe(true);
+    expect(
+      communicationScheduledMessageSchema.safeParse({
+        ...message,
+        eventId: PROFILE_ID,
+        id: "planned:ticket-closeout:invalid!",
+        kind: "ticket_closeout",
+      }).success,
+    ).toBe(false);
+    expect(
       communicationScheduledMessageSchema.safeParse({ ...message, projected: false }).success,
     ).toBe(true);
     expect(

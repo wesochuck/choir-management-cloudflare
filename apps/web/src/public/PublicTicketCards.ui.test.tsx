@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it } from "vitest";
 import type { PublishedOrganizationProjection, TransactionFeeSettings } from "@choir/contracts";
+import { futureIsoDate } from "@choir/testkit";
 import { TicketsContent } from "./PublicTickets";
 
 const feeSettings: TransactionFeeSettings = {
@@ -111,6 +112,37 @@ describe("TicketsContent ticket card purchase areas", () => {
       "href",
       "https://www.google.com/maps/search/?api=1&query=Grace%20Chapel%2C%20456%20Choir%20Blvd%2C%20Columbus%2C%20OH%2043215",
     );
+  });
+
+  it("shows the day-of price on a performance's local show date", () => {
+    const event = projection.payload.performances[0];
+    if (!event) throw new Error("Expected a ticketed performance");
+    const showDate = new Date(futureIsoDate({ days: 30 }));
+    showDate.setUTCHours(18, 0, 0, 0);
+    const startsAt = showDate.toISOString();
+    const showDateProjection: PublishedOrganizationProjection = {
+      ...projection,
+      payload: {
+        ...projection.payload,
+        performances: [{ ...event, startsAt }],
+      },
+    };
+
+    render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={Date.UTC(
+          showDate.getUTCFullYear(),
+          showDate.getUTCMonth(),
+          showDate.getUTCDate(),
+          14,
+        )}
+        pathname="/tickets"
+        projection={showDateProjection}
+      />,
+    );
+
+    expect(screen.getByText("From $20.00")).toBeInTheDocument();
   });
 
   it("renders performance graphic on ticket cards when graphicFileId is present", () => {

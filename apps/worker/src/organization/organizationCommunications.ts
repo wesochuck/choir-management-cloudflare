@@ -60,6 +60,7 @@ import {
 } from "../communications/promotionReviewSnapshot";
 import { listOrganizationProfileEmails } from "./profiles";
 import { organizationStoreStub } from "./rpc/client";
+import type { communicationAutomationSchema } from "./communicationStore/contracts";
 import {
   mutateOrganizationStore,
   readOrganizationStore,
@@ -507,13 +508,7 @@ export async function queueAutomatedOrganizationCommunication(
   env: AutomatedCommunicationEnv,
   context: ActorContext & { readonly organizationOrigin: string },
   input: {
-    readonly automation?:
-      | {
-          readonly eventId: string;
-          readonly eventType: string;
-          readonly kind: "event_reminder" | "rsvp_follow_up";
-        }
-      | undefined;
+    readonly automation?: z.infer<typeof communicationAutomationSchema> | undefined;
     readonly contentMarkdown: string;
     readonly dedupeKey?: string;
     readonly eventId: string | null;

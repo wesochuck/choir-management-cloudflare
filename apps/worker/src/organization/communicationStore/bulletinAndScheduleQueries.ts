@@ -177,7 +177,13 @@ interface ScheduledOutboxMessageRow {
   readonly idempotencyKey: string;
   readonly jobId: string;
   readonly jobStatus: "claimed" | "completed" | "failed" | null;
-  readonly kind: "attendance_report" | "event_reminder" | "rsvp_follow_up";
+  readonly kind:
+    | "attendance_report"
+    | "event_reminder"
+    | "rsvp_follow_up"
+    | "ticket_closeout"
+    | "ticket_will_call"
+    | "donor_list_reminder";
 }
 
 function notificationStatus(
@@ -205,6 +211,22 @@ function scheduledJobStatus(
   if (jobStatus === "completed") return "Sent";
   if (jobStatus === "failed") return "Failed";
   return enqueuedAt ? "Queued" : "Scheduled";
+}
+
+function scheduledEventId(job: ScheduledOutboxMessageRow, organizationId: string): string {
+  const prefix =
+    job.kind === "ticket_will_call"
+      ? `ticket-will-call:${organizationId}:`
+      : job.kind === "donor_list_reminder"
+        ? `donor-list:${organizationId}:`
+        : null;
+  if (prefix) {
+    return job.idempotencyKey.startsWith(prefix)
+      ? job.idempotencyKey.slice(prefix.length, prefix.length + 36)
+      : "";
+  }
+  const parts = job.idempotencyKey.split(":");
+  return (parts.at(-2) === "retry" ? parts.at(-3) : parts.at(-1)) ?? "";
 }
 
 export function listCommunicationScheduledMessagesFromStore(
@@ -294,13 +316,12 @@ export function listCommunicationScheduledMessagesFromStore(
         o.due_at AS dueAt, o.enqueued_at AS enqueuedAt, l.status AS jobStatus
        FROM scheduled_job_outbox o
        LEFT JOIN job_ledger l ON l.job_id = o.job_id
-       WHERE o.kind IN ('event_reminder', 'rsvp_follow_up', 'attendance_report')
+       WHERE o.kind IN ('event_reminder', 'rsvp_follow_up', 'attendance_report', 'ticket_closeout', 'ticket_will_call', 'donor_list_reminder')
        ORDER BY o.due_at DESC, o.job_id DESC LIMIT 100`,
     )
     .toArray();
   for (const job of scheduledJobs) {
-    const parts = job.idempotencyKey.split(":");
-    const eventId = (parts.at(-2) === "retry" ? parts.at(-3) : parts.at(-1)) ?? "";
+    const eventId = scheduledEventId(job, organizationId);
     const event = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly title: string }>(
         "SELECT title FROM events WHERE id = ? LIMIT 1",
@@ -324,7 +345,13 @@ export function listCommunicationScheduledMessagesFromStore(
             ? "Event reminder: " + event.title
             : job.kind === "rsvp_follow_up"
               ? "RSVP follow-up: " + event.title
-              : "Attendance report: " + event.title,
+              : job.kind === "ticket_closeout"
+                ? "Ticket closeout: " + event.title
+                : job.kind === "ticket_will_call"
+                  ? "Will-call list: " + event.title
+                  : job.kind === "donor_list_reminder"
+                    ? "Donor list: " + event.title
+                    : "Attendance report: " + event.title,
       }),
     );
   }

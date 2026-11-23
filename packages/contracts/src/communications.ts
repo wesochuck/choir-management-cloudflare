@@ -451,7 +451,7 @@ export const communicationScheduledMessageSchema = z.object({
       .string()
       .max(200)
       .regex(
-        /^planned:(?:event-reminder|rsvp-follow-up|post-event-report|ticket-reminder):[A-Za-z0-9:-]+$/,
+        /^planned:(?:event-reminder|rsvp-follow-up|post-event-report|ticket-reminder|ticket-closeout|ticket-will-call|donor-list):[A-Za-z0-9:-]+$/,
       ),
   ]),
   projected: z.boolean().optional(),
@@ -463,6 +463,9 @@ export const communicationScheduledMessageSchema = z.object({
     "audition_confirmation",
     "audition_reminder",
     "ticket_confirmation",
+    "ticket_closeout",
+    "ticket_will_call",
+    "donor_list_reminder",
     "ticket_reminder",
     "checkout_reminder",
     "ticket_refund",

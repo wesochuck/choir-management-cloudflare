@@ -8,6 +8,7 @@ const jobKindSchema = z.enum([
   "compliance_reminder",
   "contact_import",
   "checkout_reminder",
+  "donor_list_reminder",
   "event_reminder",
   "music_track_import_cleanup",
   "rsvp_follow_up",
@@ -15,6 +16,8 @@ const jobKindSchema = z.enum([
   "payment_notification",
   "payment_fee_reconciliation",
   "stale_checkout_cleanup",
+  "ticket_closeout",
+  "ticket_will_call",
   "ticket_notification",
 ]);
 

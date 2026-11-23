@@ -395,6 +395,9 @@ export function queryCommunicationHistoryFromStore(
         CASE
           WHEN o.kind = 'event_reminder' THEN ('Event reminder: ' || e.title)
           WHEN o.kind = 'rsvp_follow_up' THEN ('RSVP follow-up: ' || e.title)
+          WHEN o.kind = 'ticket_closeout' THEN ('Ticket closeout: ' || e.title)
+          WHEN o.kind = 'ticket_will_call' THEN ('Will-call list: ' || e.title)
+          WHEN o.kind = 'donor_list_reminder' THEN ('Donor list: ' || e.title)
           ELSE ('Attendance report: ' || e.title)
         END AS subject,
         'Email' AS channel,
@@ -412,7 +415,7 @@ export function queryCommunicationHistoryFromStore(
       FROM scheduled_job_outbox o
       LEFT JOIN job_ledger l ON l.job_id = o.job_id
       JOIN events e ON (o.idempotency_key LIKE ('%:' || e.id) OR o.idempotency_key LIKE ('%:' || e.id || ':%'))
-      WHERE o.kind IN ('event_reminder', 'rsvp_follow_up', 'attendance_report')
+      WHERE o.kind IN ('event_reminder', 'rsvp_follow_up', 'attendance_report', 'ticket_closeout', 'ticket_will_call', 'donor_list_reminder')
         AND (l.status IS NULL OR l.status != 'completed')
         AND NOT EXISTS (SELECT 1 FROM audit_events a WHERE a.id=('communication:organization.communication.queued:' || o.job_id))
     ), combined AS (

@@ -253,7 +253,7 @@ function scheduledItems(
     .exec<{ id: string; kind: string; key: string; timestamp: string }>(
       `SELECT job_id AS id,kind,idempotency_key AS key,due_at AS timestamp FROM scheduled_job_outbox o
      WHERE enqueued_at IS NULL AND due_at > ? AND due_at <= ?
-       AND kind IN ('attendance_report','event_reminder','rsvp_follow_up')
+       AND kind IN ('attendance_report','event_reminder','rsvp_follow_up','ticket_closeout','ticket_will_call','donor_list_reminder')
        AND NOT EXISTS (SELECT 1 FROM audit_events a WHERE a.id=('communication:organization.communication.queued:' || o.job_id))
      ORDER BY due_at,job_id LIMIT 4`,
       now,
@@ -271,7 +271,13 @@ function scheduledItems(
         ? "Attendance report"
         : row.kind === "event_reminder"
           ? "Event reminder"
-          : "RSVP follow-up";
+          : row.kind === "ticket_closeout"
+            ? "Ticket closeout"
+            : row.kind === "ticket_will_call"
+              ? "Will-call list"
+              : row.kind === "donor_list_reminder"
+                ? "Donor list"
+                : "RSVP follow-up";
     return {
       id: row.id,
       source: "scheduler",
@@ -285,10 +291,30 @@ function scheduledItems(
       href:
         row.kind === "attendance_report"
           ? "/admin/attendance"
-          : `/admin/rsvp?eventId=${encodeURIComponent(eventId)}`,
+          : row.kind === "ticket_closeout" || row.kind === "ticket_will_call"
+            ? `/admin/tickets?eventId=${encodeURIComponent(eventId)}`
+            : row.kind === "donor_list_reminder"
+              ? "/admin/donations"
+              : `/admin/rsvp?eventId=${encodeURIComponent(eventId)}`,
       message: null,
     };
   });
+}
+
+function previewOverviewHref(preview: {
+  readonly kind: string;
+  readonly eventId?: string | null;
+}): string {
+  if (
+    preview.kind === "ticket_reminder" ||
+    preview.kind === "ticket_closeout" ||
+    preview.kind === "ticket_will_call"
+  ) {
+    return `/admin/tickets?eventId=${encodeURIComponent(preview.eventId ?? "")}`;
+  }
+  if (preview.kind === "donor_list_reminder") return "/admin/donations";
+  if (preview.kind === "attendance_report") return "/admin/attendance";
+  return `/admin/rsvp?eventId=${encodeURIComponent(preview.eventId ?? "")}`;
 }
 
 export function readCommunicationOverview(
@@ -380,12 +406,7 @@ export function readCommunicationOverview(
       projected: true,
       channel: "Email",
       recipientCount: null,
-      href:
-        preview.kind === "ticket_reminder"
-          ? `/admin/tickets?eventId=${encodeURIComponent(preview.eventId ?? "")}`
-          : preview.kind === "attendance_report"
-            ? "/admin/attendance"
-            : `/admin/rsvp?eventId=${encodeURIComponent(preview.eventId ?? "")}`,
+      href: previewOverviewHref(preview),
       message: null,
     });
   }

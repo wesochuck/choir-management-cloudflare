@@ -93,6 +93,14 @@ const scheduledEventSystemCommunicationTemplates = [
     subject: "Event reminder: {eventTitle}",
     title: "Other Event Reminder",
   },
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hi {recipientName},\n\n## Ticket closeout: {eventTitle}\n\n- **Date and time:** {eventDate}\n- **Location:** {eventLocation}\n\n### Ticket proceeds credited to this concert\n\n- Single-event ticket payments: {singleTicketPayments}\n- Season-pass proceeds credited here: {seasonPassProceeds}\n- Refunds: {refunds}\n- **Net ticket proceeds:** {netProceeds}\n\nNet proceeds are before card processing fees. Season-pass proceeds are counted with the first performance in the bundle.\n\n### Admissions issued or covered\n\n- Single-event tickets: {singleEventAdmissions}\n- Season-pass admissions included: {seasonPassAdmissions}\n- Complimentary admissions: {complimentaryAdmissions}\n- **Total admissions issued or covered:** {totalAdmissions}\n\n### Check-ins recorded\n\n{checkInsSection}\n\n[View ticket orders]({ticketOrdersUrl})",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000020",
+    subject: "Ticket closeout: {eventTitle}",
+    title: "Ticket Closeout",
+  },
 ] as const;
 
 export function seedRsvpSystemCommunicationTemplates(sql: SqlStorage): void {

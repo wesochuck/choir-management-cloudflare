@@ -67,7 +67,6 @@ export const unsubscribeContactOperationSchema = z.object({
   organizationId: z.string().min(1).max(128),
   requestId: z.uuid(),
 });
-
 export const inboxNotificationSchema = z.object({
   body: z.string().max(1_000),
   destinationPath: z.string().max(500).nullable(),
@@ -78,6 +77,17 @@ export const inboxNotificationSchema = z.object({
 });
 export type InboxNotification = z.infer<typeof inboxNotificationSchema>;
 
+export const communicationAutomationSchema = z.object({
+  eventId: z.uuid(),
+  eventType: z.string().min(1).max(64),
+  kind: z.enum([
+    "event_reminder",
+    "rsvp_follow_up",
+    "ticket_closeout",
+    "ticket_will_call",
+    "donor_list_reminder",
+  ]),
+});
 export const saveOperationSchema = contextSchema.extend({
   action: z.literal("save-draft"),
   message: communicationDraftRequestSchema,
@@ -91,13 +101,7 @@ export const sendOperationSchema = contextSchema
       .enum(["organization_member", "organization_system"])
       .default("organization_member"),
     actorUserName: z.string().trim().min(1).max(200).optional(),
-    automation: z
-      .object({
-        eventId: z.string().min(1).max(128),
-        eventType: z.string().min(1).max(64),
-        kind: z.enum(["event_reminder", "rsvp_follow_up"]),
-      })
-      .optional(),
+    automation: communicationAutomationSchema.optional(),
     jobId: z.uuid(),
     dedupeKey: z.string().trim().min(1).max(256).optional(),
     inboxNotification: inboxNotificationSchema.optional(),
@@ -294,6 +298,7 @@ export const messageColumns = `id, channel, status, subject, content_markdown AS
   queued_by_user_id AS queuedByUserId, queued_by_name AS queuedByName`;
 
 export const deliveryJobResponseSchema = z.object({
+  automation: communicationAutomationSchema.nullable().default(null),
   contentMarkdown: z.string().max(100_000),
   ticketServiceNotice: z.boolean().default(false),
   context: z

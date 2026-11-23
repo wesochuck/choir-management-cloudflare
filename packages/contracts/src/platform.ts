@@ -101,6 +101,9 @@ export const platformJobDeadLetterSummarySchema = z.object({
       "organization_export",
       "payment_notification",
       "stale_checkout_cleanup",
+      "ticket_closeout",
+      "ticket_will_call",
+      "donor_list_reminder",
       "ticket_notification",
     ])
     .nullable(),

@@ -16,6 +16,7 @@ import { z } from "zod";
 import {
   COMMUNICATION_DELIVERY_BATCH_SIZE,
   MAX_COMMUNICATION_DELIVERIES,
+  communicationAutomationSchema,
   type DeliveryRow,
 } from "./contracts";
 import {
@@ -334,7 +335,18 @@ export function readCommunicationJobFromStore(
         shouldIncludeUnpublishedUpcomingPerformances(message.audience.targetAudiences),
       )
     : null;
+  const automationRow = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly automationJson: string | null }>(
+      "SELECT automation_json AS automationJson FROM communication_messages WHERE id = ? LIMIT 1",
+      messageId,
+    )
+    .toArray()
+    .at(0);
+  const automation: unknown = automationRow?.automationJson
+    ? JSON.parse(automationRow.automationJson)
+    : null;
   return Response.json({
+    automation: automation === null ? null : communicationAutomationSchema.parse(automation),
     contentMarkdown: message.contentMarkdown,
     context,
     deliveries,

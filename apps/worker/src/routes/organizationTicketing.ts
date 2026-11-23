@@ -23,6 +23,7 @@ import type { Context, Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import { authorizeCalendarRoute, saveTicketBundleRoute, setupFailureStatus } from "./helpers";
+import { isActiveFinancialAlertRecipient } from "./helpers/financialAlertAccess";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/tickets/orders", async (context) => {
@@ -313,12 +314,36 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.get("/api/organization/tickets/will-call", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, true);
+    const authorization = await authorizeCalendarRoute(context, false);
     if (!authorization.ok) {
       return context.json(
         { ...authorization, requestId: context.get("requestId") },
         authorization.status,
       );
+    }
+    if (authorization.role === "member") {
+      try {
+        if (!(await isActiveFinancialAlertRecipient(context, authorization))) {
+          return context.json(
+            {
+              code: "forbidden",
+              message:
+                "Only ticket managers and active financial alert recipients may download ticket lists.",
+              requestId: context.get("requestId"),
+            } satisfies ProblemDetails,
+            403,
+          );
+        }
+      } catch {
+        return context.json(
+          {
+            code: "ticket_export_unavailable",
+            message: "The will-call list is temporarily unavailable.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          503,
+        );
+      }
     }
     const eventId = z.uuid().safeParse(context.req.query("eventId"));
     if (!eventId.success) {

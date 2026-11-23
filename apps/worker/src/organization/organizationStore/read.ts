@@ -84,6 +84,9 @@ import {
   readTicketPurchaseFromStore,
   readTicketWillCallFromStore,
 } from "../ticketingStore";
+import { readTicketCloseoutJobFromStore } from "../ticketingStore/closeout";
+import { readTicketWillCallNoticeFromStore } from "../ticketingStore/willCallNotice";
+import { readDonorListNoticeFromStore } from "../donation/listNotice";
 import {
   listDonationsFromStore,
   listPatronsFromStore,
@@ -287,6 +290,21 @@ const contentGetHandlers: Record<
     url: URL,
     organizationId: string | null,
   ) => readTicketNotificationJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/scheduling/ticket-closeout-job": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readTicketCloseoutJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/scheduling/ticket-will-call-job": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readTicketWillCallNoticeFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/scheduling/donor-list-job": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readDonorListNoticeFromStore(storage, organizationId, url.searchParams.get("jobId")),
   "/internal/audition/notification-job": (
     storage: DurableObjectStorage,
     url: URL,

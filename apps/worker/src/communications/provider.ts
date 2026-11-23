@@ -15,26 +15,48 @@ import {
   renderEmailHighlight,
 } from "./emailPresentation";
 
-const deliverySchema = z.object({
-  channel: z.enum(["email", "sms"]),
-  contentMarkdown: z.string().max(100_000),
-  deliveryId: z.uuid(),
-  destination: z.string().min(1).max(320),
-  fromName: z.string().max(100).optional(),
-  messageId: z.uuid(),
-  organizationId: z.string().min(1).max(128).optional(),
-  organizationLogoUrl: z.string().max(4_096).nullable().optional(),
-  organizationName: z.string().max(120).optional(),
-  physicalAddress: z.string().max(2_000).nullable().optional(),
-  recipientName: z.string().min(1).max(200),
-  replyTo: z.email().max(320).optional(),
-  sendingDomain: z.string().min(1).max(253).optional(),
-  sourceId: z.string().trim().min(1).max(256).optional(),
-  sourceKind: emailProviderSourceKindSchema.optional(),
-  subject: z.string().max(300),
-  ticketServiceNotice: z.boolean().default(false),
-  unsubscribeUrl: z.url().max(4_096).nullable(),
+const MAX_EMAIL_ATTACHMENT_BYTES = 18 * 1024 * 1024;
+
+const emailAttachmentSchema = z.object({
+  content: z
+    .instanceof(Uint8Array)
+    .refine((content) => content.byteLength <= MAX_EMAIL_ATTACHMENT_BYTES),
+  disposition: z.literal("attachment"),
+  filename: z.string().trim().min(1).max(255),
+  type: z.string().trim().min(1).max(128),
 });
+
+const deliverySchema = z
+  .object({
+    channel: z.enum(["email", "sms"]),
+    contentMarkdown: z.string().max(100_000),
+    deliveryId: z.uuid(),
+    destination: z.string().min(1).max(320),
+    attachments: z.array(emailAttachmentSchema).max(32).optional(),
+    fromName: z.string().max(100).optional(),
+    messageId: z.uuid(),
+    organizationId: z.string().min(1).max(128).optional(),
+    organizationLogoUrl: z.string().max(4_096).nullable().optional(),
+    organizationName: z.string().max(120).optional(),
+    physicalAddress: z.string().max(2_000).nullable().optional(),
+    recipientName: z.string().min(1).max(200),
+    replyTo: z.email().max(320).optional(),
+    sendingDomain: z.string().min(1).max(253).optional(),
+    sourceId: z.string().trim().min(1).max(256).optional(),
+    sourceKind: emailProviderSourceKindSchema.optional(),
+    subject: z.string().max(300),
+    ticketServiceNotice: z.boolean().default(false),
+    unsubscribeUrl: z.url().max(4_096).nullable(),
+  })
+  .superRefine((delivery, context) => {
+    if (delivery.channel === "sms" && delivery.attachments && delivery.attachments.length > 0) {
+      context.addIssue({
+        code: "custom",
+        message: "SMS deliveries cannot include file attachments.",
+        path: ["attachments"],
+      });
+    }
+  });
 
 const brevoResponseSchema = z.object({ messageId: z.union([z.string(), z.number()]) });
 type ProviderFetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -455,6 +477,7 @@ async function deliverOrganizationEmail(
       subject: delivery.subject,
       text: contents.textContent,
       to: recipient,
+      ...(delivery.attachments ? { attachments: delivery.attachments } : {}),
     });
   } catch (error: unknown) {
     if (routeInput && controlDatabase) {

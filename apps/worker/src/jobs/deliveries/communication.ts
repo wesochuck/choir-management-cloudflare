@@ -8,6 +8,8 @@ import {
   usesUpcomingPerformancesPlaceholder,
 } from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
+import { readOrganizationTicketWillCallCsv } from "../../organization/organizationTicketing";
+import { readOrganizationDonationCsv } from "../../organization/organizationDonations";
 import { recordCommunicationDeliveryResults } from "../../organization/organizationCommunications";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
@@ -21,6 +23,74 @@ import {
   renderRsvpLinks,
   resolveCanonicalOrigin,
 } from "./shared";
+
+type CommunicationDeliveryJob = Awaited<
+  ReturnType<ReturnType<typeof organizationStoreStub>["claimCommunicationDeliveryBatch"]>
+>;
+
+interface TicketWillCallEmailAttachment {
+  readonly content: Uint8Array<ArrayBuffer>;
+  readonly disposition: "attachment";
+  readonly filename: string;
+  readonly type: "text/csv; charset=utf-8";
+}
+
+async function suppressUnavailableEventReportDeliveries(
+  env: JobConsumerEnv,
+  job: DeliveryJob,
+  deliveryJob: CommunicationDeliveryJob,
+): Promise<boolean> {
+  const kind = deliveryJob.automation?.kind;
+  if ((kind !== "ticket_will_call" && kind !== "donor_list_reminder") || deliveryJob.context) {
+    return false;
+  }
+  if (deliveryJob.deliveries.length > 0) {
+    await recordCommunicationDeliveryResults(env, {
+      jobId: job.jobId,
+      organizationId: job.organizationId,
+      results: deliveryJob.deliveries.map((delivery) => ({
+        deliveryId: delivery.id,
+        failureDetail: "",
+        providerMessageId: null,
+        status: "suppressed",
+      })),
+    });
+  }
+  return true;
+}
+
+async function readCommunicationEmailAttachment(
+  env: JobConsumerEnv,
+  job: DeliveryJob,
+  deliveryJob: CommunicationDeliveryJob,
+): Promise<TicketWillCallEmailAttachment | null> {
+  const automation = deliveryJob.automation;
+  if (
+    !automation ||
+    (automation.kind !== "ticket_will_call" && automation.kind !== "donor_list_reminder") ||
+    !deliveryJob.deliveries.some((delivery) => delivery.channel === "email")
+  ) {
+    return null;
+  }
+  const csv =
+    automation.kind === "ticket_will_call"
+      ? await readOrganizationTicketWillCallCsv(env, job.organizationId, automation.eventId)
+      : await readOrganizationDonationCsv(env, job.organizationId);
+  const encodedContent = new TextEncoder().encode(csv.content);
+  const content = new Uint8Array(encodedContent.byteLength);
+  content.set(encodedContent);
+  if (content.byteLength > 18 * 1024 * 1024) {
+    const label = automation.kind === "ticket_will_call" ? "will-call" : "donor list";
+    throw new Error(`The ${label} CSV exceeds the email attachment size limit.`);
+  }
+  return {
+    content,
+    disposition: "attachment",
+    filename: csv.filename,
+    type: "text/csv; charset=utf-8",
+  };
+}
+
 async function renderDeliveryContent(
   env: JobConsumerEnv,
   job: DeliveryJob,
@@ -130,6 +200,14 @@ export async function deliverCommunicationJob(
     organizationId: job.organizationId,
     jobId: job.jobId,
   });
+  if (await suppressUnavailableEventReportDeliveries(env, job, deliveryJob)) {
+    await stub.finishCommunicationDeliveryBatch({
+      organizationId: job.organizationId,
+      jobId: job.jobId,
+    });
+    return;
+  }
+  const emailAttachment = await readCommunicationEmailAttachment(env, job, deliveryJob);
   const senderConfig = await readOrganizationEmailSenderConfig(env, job.organizationId);
   const branding = await readOrganizationBrandingConfig(env, job.organizationId);
   const trimmedOrgName = branding.organizationName.trim();
@@ -193,6 +271,9 @@ export async function deliverCommunicationJob(
       contentMarkdown: renderedContent,
       deliveryId: delivery.id,
       destination: delivery.destination,
+      ...(delivery.channel === "email" && emailAttachment
+        ? { attachments: [emailAttachment] }
+        : {}),
       fromName: senderConfig.fromName ?? undefined,
       messageId: deliveryJob.messageId,
       organizationId: job.organizationId,

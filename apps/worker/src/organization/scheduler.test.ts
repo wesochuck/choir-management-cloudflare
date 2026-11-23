@@ -397,3 +397,50 @@ describe("ticket reminder candidate selection", () => {
     }
   });
 });
+
+it("uses event and ticket indexes when selecting ticket closeout jobs", () => {
+  const db = seedDatabase();
+  try {
+    const plan = db
+      .prepare(
+        `EXPLAIN QUERY PLAN
+         SELECT e.id
+         FROM events e
+         WHERE e.type = 'Performance' AND e.is_archived = 0 AND e.is_canceled = 0
+           AND e.starts_at < ?
+           AND (
+             EXISTS (
+               SELECT 1 FROM ticket_purchases p
+               WHERE p.event_id = e.id AND p.bundle_id IS NULL
+                 AND p.status IN ('paid', 'refunded')
+             )
+             OR EXISTS (
+               SELECT 1 FROM ticket_bundle_allocations a
+               JOIN ticket_purchases p ON p.id = a.purchase_id
+               WHERE a.event_id = e.id AND p.status IN ('paid', 'refunded')
+             )
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM scheduled_job_outbox o
+             WHERE o.idempotency_key = ('ticket-closeout:' || ? || ':' || e.id)
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM job_ledger l
+             WHERE l.idempotency_key = ('ticket-closeout:' || ? || ':' || e.id)
+           )
+         ORDER BY e.starts_at DESC, e.id
+         LIMIT 50`,
+      )
+      .all(new Date().toISOString(), "organization-test", "organization-test");
+    const details = plan.flatMap((row) => (typeof row.detail === "string" ? [row.detail] : []));
+    expect(details.some((detail) => detail.includes("idx_events_active_calendar"))).toBe(true);
+    expect(details.some((detail) => detail.includes("idx_ticket_purchases_event_status"))).toBe(
+      true,
+    );
+    expect(details.some((detail) => detail.includes("idx_ticket_bundle_allocations_event"))).toBe(
+      true,
+    );
+  } finally {
+    db.close();
+  }
+});

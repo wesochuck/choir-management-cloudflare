@@ -347,6 +347,12 @@ export function scheduledMessageKindLabel(kind: CommunicationScheduledMessage["k
       return "Ticket Confirmation";
     case "checkout_reminder":
       return "Incomplete checkout reminder";
+    case "ticket_closeout":
+      return "Ticket Closeout";
+    case "ticket_will_call":
+      return "Will-call List";
+    case "donor_list_reminder":
+      return "Donor List";
     case "ticket_reminder":
       return "Ticket Reminder";
     case "ticket_refund":
@@ -365,44 +371,43 @@ export interface ScheduledMessageActionLink {
   readonly label: string;
 }
 
+const STATIC_SCHEDULED_MESSAGE_LINKS: Partial<
+  Record<CommunicationScheduledMessage["kind"], ScheduledMessageActionLink>
+> = {
+  attendance_report: { href: "/admin/attendance", label: "View attendance" },
+  audition_confirmation: { href: "/admin/auditions", label: "View auditions" },
+  audition_reminder: { href: "/admin/auditions", label: "View auditions" },
+  checkout_reminder: { href: "/admin/settings?tab=payments", label: "View reminder settings" },
+  donor_list_reminder: { href: "/admin/donations", label: "View donations" },
+};
+
+const TICKETING_SCHEDULED_MESSAGE_KINDS = new Set<CommunicationScheduledMessage["kind"]>([
+  "ticket_confirmation",
+  "ticket_closeout",
+  "ticket_will_call",
+  "ticket_reminder",
+  "ticket_refund",
+]);
+
 export function scheduledMessageActionLink(
   scheduledMessage: CommunicationScheduledMessage,
 ): ScheduledMessageActionLink | null {
   const { eventId, kind } = scheduledMessage;
-  switch (kind) {
-    case "audition_confirmation":
-    case "audition_reminder":
-      return { href: "/admin/auditions", label: "View auditions" };
-
-    case "checkout_reminder":
-      return { href: "/admin/settings?tab=payments", label: "View reminder settings" };
-    case "ticket_confirmation":
-    case "ticket_reminder":
-    case "ticket_refund":
-      return {
-        href: eventId ? `/admin/tickets?eventId=${encodeURIComponent(eventId)}` : "/admin/tickets",
-        label: "View ticketing",
-      };
-
-    case "attendance_report":
-      return { href: "/admin/attendance", label: "View attendance" };
-
-    case "event_reminder":
-    case "rsvp_follow_up":
-      return {
-        href: eventId ? `/admin/rsvp?eventId=${encodeURIComponent(eventId)}` : "/admin/rsvp",
-        label: "View event",
-      };
-
-    default:
-      if (eventId) {
-        return {
-          href: `/admin/rsvp?eventId=${encodeURIComponent(eventId)}`,
-          label: "View event",
-        };
-      }
-      return null;
+  const staticLink = STATIC_SCHEDULED_MESSAGE_LINKS[kind];
+  if (staticLink) return staticLink;
+  if (TICKETING_SCHEDULED_MESSAGE_KINDS.has(kind)) {
+    return {
+      href: eventId ? `/admin/tickets?eventId=${encodeURIComponent(eventId)}` : "/admin/tickets",
+      label: "View ticketing",
+    };
   }
+  if (kind === "event_reminder" || kind === "rsvp_follow_up" || eventId) {
+    return {
+      href: eventId ? `/admin/rsvp?eventId=${encodeURIComponent(eventId)}` : "/admin/rsvp",
+      label: "View event",
+    };
+  }
+  return null;
 }
 
 export function unifiedItemSortTimestamp(item: UnifiedCommunicationItem): number {
