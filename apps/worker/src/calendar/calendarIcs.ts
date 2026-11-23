@@ -16,6 +16,7 @@ interface CalendarProjectionEvent {
   readonly durationMinutes: number | null;
   readonly id: string;
   readonly location: string;
+  readonly practicePlayerUrl?: string | null;
   readonly resolvedRsvp: "Pending" | "Yes";
   readonly setListApproved: boolean;
   readonly setListJson: string;
@@ -41,6 +42,19 @@ function escapeIcsText(value: string): string {
     .replaceAll("\n", "\\n")
     .replaceAll(",", "\\,")
     .replaceAll(";", "\\;");
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function sanitizeIcsUri(value: string): string {
+  return value.replaceAll(/[\r\n]/g, "");
 }
 
 function formatUtc(date: Date): string {
@@ -113,6 +127,34 @@ function eventDescription(event: CalendarProjectionEvent): string {
   return description.join("\n");
 }
 
+function eventHtmlDescription(event: CalendarProjectionEvent, practicePlayerUrl: string): string {
+  const sections: string[] = [];
+  const metaLines = [
+    `Type: ${escapeHtml(event.type)}`,
+    `Your Status: ${event.resolvedRsvp === "Yes" ? "Attending" : "Pending RSVP"}`,
+  ];
+  if (event.callTime) metaLines.push(`Call Time: ${escapeHtml(event.callTime)}`);
+  sections.push(`<p>${metaLines.join("<br>")}</p>`);
+  sections.push(`<p><a href="${escapeHtml(practicePlayerUrl)}">Open Practice Player</a></p>`);
+  if (event.details) {
+    sections.push(
+      `<p><strong>Details:</strong><br>${escapeHtml(event.details).replaceAll(/\r?\n/g, "<br>")}</p>`,
+    );
+  }
+  if (event.setListApproved && event.resolvedRsvp === "Yes") {
+    const setList = parseSetList(event.setListJson);
+    if (setList.length > 0) {
+      const items = setList.map((item) => {
+        const title = `${escapeHtml(item.title)}${item.composer ? ` (${escapeHtml(item.composer)})` : ""}`;
+        const credit = performerCredit(item);
+        return credit ? `<li>${title}<br>${escapeHtml(credit)}</li>` : `<li>${title}</li>`;
+      });
+      sections.push(`<p><strong>Set List:</strong></p><ol>${items.join("")}</ol>`);
+    }
+  }
+  return `<!DOCTYPE HTML><HTML><BODY>${sections.join("")}</BODY></HTML>`;
+}
+
 export function renderCalendarIcs(input: CalendarProjection): string {
   const lines = [
     "BEGIN:VCALENDAR",
@@ -157,6 +199,9 @@ export function renderCalendarIcs(input: CalendarProjection): string {
         );
       }
     }
+    const practicePlayerUrl = event.practicePlayerUrl
+      ? sanitizeIcsUri(event.practicePlayerUrl)
+      : null;
     lines.push(
       "BEGIN:VEVENT",
       `UID:${uid}`,
@@ -166,6 +211,12 @@ export function renderCalendarIcs(input: CalendarProjection): string {
       `SUMMARY:${escapeIcsText(event.title)}`,
       `LOCATION:${escapeIcsText(location)}`,
       `DESCRIPTION:${escapeIcsText(eventDescription(event))}`,
+      ...(practicePlayerUrl
+        ? [
+            `URL:${practicePlayerUrl}`,
+            `X-ALT-DESC;FMTTYPE=text/html:${escapeIcsText(eventHtmlDescription(event, practicePlayerUrl))}`,
+          ]
+        : []),
       "END:VEVENT",
     );
   }

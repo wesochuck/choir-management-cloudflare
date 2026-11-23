@@ -216,11 +216,12 @@ export interface CalendarEventRow {
   readonly id: string;
   readonly location: string;
   readonly parentRsvp: string | null;
+  readonly practicePlayerEventId: string | null;
   readonly setListApproved: number;
   readonly setListJson: string;
   readonly startsAt: string;
   readonly title: string;
-  readonly type: "Performance" | "Rehearsal";
+  readonly type: "Performance" | "Rehearsal" | "Other";
   readonly venueAddress: string;
   readonly venueName: string;
 }

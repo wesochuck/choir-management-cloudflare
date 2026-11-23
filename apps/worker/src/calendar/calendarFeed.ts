@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { issueCalendarPlayerToken } from "../organization/organizationPlayerLinks";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import { linkedOrganizationProfileId } from "../tenancy/linkedOrganizationProfile";
 import { renderCalendarIcs } from "./calendarIcs";
@@ -24,6 +25,7 @@ const calendarFeedResponseSchema = z.object({
       durationMinutes: z.number().int().positive().nullable(),
       id: z.string().min(1).max(128),
       location: z.string().max(2_000),
+      practicePlayerEventId: z.string().min(1).max(128).nullable().default(null),
       resolvedRsvp: z.enum(["Pending", "Yes"]),
       setListApproved: z.boolean(),
       setListJson: z.string().max(500_000),
@@ -129,10 +131,45 @@ export async function createCalendarFeedUrls(
   };
 }
 
+async function buildCalendarPracticePlayerUrls(
+  env: Env,
+  organizationId: string,
+  profileId: string,
+  events: readonly z.infer<typeof calendarFeedResponseSchema>["events"][number][],
+  canonicalOrigin: string | undefined,
+  now: Date,
+): Promise<Map<string, string>> {
+  const practiceUrlsByEventId = new Map<string, string>();
+  if (!canonicalOrigin) return practiceUrlsByEventId;
+  const uniquePracticeEventIds = new Set<string>();
+  for (const event of events) {
+    if (event.resolvedRsvp === "Yes" && event.practicePlayerEventId) {
+      uniquePracticeEventIds.add(event.practicePlayerEventId);
+    }
+  }
+  const nowSeconds = Math.floor(now.getTime() / 1_000);
+  await Promise.all(
+    [...uniquePracticeEventIds].map(async (practiceEventId) => {
+      const playerToken = await issueCalendarPlayerToken(
+        env,
+        organizationId,
+        practiceEventId,
+        profileId,
+        nowSeconds,
+      );
+      const playerUrl = new URL("/player", canonicalOrigin);
+      playerUrl.searchParams.set("token", playerToken);
+      practiceUrlsByEventId.set(practiceEventId, playerUrl.toString());
+    }),
+  );
+  return practiceUrlsByEventId;
+}
+
 export async function readCalendarFeed(
   env: Env,
   organizationId: string,
   token: string,
+  canonicalOrigin?: string,
   now = new Date(),
 ): Promise<CalendarFeedDocument | null> {
   const envelope = await verifySignedLinkScope(env.SIGNED_LINK_SECRET, token, {
@@ -160,10 +197,25 @@ export async function readCalendarFeed(
     throw new Error("The Organization store rejected the calendar feed request.");
   }
 
+  const practiceUrlsByEventId = await buildCalendarPracticePlayerUrls(
+    env,
+    organizationId,
+    profileId.data,
+    feed.data.events,
+    canonicalOrigin,
+    now,
+  );
+
   let body: string;
   try {
     body = renderCalendarIcs({
-      events: feed.data.events,
+      events: feed.data.events.map((event) => ({
+        ...event,
+        practicePlayerUrl:
+          event.resolvedRsvp === "Yes" && event.practicePlayerEventId
+            ? (practiceUrlsByEventId.get(event.practicePlayerEventId) ?? null)
+            : null,
+      })),
       generatedAt: now,
       organizationName: feed.data.organizationName,
       profileName: feed.data.profileName,

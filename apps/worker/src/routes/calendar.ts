@@ -23,7 +23,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
-    const feed = await readCalendarFeed(context.env, organizationId, token).catch(() => null);
+    const feed = await readCalendarFeed(
+      context.env,
+      organizationId,
+      token,
+      requestUrl.origin,
+    ).catch(() => null);
     if (!feed) {
       return context.json(
         {

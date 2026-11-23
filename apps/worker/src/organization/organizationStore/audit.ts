@@ -195,8 +195,26 @@ export async function validateCalendarFeed(
          e.location, e.details, e.set_list_json AS setListJson,
          e.set_list_approved AS setListApproved,
          COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
-         direct.rsvp AS directRsvp, parent.rsvp AS parentRsvp
+         direct.rsvp AS directRsvp, parent.rsvp AS parentRsvp,
+         CASE
+           WHEN e.type IN ('Performance', 'Rehearsal') AND e.set_list_approved = 1 AND EXISTS (
+             SELECT 1 FROM json_each(e.set_list_json) setItem
+             JOIN music_pieces piece ON piece.id = json_extract(setItem.value, '$.pieceId')
+               OR piece.parent_id = json_extract(setItem.value, '$.pieceId')
+             WHERE EXISTS (SELECT 1 FROM json_each(piece.track_file_ids_json))
+           ) THEN e.id
+           WHEN e.type = 'Rehearsal' AND parentEvent.set_list_approved = 1
+             AND parentEvent.is_archived = 0 AND parentEvent.is_canceled = 0
+             AND EXISTS (
+               SELECT 1 FROM json_each(parentEvent.set_list_json) setItem
+               JOIN music_pieces piece ON piece.id = json_extract(setItem.value, '$.pieceId')
+                 OR piece.parent_id = json_extract(setItem.value, '$.pieceId')
+               WHERE EXISTS (SELECT 1 FROM json_each(piece.track_file_ids_json))
+             ) THEN parentEvent.id
+           ELSE NULL
+         END AS practicePlayerEventId
        FROM events e
+       LEFT JOIN events parentEvent ON parentEvent.id = e.parent_performance_id
        LEFT JOIN venues v ON v.id = e.venue_id
        LEFT JOIN event_rosters direct
          ON direct.event_id = e.id AND direct.profile_id = ?
@@ -229,6 +247,7 @@ export async function validateCalendarFeed(
         durationMinutes: event.durationMinutes,
         id: event.id,
         location: event.location,
+        practicePlayerEventId: resolvedRsvp === "Yes" ? event.practicePlayerEventId : null,
         resolvedRsvp,
         setListApproved: event.setListApproved === 1,
         setListJson: event.setListJson,

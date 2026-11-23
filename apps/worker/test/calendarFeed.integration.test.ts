@@ -282,4 +282,178 @@ describe("calendar feed credentials", () => {
       `DTSTART;TZID=America/New_York:${readLocalPart("year")}${readLocalPart("month")}${readLocalPart("day")}T${readLocalPart("hour") === "24" ? "00" : readLocalPart("hour")}${readLocalPart("minute")}${readLocalPart("second")}`,
     );
   });
+
+  it("embeds stable clickable Practice Player links on published performances and linked rehearsals for Yes RSVPs only", async () => {
+    const publishedEventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const rehearsalEventId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const pendingEventId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const unpublishedEventId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const pieceId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const trackFileId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const baseStart = new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000);
+    baseStart.setUTCHours(23, 0, 0, 0);
+
+    const stub = organizationStore.get(organizationStore.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      const now = new Date().toISOString();
+      state.storage.sql.exec(
+        `INSERT INTO music_pieces
+          (id, title, composer, track_file_ids_json, created_at, updated_at)
+         VALUES (?, 'Earth Song', 'Frank Ticheli', ?, ?, ?)`,
+        pieceId,
+        JSON.stringify({ Tenor: trackFileId }),
+        now,
+        now,
+      );
+      const setListJson = JSON.stringify([
+        { composer: "Frank Ticheli", pieceId, title: "Earth Song" },
+      ]);
+      state.storage.sql.exec(
+        `INSERT INTO events
+          (id, title, type, starts_at, duration_minutes, call_time, location,
+           parent_performance_id, details, set_list_json, set_list_approved,
+           is_archived, created_at, updated_at)
+         VALUES
+          (?, 'Spring Showcase', 'Performance', ?, 120, '18:00', 'Concert Hall',
+           NULL, 'Bring black folders', ?, 1, 0, ?, ?),
+          (?, 'Weekly Rehearsal', 'Rehearsal', ?, 90, '', 'Choir Room',
+           ?, 'Warm up at 7', '[]', 0, 0, ?, ?),
+          (?, 'Pending Concert', 'Performance', ?, 120, '', 'Concert Hall',
+           NULL, '', ?, 1, 0, ?, ?),
+          (?, 'Draft Concert', 'Performance', ?, 120, '', 'Concert Hall',
+           NULL, '', ?, 0, 0, ?, ?)`,
+        publishedEventId,
+        baseStart.toISOString(),
+        setListJson,
+        now,
+        now,
+        rehearsalEventId,
+        new Date(baseStart.getTime() - 3 * 24 * 60 * 60 * 1_000).toISOString(),
+        publishedEventId,
+        now,
+        now,
+        pendingEventId,
+        new Date(baseStart.getTime() + 7 * 24 * 60 * 60 * 1_000).toISOString(),
+        setListJson,
+        now,
+        now,
+        unpublishedEventId,
+        new Date(baseStart.getTime() + 14 * 24 * 60 * 60 * 1_000).toISOString(),
+        setListJson,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO event_rosters (event_id, profile_id, rsvp, created_at, updated_at)
+         VALUES
+          (?, ?, 'Yes', ?, ?),
+          (?, ?, 'Pending', ?, ?),
+          (?, ?, 'Pending', ?, ?),
+          (?, ?, 'Yes', ?, ?)`,
+        publishedEventId,
+        ALPHA_PROFILE_ID,
+        now,
+        now,
+        rehearsalEventId,
+        ALPHA_PROFILE_ID,
+        now,
+        now,
+        pendingEventId,
+        ALPHA_PROFILE_ID,
+        now,
+        now,
+        unpublishedEventId,
+        ALPHA_PROFILE_ID,
+        now,
+        now,
+      );
+      return null;
+    });
+
+    const cookie = await signIn();
+    const credentialResponse = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/singer/calendar-feed-url", cookie),
+    );
+    const credential = calendarFeedUrlsResponseSchema.parse(await credentialResponse.json());
+
+    const firstResponse = await exports.default.fetch(new Request(credential.httpsUrl));
+    expect(firstResponse.status).toBe(200);
+    const firstFeed = await firstResponse.text();
+
+    const secondResponse = await exports.default.fetch(new Request(credential.httpsUrl));
+    expect(secondResponse.status).toBe(200);
+    const secondFeed = await secondResponse.text();
+
+    const vevents = firstFeed.split("BEGIN:VEVENT").slice(1);
+    const findVevent = (uid: string) => {
+      const match = vevents.find((block) => block.includes(`UID:${uid}\r\n`));
+      if (!match) throw new Error(`Missing VEVENT for ${uid}`);
+      return match;
+    };
+
+    const callTimeVevent = findVevent(`call-event-${publishedEventId}@choir-management.local`);
+    const performanceVevent = findVevent(`event-${publishedEventId}@choir-management.local`);
+    const rehearsalVevent = findVevent(`event-${rehearsalEventId}@choir-management.local`);
+    const pendingVevent = findVevent(`event-${pendingEventId}@choir-management.local`);
+    const draftVevent = findVevent(`event-${unpublishedEventId}@choir-management.local`);
+
+    // Call Time, Pending RSVP, and unpublished set lists omit Practice Player links.
+    expect(callTimeVevent).not.toContain("URL:");
+    expect(callTimeVevent).not.toContain("X-ALT-DESC");
+    expect(pendingVevent).not.toContain("URL:");
+    expect(pendingVevent).not.toContain("X-ALT-DESC");
+    expect(draftVevent).not.toContain("URL:");
+    expect(draftVevent).not.toContain("X-ALT-DESC");
+
+    // Performance and linked Rehearsal both receive the same stable personalized link.
+    const perfUrlMatch = /URL:(http:\/\/alpha\.localhost\/player\?token=[^\r\n]+)/.exec(
+      performanceVevent,
+    );
+    const rehUrlMatch = /URL:(http:\/\/alpha\.localhost\/player\?token=[^\r\n]+)/.exec(
+      rehearsalVevent,
+    );
+    expect(perfUrlMatch?.[1]).toBeDefined();
+    expect(rehUrlMatch?.[1]).toBe(perfUrlMatch?.[1]);
+
+    // HTML alternative description carries a clickable short link; plain DESCRIPTION stays URL-free.
+    const playerUrl = perfUrlMatch?.[1] ?? "";
+    expect(performanceVevent).toContain("X-ALT-DESC;FMTTYPE=text/html:");
+    expect(performanceVevent).toContain(`href="${playerUrl}">Open Practice Player</a>`);
+    expect(rehearsalVevent).toContain(`href="${playerUrl}">Open Practice Player</a>`);
+    const perfPlainDesc = /DESCRIPTION:([^\r\n]+)/.exec(performanceVevent)?.[1] ?? "";
+    expect(perfPlainDesc).not.toContain("/player?token=");
+    const rehPlainDesc = /DESCRIPTION:([^\r\n]+)/.exec(rehearsalVevent)?.[1] ?? "";
+    expect(rehPlainDesc).not.toContain("/player?token=");
+
+    // Repeated feed fetches within the same 7-day window emit the exact same URL.
+    const secondUrlMatch = /URL:(http:\/\/alpha\.localhost\/player\?token=[^\r\n]+)/.exec(
+      secondFeed,
+    );
+    expect(secondUrlMatch?.[1]).toBe(playerUrl);
+
+    // Embedded token resolves live Practice Player details on alpha.localhost and fails closed on bravo.localhost.
+    const parsedUrl = new URL(playerUrl);
+    const token = parsedUrl.searchParams.get("token") ?? "";
+    const playerDetails = await exports.default.fetch(
+      organizationRequest("alpha.localhost", "/api/public/player-details", undefined, {
+        body: JSON.stringify({ token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(playerDetails.status).toBe(200);
+    await expect(playerDetails.json()).resolves.toMatchObject({
+      eventId: publishedEventId,
+      profileId: ALPHA_PROFILE_ID,
+    });
+
+    const crossOrgDetails = await exports.default.fetch(
+      organizationRequest("bravo.localhost", "/api/public/player-details", undefined, {
+        body: JSON.stringify({ token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(crossOrgDetails.status).toBe(404);
+  });
 });

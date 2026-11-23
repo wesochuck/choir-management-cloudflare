@@ -14,6 +14,8 @@ const playerLinkRowSchema = z.object({
 });
 
 const PLAYER_LINK_TTL_SECONDS = 7 * 24 * 60 * 60;
+const CALENDAR_PLAYER_LINK_WINDOW_SECONDS = 7 * 24 * 60 * 60;
+const CALENDAR_PLAYER_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 /** A set list must be published before a public practice-player link can be issued. */
 export class PracticePlayerUnavailableError extends Error {
@@ -41,6 +43,36 @@ export function issuePlayerToken(
     expiresAt: issuedAt + PLAYER_LINK_TTL_SECONDS,
     issuedAt,
     nonce: crypto.randomUUID(),
+    organizationId,
+    purpose: "player",
+    resourceId: eventId,
+    subjectId: profileId,
+    version: 1,
+  });
+}
+
+/**
+ * Issue a deterministic, recipient-scoped Practice Player link token for
+ * subscribed calendar feeds. Snapping `issuedAt` to a 7-day UTC window keeps
+ * URLs stable across hourly calendar polls while the 30-day TTL ensures
+ * cached calendar entries remain usable between slow client refreshes.
+ */
+export function issueCalendarPlayerToken(
+  env: Pick<Env, "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  eventId: string,
+  profileId: string,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): Promise<string> {
+  const windowStart = Math.max(
+    1,
+    Math.floor(nowSeconds / CALENDAR_PLAYER_LINK_WINDOW_SECONDS) *
+      CALENDAR_PLAYER_LINK_WINDOW_SECONDS,
+  );
+  return issueSignedLink(env.SIGNED_LINK_SECRET, {
+    algorithm: "HS256",
+    expiresAt: windowStart + CALENDAR_PLAYER_LINK_TTL_SECONDS,
+    issuedAt: windowStart,
     organizationId,
     purpose: "player",
     resourceId: eventId,
