@@ -145,6 +145,23 @@ describe("reusable local release qualification", () => {
     });
   });
 
+  it("reuses a Codex qualification in a terminal without the browser tool variable", async () => {
+    const root = await fixture();
+    vi.stubEnv("NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S", "codex-browser-fixture");
+    const receipt = await qualify(root);
+
+    vi.stubEnv("NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S", undefined);
+    const runner = vi.fn();
+    expect(await runReleaseGate({ root, runner })).toEqual(receipt);
+    expect(runner).not.toHaveBeenCalled();
+
+    vi.stubEnv("NODE_OPTIONS", "--max-old-space-size=4096");
+    expect(await readQualification({ root })).toMatchObject({
+      receipt: null,
+      reason: "release inputs changed: build/test environment",
+    });
+  });
+
   it("reports changed dependency and local configuration categories without values", async () => {
     const root = await fixture();
     await qualify(root);

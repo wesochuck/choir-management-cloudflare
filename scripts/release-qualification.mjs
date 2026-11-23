@@ -32,6 +32,8 @@ export async function qualificationInputs(root = process.cwd(), env = process.en
   const modulesStat = await stat(join(root, "node_modules"));
   const environment = Object.entries(applyReleaseBuildDefaults({ ...env }))
     .filter(([key]) => /^(?:CI|TZ|BUILD_VERSION|NODE_.*|VITE_.*|PLAYWRIGHT_.*)$/u.test(key))
+    // Codex's browser tool metadata has no effect on the application build or tests.
+    .filter(([key]) => key !== "NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S")
     .sort(([left], [right]) => left.localeCompare(right));
   return {
     checkout: await realpath(root),
