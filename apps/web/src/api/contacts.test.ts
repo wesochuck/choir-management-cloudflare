@@ -209,7 +209,11 @@ describe("organization contacts browser client", () => {
     expect(detail.contact).toEqual(contactFixture);
     expect(detail.listIds).toEqual([LIST_ID]);
     expect(detail.preferences).toHaveLength(2);
-    expect(detail.activity).toEqual({ donationCount: 2, ticketPurchaseCount: 4 });
+    expect(detail.activity).toEqual({
+      donationCount: 2,
+      ticketPurchaseCount: 4,
+      ticketPurchases: [],
+    });
     expect(detail.linkedProfile).toEqual({ displayName: "Jane Singer", id: PROFILE_ID });
     expect(detail.lists).toEqual([{ id: LIST_ID, name: "Newsletter" }]);
     expect(detail.lastEmailAt).toBe("2026-08-12T10:00:00.000Z");
@@ -226,7 +230,11 @@ describe("organization contacts browser client", () => {
       }),
     );
     const detail = await getOrganizationContactDetail(CONTACT_ID);
-    expect(detail.activity).toEqual({ donationCount: 0, ticketPurchaseCount: 0 });
+    expect(detail.activity).toEqual({
+      donationCount: 0,
+      ticketPurchaseCount: 0,
+      ticketPurchases: [],
+    });
     expect(detail.linkedProfile).toBeNull();
     expect(detail.lists).toEqual([]);
     expect(detail.lastEmailAt).toBeNull();
