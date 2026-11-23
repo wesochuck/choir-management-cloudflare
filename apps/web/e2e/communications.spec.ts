@@ -519,7 +519,9 @@ test("reviews and queues an event-specific ticket-holder service notice", async 
   await expect(review).toContainText("paid ticket for the selected performance");
   await expect(review).toContainText("2 ticket-holder recipients can receive this email");
   await review.getByRole("button", { name: "Send to 2 recipients" }).click();
-  await expect(page.getByRole("status")).toContainText("Message queued for 2 recipients.");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Message queued for 2 recipients." }),
+  ).toBeVisible();
   expect(sendBodies).toHaveLength(1);
   expect(sendBodies[0]).toMatchObject({
     audience: {
