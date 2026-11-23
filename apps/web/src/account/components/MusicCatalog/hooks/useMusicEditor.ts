@@ -99,7 +99,6 @@ export function useMusicEditor({
   readonly setPieces: Dispatch<SetStateAction<readonly OrganizationMusicPiece[]>>;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
-  void pieces;
   const [piece, setPiece] = useState<OrganizationMusicPieceRequest>(emptyPiece);
   const [pendingTuttiFile, setPendingTuttiFile] = useState<File | null>(null);
   const [durationInput, setDurationInput] = useState("");

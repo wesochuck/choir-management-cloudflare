@@ -339,14 +339,13 @@ export function finalizeMusicTrackImportUploadInStore(
         "Upload lease expired before the upload finished.",
       );
     }
-    const updated = storage.sql.exec(
+    storage.sql.exec(
       `UPDATE private_files SET status = 'ready', ready_at = ?, r2_version = ?
        WHERE id = ? AND status = 'pending'`,
       input.now,
       input.r2Version ?? null,
       input.fileId,
     );
-    void updated;
     const privateFile = readPrivateFileStatus(storage, input.fileId);
     if (privateFile?.status !== "ready") {
       throw new MusicTrackImportStoreError(

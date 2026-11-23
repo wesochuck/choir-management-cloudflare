@@ -13,13 +13,24 @@ export function resolvePracticeTrackAssignments<
   },
 >(
   files: readonly T[],
-  _selectedPieceId?: string | null,
+  selectedPieceId?: string | null,
+): {
+  duplicatePartKeys: string[];
+  files: T[];
+  hasDuplicatePart: boolean;
+};
+export function resolvePracticeTrackAssignments<
+  T extends {
+    readonly partKey: string | null;
+    readonly partSelectionChanged?: boolean | undefined;
+  },
+>(
+  files: readonly T[],
 ): {
   duplicatePartKeys: string[];
   files: T[];
   hasDuplicatePart: boolean;
 } {
-  void _selectedPieceId;
   const resolvedFiles = [...files];
   const counts = new Map<string, number>();
   for (const file of resolvedFiles) {

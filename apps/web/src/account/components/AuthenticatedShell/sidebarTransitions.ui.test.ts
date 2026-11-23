@@ -149,7 +149,9 @@ describe("sidebar phase 2 transitions", () => {
       matches: query.includes("64rem"),
       media: query,
       onchange: null,
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- required by the DOM MediaQueryList interface.
       addListener: () => undefined,
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- required by the DOM MediaQueryList interface.
       removeListener: () => undefined,
       addEventListener: () => undefined,
       removeEventListener: () => undefined,
@@ -194,7 +196,9 @@ describe("sidebar phase 2 transitions", () => {
       matches: query === REDUCED_MOTION_QUERY,
       media: query,
       onchange: null,
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- required by the DOM MediaQueryList interface.
       addListener: () => undefined,
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- required by the DOM MediaQueryList interface.
       removeListener: () => undefined,
       addEventListener: () => undefined,
       removeEventListener: () => undefined,

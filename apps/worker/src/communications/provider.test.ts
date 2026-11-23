@@ -152,11 +152,9 @@ describe("Organization communication provider", () => {
   });
 
   it("suppresses a sandbox SMS recipient that is not explicitly allowlisted", async () => {
-    const fetcher = vi.fn((input: string, request: RequestInit) => {
-      void input;
-      void request;
-      return Promise.resolve(Response.json({ messageId: 123 }, { status: 201 }));
-    });
+    const fetcher = vi.fn<(input: string, request: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(Response.json({ messageId: 123 }, { status: 201 })),
+    );
     const result = await deliverOrganizationCommunication(
       {
         BREVO_API_KEY: "sandbox-key",
@@ -178,11 +176,9 @@ describe("Organization communication provider", () => {
   });
 
   it("uses the transactional SMS endpoint only for an allowlisted sandbox recipient", async () => {
-    const fetcher = vi.fn((input: string, request: RequestInit) => {
-      void input;
-      void request;
-      return Promise.resolve(Response.json({ messageId: 123 }, { status: 201 }));
-    });
+    const fetcher = vi.fn<(input: string, request: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(Response.json({ messageId: 123 }, { status: 201 })),
+    );
     const result = await deliverOrganizationCommunication(
       {
         BREVO_API_KEY: "sandbox-key",
@@ -204,11 +200,9 @@ describe("Organization communication provider", () => {
   });
 
   it("fails closed without exposing rejected SMS provider response bodies", async () => {
-    const fetcher = vi.fn((input: string, request: RequestInit) => {
-      void input;
-      void request;
-      return Promise.resolve(new Response("credential details", { status: 401 }));
-    });
+    const fetcher = vi.fn<(input: string, request: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(new Response("credential details", { status: 401 })),
+    );
     const smsDelivery = {
       ...delivery,
       channel: "sms" as const,

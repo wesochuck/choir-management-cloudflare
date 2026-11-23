@@ -168,6 +168,7 @@ export class FleetSchemaWorkflow extends WorkflowEntrypoint<Env, FleetSchemaPara
         )
           .bind(prepared.length, lastOrganizationId, updatedAt, params.runId, lastOrganizationId)
           .run();
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Miniflare in @cloudflare/vitest-pool-workers@0.20.1 only implements the array overload of Workflow.createBatch.
         await this.env.FLEET_SCHEMA_WORKFLOW.createBatch([
           {
             id: continuationId(params.runId, nextSegment),

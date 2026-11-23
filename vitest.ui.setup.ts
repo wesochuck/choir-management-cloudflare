@@ -21,7 +21,9 @@ function createMatchMediaStub(): (query: string) => MediaQueryList {
     matches: false,
     media: query,
     onchange: null,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- required by the DOM MediaQueryList interface.
     addListener: () => undefined,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- required by the DOM MediaQueryList interface.
     removeListener: () => undefined,
     addEventListener: () => undefined,
     removeEventListener: () => undefined,

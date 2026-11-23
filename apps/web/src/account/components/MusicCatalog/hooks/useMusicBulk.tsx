@@ -22,7 +22,6 @@ export function useMusicBulk({
   navigate,
   pieces,
   selectedPieces,
-  selectedPieceIds,
   setBusy,
   setError,
   setEvents,
@@ -47,8 +46,6 @@ export function useMusicBulk({
 }) {
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
-  void pieces;
-  void selectedPieceIds;
   const [setListDialogOpen, setSetListDialogOpen] = useState(false);
   const [setListError, setSetListError] = useState<string | null>(null);
   function closeBulkDialog(): void {

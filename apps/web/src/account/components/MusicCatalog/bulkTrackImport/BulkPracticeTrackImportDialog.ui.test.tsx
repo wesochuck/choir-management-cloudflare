@@ -95,10 +95,9 @@ const mockCommitMusicTrackImportSession = vi.fn(
     });
   },
 );
-const mockDiscardMusicTrackImportSession = vi.fn((sessionId: string) => {
-  void sessionId;
-  return Promise.resolve({});
-});
+const mockDiscardMusicTrackImportSession = vi.fn<(sessionId: string) => Promise<object>>(() =>
+  Promise.resolve({}),
+);
 const mockGetMusicTrackImportSession = vi.fn((sessionId: string) =>
   Promise.resolve({
     absoluteExpiresAt: "2026-10-28T00:00:00.000Z",
@@ -124,13 +123,9 @@ const mockGetMusicTrackImportSession = vi.fn((sessionId: string) =>
     state: "active",
   }),
 );
-const mockUpdateMusicTrackImportAssignments = vi.fn(
-  (sessionId: string, body: { assignments: unknown[] }) => {
-    void sessionId;
-    void body;
-    return Promise.resolve({});
-  },
-);
+const mockUpdateMusicTrackImportAssignments = vi.fn<
+  (sessionId: string, body: { assignments: unknown[] }) => Promise<object>
+>(() => Promise.resolve({}));
 vi.mock("../../../../api/musicTrackImport", () => ({
   commitMusicTrackImportSession: (sessionId: string, body: { commitKey: string }) =>
     mockCommitMusicTrackImportSession(sessionId, body),

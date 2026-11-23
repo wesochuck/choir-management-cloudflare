@@ -447,8 +447,7 @@ export function completeMusicTrackImportCleanupInStore(
   },
 ): CleanupCompleteResult {
   assertOrganization(storage, input.organizationId);
-  const nowMs = parseNow(input.now);
-  void nowMs;
+  parseNow(input.now);
   assertUuid(input.sessionId, "session");
 
   return storage.transactionSync(() => {

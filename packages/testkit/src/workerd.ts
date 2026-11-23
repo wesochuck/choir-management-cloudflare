@@ -1,4 +1,14 @@
-import type { D1Database, DurableObjectId } from "@cloudflare/workers-types";
+import type { DurableObjectId } from "@cloudflare/workers-types";
+
+interface TestD1PreparedStatement {
+  bind(...values: unknown[]): TestD1PreparedStatement;
+  run(): Promise<unknown>;
+}
+
+interface TestD1Database {
+  batch(statements: TestD1PreparedStatement[]): Promise<unknown>;
+  prepare(query: string): TestD1PreparedStatement;
+}
 
 export interface OrganizationStoreNamespace {
   readonly get: (id: DurableObjectId) => {
@@ -66,7 +76,7 @@ export async function writeJson(
 }
 
 export async function provisionOrganization(
-  database: D1Database,
+  database: TestD1Database,
   stores: OrganizationStoreNamespace,
   options: OrganizationProvisionOptions,
 ): Promise<void> {
@@ -119,7 +129,7 @@ export async function provisionOrganization(
 }
 
 export async function seedAuthUser(
-  database: D1Database,
+  database: TestD1Database,
   userId: string,
   email: string,
   displayName = "Integration User",

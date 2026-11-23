@@ -6,7 +6,6 @@ import {
   type OrganizationEmailSettingsUpdateRequest,
   type ProblemDetails,
 } from "@choir/contracts";
-import type { D1Database } from "@cloudflare/workers-types";
 import type { Context, Hono } from "hono";
 
 import { resolveEmailDomainDnsRecords } from "../communications/emailDomainDns";

@@ -9,7 +9,9 @@ beforeEach(() => {
     matches: true,
     media,
     onchange: null,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- required by the DOM MediaQueryList interface.
     addListener: vi.fn(),
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- required by the DOM MediaQueryList interface.
     removeListener: vi.fn(),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),

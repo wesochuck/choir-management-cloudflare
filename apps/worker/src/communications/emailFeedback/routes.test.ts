@@ -66,6 +66,7 @@ function makeRaw(
 function createTestD1(db: DatabaseSync): D1Database {
   const prepare = (query: string): D1PreparedStatement => {
     let bindings: SqlBinding[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-class-instance-assignment -- Node SQLite test adapter for ambient abstract D1PreparedStatement class.
     const statement: D1PreparedStatement = {
       all<T = Record<string, unknown>>(): Promise<D1Result<T>> {
         const rows = db.prepare(query).all(...bindings);
@@ -115,13 +116,16 @@ function createTestD1(db: DatabaseSync): D1Database {
     }
     return results;
   };
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-class-instance-assignment -- Node SQLite test adapter for ambient abstract D1DatabaseSession class.
   const session: D1DatabaseSession = {
     batch,
     getBookmark: () => null,
     prepare,
   };
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-class-instance-assignment -- Node SQLite test adapter for ambient abstract D1Database class.
   return {
     batch,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- required by the D1Database interface contract.
     dump: () => Promise.resolve(new ArrayBuffer(0)),
     exec: (query: string) => {
       db.exec(query);

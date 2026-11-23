@@ -33,7 +33,6 @@
  * runtime boundary enforced by `npm run check:do-runtime`.
  */
 
-import type { D1Database } from "@cloudflare/workers-types";
 import {
   provisionOrganization,
   seedAuthUser,
