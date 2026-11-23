@@ -285,9 +285,11 @@ describe("Organization ticketing lifecycle", () => {
     ]);
     const shareUrl = "https://pass.walletwallet.dev/p/test-order";
     await walletStore.finishTicketWalletPass({ ...orderKey, retryAfter: 0 });
-    const provider = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(null, { headers: { "X-Pass-Url": shareUrl } }));
+    const provider = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ serialNumber: "serial-1", shareUrl }), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
     try {
       const configuredEnv = {
         ...env,

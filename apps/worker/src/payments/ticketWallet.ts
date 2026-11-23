@@ -3,12 +3,22 @@ import type { PublicTicketReceipt } from "@choir/contracts";
 import { renderCommunicationText } from "../communications/provider";
 import type { Env } from "../env";
 
+const WALLET_API_URL = "https://api.walletwallet.dev/api/passes";
+const MAX_LABEL_CHARS = 64;
+const MAX_FIELD_VALUE_CHARS = 256;
+const MAX_BACK_FIELDS = 10;
+
 export function walletApiKey(
   env: Pick<Env, "EXTERNAL_EFFECTS_MODE" | "WALLETWALLET_API_KEY"> & Partial<Pick<Env, "APP_ENV">>,
 ) {
   if (!env.APP_ENV || env.APP_ENV === "local" || env.EXTERNAL_EFFECTS_MODE !== "sandbox")
     return undefined;
   return env.WALLETWALLET_API_KEY?.trim();
+}
+
+function truncateField(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
 type WalletOrder = Pick<
@@ -45,52 +55,106 @@ export function walletPassBody(
   const events = order.includedEvents.length
     ? order.includedEvents
     : [{ ...order, id: order.eventId, startsAt: order.eventStartsAt, title: order.eventTitle }];
-  const backFields = events.map((event) => {
+  const backFields = events.slice(0, MAX_BACK_FIELDS).map((event) => {
     const doors = event.doorsOpenTime;
     const hour = Number(doors.slice(0, 2));
     const raw = publicDetails.get(event.id) ?? "";
-    const instructions =
-      renderCommunicationText(raw.slice(0, 2048)) + (raw.length > 2048 ? "…" : "");
+    const instructions = renderCommunicationText(raw.slice(0, MAX_FIELD_VALUE_CHARS));
+    const value = [
+      dates.format(new Date(event.startsAt)),
+      doors &&
+        `Doors open ${String(hour % 12 || 12)}:${doors.slice(3)} ${hour >= 12 ? "PM" : "AM"}`,
+      event.venueName || event.location,
+      event.venueAddress,
+      instructions,
+    ]
+      .filter(Boolean)
+      .join("\n");
     return {
-      label: event.title,
-      value: [
-        dates.format(new Date(event.startsAt)),
-        doors &&
-          `Doors open ${String(hour % 12 || 12)}:${doors.slice(3)} ${hour >= 12 ? "PM" : "AM"}`,
-        event.venueName || event.location,
-        event.venueAddress,
-        instructions,
-      ]
-        .filter(Boolean)
-        .join("\n"),
+      label: truncateField(event.title, MAX_LABEL_CHARS),
+      value: truncateField(value, MAX_FIELD_VALUE_CHARS),
     };
   });
+  const safeOrgName = truncateField(organizationName, MAX_LABEL_CHARS);
   return {
     barcodeFormat: "QR",
     barcodeValue: scanToken,
     barcodeAltText: "",
-    logoText: organizationName,
-    organizationName: organizationName.slice(0, 64),
-    primaryFields: [{ label: "Admission", value: order.bundleTitle || order.eventTitle }],
+    logoText: safeOrgName,
+    organizationName: safeOrgName,
+    primaryFields: [
+      {
+        label: "Admission",
+        value: truncateField(order.bundleTitle || order.eventTitle, MAX_FIELD_VALUE_CHARS),
+      },
+    ],
     headerFields: [{ label: "Admits", value: String(order.quantity) }],
     secondaryFields: order.bundleTitle
       ? [{ label: "Concerts", value: String(events.length) }]
-      : [{ label: "Starts", value: dates.format(new Date(order.eventStartsAt)) }],
+      : [
+          {
+            label: "Starts",
+            value: truncateField(
+              dates.format(new Date(order.eventStartsAt)),
+              MAX_FIELD_VALUE_CHARS,
+            ),
+          },
+        ],
     backFields,
   };
 }
 
+async function readSafeProviderError(response: Response): Promise<string | undefined> {
+  try {
+    const text = (await response.text()).slice(0, 512);
+    if (!text) return undefined;
+    try {
+      const parsed: unknown = JSON.parse(text);
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        "error" in parsed &&
+        typeof parsed.error === "string"
+      ) {
+        return parsed.error.slice(0, 200);
+      }
+    } catch {
+      // Fall back to bounded plain text when provider response is non-JSON.
+    }
+    return text.slice(0, 200);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function issueWalletPass(key: string, body: ReturnType<typeof walletPassBody>) {
-  const response = await fetch("https://api.walletwallet.dev/api/passes?format=pkpass", {
+  const response = await fetch(WALLET_API_URL, {
     method: "POST",
     redirect: "error",
     signal: AbortSignal.timeout(12000),
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify(body),
   });
-  // Only the install URL is needed. Avoid buffering or retaining the signed pass.
-  await response.body?.cancel();
-  if ([400, 401, 403, 429].includes(response.status)) return { rejected: true } as const;
-  if (!response.ok) throw new Error("Unknown wallet issuance outcome");
-  return ticketWalletResponseSchema.parse({ shareUrl: response.headers.get("X-Pass-Url") });
+  if ([400, 401, 403, 429].includes(response.status)) {
+    const providerError = await readSafeProviderError(response);
+    return { providerError, rejected: true, status: response.status } as const;
+  }
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new Error(`Unknown wallet issuance outcome (HTTP ${String(response.status)})`);
+  }
+  const headerShareUrl = response.headers.get("X-Pass-Url");
+  if (headerShareUrl) {
+    await response.body?.cancel();
+    return ticketWalletResponseSchema.parse({ shareUrl: headerShareUrl });
+  }
+  const payload: unknown = await response.json();
+  const shareUrl =
+    typeof payload === "object" &&
+    payload !== null &&
+    "shareUrl" in payload &&
+    typeof payload.shareUrl === "string"
+      ? payload.shareUrl
+      : null;
+  return ticketWalletResponseSchema.parse({ shareUrl });
 }

@@ -10,6 +10,20 @@ import { readPublicTicketPurchase } from "../../organization/organizationTicketi
 
 const walletRequest = z.object({ token: z.string().min(1).max(4096) });
 
+function logWalletUnavailable(details: Record<string, unknown>): void {
+  console.error(JSON.stringify({ event: "ticket_wallet_unavailable", ...details }));
+}
+
+function walletErrorDetails(error: unknown): {
+  readonly errorMessage: string;
+  readonly errorType: string;
+} {
+  return {
+    errorMessage: error instanceof Error ? error.message.slice(0, 200) : "unknown",
+    errorType: error instanceof Error ? error.name : typeof error,
+  };
+}
+
 export async function ticketWallet(context: Context<WorkerHonoEnvironment>) {
   validateStartupConfig(context.env);
   context.header("Cache-Control", "no-store");
@@ -43,7 +57,10 @@ export async function ticketWallet(context: Context<WorkerHonoEnvironment>) {
   });
   if (!envelope?.resourceId) return missing();
   const key = walletApiKey(context.env);
-  if (!key) return unavailable();
+  if (!key) {
+    logWalletUnavailable({ organizationId, reason: "missing_api_key" });
+    return unavailable();
+  }
   const purchaseId = envelope.resourceId;
   try {
     const order = await readPublicTicketPurchase(context.env, organizationId, purchaseId);
@@ -55,12 +72,22 @@ export async function ticketWallet(context: Context<WorkerHonoEnvironment>) {
       eventIds: [order.eventId, ...order.includedEvents.map((event) => event.id)],
     });
     if (claim.state === "ready") return context.json({ shareUrl: claim.shareUrl });
-    if (claim.state !== "claimed") return unavailable();
+    if (claim.state !== "claimed") {
+      logWalletUnavailable({ organizationId, purchaseId, reason: "claim_unavailable" });
+      return unavailable();
+    }
     const pass = await issueWalletPass(
       key,
       walletPassBody(order, order.scanToken, claim.organizationName, claim.details),
     );
     if ("rejected" in pass) {
+      logWalletUnavailable({
+        organizationId,
+        providerError: pass.providerError,
+        purchaseId,
+        reason: "provider_rejected",
+        status: pass.status,
+      });
       await stub.finishTicketWalletPass({
         organizationId,
         purchaseId,
@@ -74,7 +101,13 @@ export async function ticketWallet(context: Context<WorkerHonoEnvironment>) {
       shareUrl: pass.shareUrl,
     });
     return saved ? context.json(pass) : missing();
-  } catch {
+  } catch (error: unknown) {
+    logWalletUnavailable({
+      ...walletErrorDetails(error),
+      organizationId,
+      purchaseId,
+      reason: "unexpected_error",
+    });
     // The provider assigns its own serial. Never replay an ambiguous create.
     return unavailable();
   }

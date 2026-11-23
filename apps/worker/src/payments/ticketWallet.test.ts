@@ -41,27 +41,88 @@ describe("wallet ticket issuance", () => {
     );
     expect(body.backFields[1]?.value).not.toMatch(/Parking|Doors open/);
   });
-  it("accepts only the provider install link", async () => {
+
+  it("enforces WalletWallet field length and back-field count limits", () => {
+    const longOrg = "A".repeat(100);
+    const longTitle = "B".repeat(120);
+    const longDetails = "C".repeat(600);
+    const includedEvents = Array.from({ length: 12 }, (_, index) => ({
+      ...event,
+      id: `concert-${String(index)}`,
+      title: `${longTitle}-${String(index)}`,
+    }));
+    const constrained = walletPassBody(
+      {
+        ...event,
+        bundleTitle: "D".repeat(300),
+        eventId: event.id,
+        eventStartsAt: event.startsAt,
+        eventTitle: longTitle,
+        includedEvents,
+        quantity: 2,
+        timezone: "America/New_York",
+      },
+      "signed-admission",
+      longOrg,
+      includedEvents.map((item) => ({ id: item.id, details: longDetails })),
+    );
+    expect(constrained.logoText.length).toBeLessThanOrEqual(64);
+    expect(constrained.organizationName.length).toBeLessThanOrEqual(64);
+    expect(constrained.primaryFields[0]?.value.length).toBeLessThanOrEqual(256);
+    expect(constrained.backFields).toHaveLength(10);
+    for (const field of constrained.backFields) {
+      expect(field.label.length).toBeLessThanOrEqual(64);
+      expect(field.value.length).toBeLessThanOrEqual(256);
+    }
+  });
+
+  it("reads shareUrl from the canonical JSON response, accepts X-Pass-Url fallback, and surfaces safe rejection metadata", async () => {
     const request = vi
       .fn()
       .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            applePass: "base64-pkpass",
+            googleSaveUrl: "https://pay.google.com/gp/v/save/token",
+            serialNumber: "serial-1",
+            shareUrl: "https://pass.walletwallet.dev/p/example",
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
         new Response(null, {
-          headers: { "X-Pass-Url": "https://pass.walletwallet.dev/p/example" },
+          headers: { "X-Pass-Url": "https://pass.walletwallet.dev/p/header-fallback" },
         }),
       )
       .mockResolvedValueOnce(
-        new Response(null, { headers: { "X-Pass-Url": "https://other.example/p/example" } }),
+        new Response(JSON.stringify({ shareUrl: "https://other.example/p/example" }), {
+          headers: { "content-type": "application/json" },
+        }),
       )
-      .mockResolvedValueOnce(new Response(null, { status: 429 }));
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Monthly pass limit reached" }), {
+          headers: { "content-type": "application/json" },
+          status: 429,
+        }),
+      );
     vi.stubGlobal("fetch", request);
+
     expect(await issueWalletPass("test", body)).toEqual({
       shareUrl: "https://pass.walletwallet.dev/p/example",
     });
     expect(request).toHaveBeenCalledWith(
-      "https://api.walletwallet.dev/api/passes?format=pkpass",
+      "https://api.walletwallet.dev/api/passes",
       expect.objectContaining({ method: "POST", body: JSON.stringify(body) }),
     );
+    expect(await issueWalletPass("test", body)).toEqual({
+      shareUrl: "https://pass.walletwallet.dev/p/header-fallback",
+    });
     await expect(issueWalletPass("test", body)).rejects.toThrow();
-    expect(await issueWalletPass("test", body)).toEqual({ rejected: true });
+    expect(await issueWalletPass("test", body)).toEqual({
+      providerError: "Monthly pass limit reached",
+      rejected: true,
+      status: 429,
+    });
   });
 });
