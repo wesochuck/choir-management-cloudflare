@@ -10,7 +10,8 @@ import {
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { router } from "../src/router";
 import { issueSignedLink } from "../src/security/signedLinks";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import {
@@ -253,6 +254,68 @@ describe("Organization ticketing lifecycle", () => {
     );
     expect(receipt.id).toBe(first.purchase.id);
     expect(receipt.scanToken).toBeTruthy();
+    expect(receipt.walletAvailable).toBe(false);
+    const walletRoute = "/api/public/tickets/wallet";
+    expect(
+      (await jsonWrite("bravo.localhost", walletRoute, "POST", { token: first.successToken }))
+        .status,
+    ).toBe(404);
+    expect(
+      (await jsonWrite("tickets.example.test", walletRoute, "POST", { token: receipt.scanToken }))
+        .status,
+    ).toBe(404);
+    expect(
+      (await jsonWrite("tickets.example.test", walletRoute, "POST", { token: first.successToken }))
+        .status,
+    ).toBe(503);
+    const walletStore = stores.getByName("organization-alpha");
+    const orderKey = { organizationId: "organization-alpha", purchaseId: receipt.id };
+    const claim = { ...orderKey, eventIds: [event.id] };
+    expect(
+      (await walletStore.claimTicketWalletPass({ ...claim, organizationId: "organization-bravo" }))
+        .state,
+    ).toBe("unavailable");
+    const claims = await Promise.all([
+      walletStore.claimTicketWalletPass(claim),
+      walletStore.claimTicketWalletPass(claim),
+    ]);
+    expect(claims.map((result) => result.state).sort()).toEqual(["claimed", "unavailable"]);
+    expect(claims.find((result) => result.state === "claimed")?.details).toEqual([
+      { id: event.id, details: "A public concert." },
+    ]);
+    const shareUrl = "https://pass.walletwallet.dev/p/test-order";
+    await walletStore.finishTicketWalletPass({ ...orderKey, retryAfter: 0 });
+    const provider = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { headers: { "X-Pass-Url": shareUrl } }));
+    try {
+      const configuredEnv = {
+        ...env,
+        APP_ENV: "staging",
+        EXTERNAL_EFFECTS_MODE: "sandbox",
+        WALLETWALLET_API_KEY: "provider-fixture",
+      } as const;
+      const requestWallet = () =>
+        router.fetch(
+          api("tickets.example.test", walletRoute, undefined, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ token: first.successToken }),
+          }),
+          configuredEnv,
+        );
+      expect(await (await requestWallet()).json()).toEqual({ shareUrl });
+      expect(await (await requestWallet()).json()).toEqual({ shareUrl });
+      expect(provider).toHaveBeenCalledTimes(1);
+      const payload = provider.mock.calls[0]?.[1]?.body;
+      expect(typeof payload).toBe("string");
+      expect(payload).toContain("A public concert.");
+      expect(payload).not.toContain("Private backstage details");
+      expect(payload).not.toContain("buyer@example.test");
+    } finally {
+      provider.mockRestore();
+    }
+    expect(await walletStore.claimTicketWalletPass(claim)).toEqual({ state: "ready", shareUrl });
     // Simulate a printed legacy code issued long before the event, with its old timeout elapsed.
     const legacyIssuedAt = Math.floor(Date.now() / 1000) - 86400 * 365;
     const legacyNonce = crypto.randomUUID();
@@ -409,6 +472,7 @@ describe("Organization ticketing lifecycle", () => {
       }),
     );
     expect(refundResponse.status).toBe(200);
+    expect((await walletStore.claimTicketWalletPass(claim)).state).toBe("unavailable");
     expect(organizationTicketOrderSchema.parse(await refundResponse.json()).status).toBe(
       "refunded",
     );

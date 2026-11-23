@@ -2581,6 +2581,16 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     statements: [],
     version: 143,
   },
+  {
+    version: 144,
+    statements: [
+      `CREATE TABLE ticket_wallet_passes (
+        purchase_id TEXT PRIMARY KEY REFERENCES ticket_purchases(id) ON DELETE CASCADE,
+        share_url TEXT,
+        retry_after INTEGER
+      ) STRICT`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

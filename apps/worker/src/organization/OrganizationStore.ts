@@ -1,3 +1,4 @@
+import { claimTicketWalletPass, finishTicketWalletPass } from "./ticketWalletStore";
 import { queryCommunicationHistoryFromStore } from "./communicationStore/historyQueries";
 import { readCommunicationOverview } from "./communicationOverview";
 import {
@@ -253,6 +254,14 @@ export class OrganizationStore extends DurableObject {
 
   readCommunicationHistory(input: Parameters<typeof queryCommunicationHistoryFromStore>[1]) {
     return queryCommunicationHistoryFromStore(this.ctx.storage, input);
+  }
+
+  claimTicketWalletPass(input: Parameters<typeof claimTicketWalletPass>[1]) {
+    return this.ctx.storage.transactionSync(() => claimTicketWalletPass(this.ctx.storage, input));
+  }
+
+  finishTicketWalletPass(input: Parameters<typeof finishTicketWalletPass>[1]): boolean {
+    return this.ctx.storage.transactionSync(() => finishTicketWalletPass(this.ctx.storage, input));
   }
 
   readCommunicationOverview(input: Parameters<typeof readCommunicationOverview>[1]) {

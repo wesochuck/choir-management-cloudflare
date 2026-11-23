@@ -78,6 +78,7 @@ export interface Env {
   readonly STRIPE_WEBHOOK_SECRET?: string | undefined;
   readonly STRIPE_V2_EVENT_DESTINATION_SECRET?: string | undefined;
   readonly STATUS_AUTOMATION_FIXTURE_MODE?: string | undefined;
+  readonly WALLETWALLET_API_KEY?: string | undefined;
   readonly TURNSTILE_SECRET_KEY?: string | undefined;
 }
 

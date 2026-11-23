@@ -160,6 +160,7 @@ export const probePlan = new Map([
   ["GET /api/public/documents/:identifier", { kind: "skip-fixture" }],
   ["GET /api/public/media/:version/:fileId", { kind: "skip-fixture" }],
   ["GET /api/public/donation-receipt", { kind: "skip-fixture" }],
+  ["POST /api/public/tickets/wallet", { kind: "skip-fixture" }],
   ["GET /api/public/tickets/order", { kind: "skip-fixture" }],
 ]);
 
@@ -188,6 +189,9 @@ export function isExpectedAnonymousBoundary(row, result) {
   }
   if (row.method === "POST" && route === "/api/public/checkout-reminders/stop") {
     return result.status === 404 && result.code === "reminder_preference_unavailable";
+  }
+  if (row.method === "POST" && route === "/api/public/tickets/wallet") {
+    return result.status === 404 && result.code === "ticket_wallet_not_found";
   }
   if (result.status === 200) return true;
   if (

@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicTicketReceipt, PublishedOrganizationProjection } from "@choir/contracts";
@@ -58,6 +58,39 @@ describe("TicketReceipt", () => {
     venueAddress: "123 Concert Hall Way, New York, NY 10001",
     venueName: "Symphony Hall",
   };
+
+  it("offers one wallet action for a paid group and preserves admission when wallet creation fails", async () => {
+    vi.mocked(getPublicTicketPurchase).mockResolvedValue({
+      ...baseSampleReceipt,
+      status: "paid",
+      scanToken: "scan-token",
+      walletAvailable: true,
+      quantity: 3,
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 503 }));
+    try {
+      render(<TicketReceipt token="receipt-token" projection={checkoutProjection(2000, 3000)} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10);
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Add to Wallet" }));
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/public/tickets/wallet",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ token: "receipt-token" }),
+        }),
+      );
+      expect(screen.getByText(/still use the QR code/)).toBeInTheDocument();
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
 
   it.each([
     { status: "pending", checkoutMode: "stripe", conversions: 0 },

@@ -5,6 +5,8 @@ import {
   ticketConfirmationSettingsSchema,
   type ProblemDetails,
 } from "@choir/contracts";
+import { walletApiKey } from "../payments/ticketWallet";
+import { ticketWallet } from "./helpers/ticketWallet";
 import type { Hono } from "hono";
 
 import {
@@ -236,6 +238,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
   });
 
+  router.post("/api/public/tickets/wallet", ticketWallet);
+
   router.get("/api/public/tickets/order", async (context) => {
     validateStartupConfig(context.env);
     const resolved = await resolveOrganization(new URL(context.req.url), context.env);
@@ -270,7 +274,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         resolved.value.organizationId,
         envelope.resourceId,
       );
-      return context.json({ ...purchase, requestId: context.get("requestId") });
+      return context.json({
+        ...purchase,
+        walletAvailable: Boolean(walletApiKey(context.env)),
+        requestId: context.get("requestId"),
+      });
     } catch (error) {
       if (error instanceof TicketingError && error.status === 404) {
         return context.json(

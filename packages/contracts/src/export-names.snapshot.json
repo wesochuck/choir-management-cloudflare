@@ -1079,6 +1079,7 @@
   "ticketScanRequestSchema",
   "ticketScanResponseSchema",
   "ticketScanResultSchema",
+  "ticketWalletResponseSchema",
   "transactionFeeSettingsResponseSchema",
   "transactionFeeSettingsSchema",
   "validatePublicWebsiteSettingsSize"

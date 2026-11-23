@@ -13,6 +13,7 @@ import {
   ticketBundleSchema,
   ticketBundlesResponseSchema,
   ticketScanResponseSchema,
+  ticketWalletResponseSchema,
   ticketConfirmationSettingsResponseSchema,
   type TicketConfirmationSettings,
   type OrganizationTicketOrder,
@@ -72,6 +73,16 @@ export async function quotePublicTicketCheckout(
   });
   if (!response.ok) throw await responseError(response);
   return ticketCheckoutQuoteSchema.parse(await response.json());
+}
+
+export async function getTicketWalletPass(token: string): Promise<string> {
+  const response = await fetch("/api/public/tickets/wallet", {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!response.ok) throw await responseError(response);
+  return ticketWalletResponseSchema.parse(await response.json()).shareUrl;
 }
 
 export async function getPublicTicketPurchase(

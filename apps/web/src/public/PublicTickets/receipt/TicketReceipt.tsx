@@ -1,3 +1,4 @@
+import { TicketWalletButton } from "./TicketWalletButton";
 import { GoogleAdsTag } from "../../GoogleAdsTag";
 import { useEffect, useState } from "react";
 import type {
@@ -276,6 +277,10 @@ function TicketReceiptContent({
               purchase={purchase}
               settings={settings}
             />
+          )}
+
+          {purchase.walletAvailable && purchase.status === "paid" && purchase.scanToken && (
+            <TicketWalletButton token={token} />
           )}
 
           {/* Dedicated mobile print action immediately below the ticket card */}

@@ -208,6 +208,7 @@ export const ticketCheckoutResponseSchema = z.object({
 export const publicTicketPurchaseResponseSchema = publicTicketPurchaseSchema
   .extend({
     requestId: requestIdSchema,
+    walletAvailable: z.boolean().optional(),
     scanToken: z.string().min(1).max(4096).nullable().default(null),
   })
   .superRefine((purchase, context) => {
@@ -348,3 +349,10 @@ export type DiscountCode = z.infer<typeof discountCodeSchema>;
 export type DiscountCodeRequest = z.infer<typeof discountCodeRequestSchema>;
 export type TicketCheckoutQuote = z.infer<typeof ticketCheckoutQuoteSchema>;
 export type TicketCheckoutQuoteRequest = z.infer<typeof ticketCheckoutQuoteRequestSchema>;
+
+export const ticketWalletResponseSchema = z.object({
+  shareUrl: z
+    .string()
+    .max(256)
+    .regex(/^https:\/\/pass\.walletwallet\.dev\/p\/[a-zA-Z0-9_-]+$/),
+});
