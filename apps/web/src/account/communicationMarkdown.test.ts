@@ -294,4 +294,54 @@ describe("renderCommunicationMarkdownPreview", () => {
     );
     expect(emptyHtml).toContain("No upcoming performances scheduled.");
   });
+
+  it("renders {setlist} as a bulleted list for populated set lists and falls back when empty", () => {
+    const eventWithSetList: OrganizationEvent = {
+      advancePriceCents: 0,
+      callTime: "17:30",
+      createdAt: pastIsoDate({ days: 20 }),
+      dayOfPriceCents: 0,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 90,
+      id: "66666666-6666-4666-8666-666666666666",
+      isCanceled: false,
+      isTicketingEnabled: false,
+      location: "Main Hall",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: false,
+      rsvpDeadlineAt: null,
+      rsvpDeadlineDate: null,
+      rsvpDeadlinePassed: false,
+      rsvpFollowUpLeadHours: null,
+      rsvpFollowUpMode: "inherit",
+      rsvpSelfServiceOpen: true,
+      setList: [{ title: "Adeste Fideles" }, { title: "Hark The Herald Angels Sing" }],
+      setListApproved: false,
+      setListDefaultTransitionSeconds: 0,
+      startsAt: futureIsoDate({ days: 10 }),
+      ticketCapacity: null,
+      ticketSlug: null,
+      title: "Downtown Christmas Stroll",
+      type: "Performance",
+      updatedAt: pastIsoDate({ days: 5 }),
+      venueId: null,
+    };
+
+    const populatedHtml = renderCommunicationMarkdownPreview(
+      "### Set list\n\n{setlist}",
+      communicationPreviewValues(eventWithSetList, "America/New_York"),
+    );
+    expect(populatedHtml).toContain(
+      "<ul><li>Adeste Fideles</li><li>Hark The Herald Angels Sing</li></ul>",
+    );
+
+    const emptyHtml = renderCommunicationMarkdownPreview(
+      "### Set list\n\n{setlist}",
+      communicationPreviewValues({ ...eventWithSetList, setList: [] }, "America/New_York"),
+    );
+    expect(emptyHtml).toContain("<ul><li>Set list not published</li></ul>");
+  });
 });

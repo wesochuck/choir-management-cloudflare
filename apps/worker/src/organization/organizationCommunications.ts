@@ -29,6 +29,7 @@ import {
   communicationReach,
   dedupeCommunicationCandidates,
   extractCommunicationPlaceholders,
+  formatCommunicationSetList,
   formatUpcomingPerformancesList,
   normalizeEmail,
   renderCommunicationTemplate,
@@ -924,6 +925,7 @@ export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
         eventLocation: options.event.location,
         eventTitle: options.event.title,
         eventType: options.event.type,
+        setlist: formatCommunicationSetList(options.event.setList),
       }
     : {};
 

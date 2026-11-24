@@ -8,6 +8,7 @@ import {
   UPCOMING_PERFORMANCES_PLACEHOLDER,
   communicationRecipientNamePlaceholderKeys,
   filterUpcomingPerformances,
+  formatCommunicationSetList,
   formatUpcomingPerformancesList,
   renderOrganizationLogoPlaceholder,
   replaceUpcomingPerformancesPlaceholder,
@@ -195,10 +196,7 @@ export function communicationPreviewValues(
     : "August 20, 2026 at 7:00 PM";
   const eventLocation = previewText(event?.location, "Main Hall");
   const eventDetails = previewText(event?.details, "Event details will appear here.");
-  const setlist = previewText(
-    event?.setList.map(({ title }) => `- ${title}`).join("\n"),
-    "- Set list not published",
-  );
+  const setlist = formatCommunicationSetList(event?.setList);
 
   const recipientNameValues = communicationRecipientNamePlaceholderKeys.reduce<
     Record<string, string>

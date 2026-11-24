@@ -203,6 +203,7 @@ export {
   communicationDeliveryIssueLabel,
   communicationFailureCategory,
   communicationReach,
+  formatCommunicationSetList,
   maskCommunicationDestination,
   renderCommunicationTemplate,
   renderOrganizationLogoPlaceholder,

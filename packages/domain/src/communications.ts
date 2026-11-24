@@ -89,6 +89,17 @@ export function communicationReach(
   };
 }
 
+export function formatCommunicationSetList(
+  items: readonly { readonly title?: unknown }[] | null | undefined,
+  emptyFallback = "- Set list not published",
+): string {
+  const lines = (items ?? [])
+    .map((item) => (typeof item.title === "string" ? item.title.trim() : ""))
+    .filter(Boolean)
+    .map((title) => `- ${title}`);
+  return lines.length > 0 ? lines.join("\n") : emptyFallback;
+}
+
 export function renderCommunicationTemplate(
   template: string,
   recipientName: string,

@@ -6,6 +6,7 @@ import {
   communicationDeliveryIssueLabel,
   communicationFailureCategory,
   communicationReach,
+  formatCommunicationSetList,
   maskCommunicationDestination,
   renderCommunicationTemplate,
   renderOrganizationLogoPlaceholder,
@@ -153,5 +154,22 @@ describe("Organization communications", () => {
     expect(
       communicationDeliveryIssueGuidance({ category: "rate-limit", issueKind: "failed" }),
     ).toContain("retry");
+  });
+
+  it("formats communication set lists as Markdown bullet items with empty fallback", () => {
+    expect(
+      formatCommunicationSetList([
+        { title: " Adeste Fideles " },
+        { title: "" },
+        { title: 123 },
+        { title: "God Rest You Merry, Gentlemen" },
+      ]),
+    ).toBe("- Adeste Fideles\n- God Rest You Merry, Gentlemen");
+
+    expect(formatCommunicationSetList([])).toBe("- Set list not published");
+    expect(formatCommunicationSetList(null)).toBe("- Set list not published");
+    expect(formatCommunicationSetList(undefined)).toBe("- Set list not published");
+    expect(formatCommunicationSetList([{ title: "   " }])).toBe("- Set list not published");
+    expect(formatCommunicationSetList([], "")).toBe("");
   });
 });

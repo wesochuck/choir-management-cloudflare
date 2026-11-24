@@ -12,6 +12,7 @@ import {
 } from "./contracts";
 import {
   filterUpcomingPerformances,
+  formatCommunicationSetList,
   ticketSalesPath,
   type UpcomingPerformanceListItem,
 } from "@choir/domain";
@@ -73,17 +74,13 @@ export function readMessage(storage: DurableObjectStorage, messageId: string) {
 function setListTitles(value: string): string {
   try {
     const parsed: unknown = JSON.parse(value);
-    if (!Array.isArray(parsed)) return "";
-    return parsed
-      .map((item: unknown) => {
-        if (typeof item !== "object" || item === null) return "";
-        const title = (item as { readonly title?: unknown }).title;
-        return typeof title === "string" ? title.trim() : "";
-      })
-      .filter(Boolean)
-      .join("\n");
+    if (!Array.isArray(parsed)) return formatCommunicationSetList([]);
+    const items = parsed.filter(
+      (item): item is { readonly title?: unknown } => typeof item === "object" && item !== null,
+    );
+    return formatCommunicationSetList(items);
   } catch {
-    return "";
+    return formatCommunicationSetList([]);
   }
 }
 

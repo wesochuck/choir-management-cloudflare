@@ -1,5 +1,10 @@
 import { communicationHistoryPageResponseSchema } from "@choir/contracts";
-import { organizationRequest, readEmailOneTimeCode, signInWithOtp } from "@choir/testkit";
+import {
+  futureIsoDate,
+  organizationRequest,
+  readEmailOneTimeCode,
+  signInWithOtp,
+} from "@choir/testkit";
 import {
   createExecutionContext,
   createMessageBatch,
@@ -7,7 +12,7 @@ import {
   runInDurableObject,
 } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { readCapturedPlatformEmailsForTest } from "../src/auth/platformEmail";
 import { processDeliveryBatch } from "../src/jobs/consumer";
@@ -359,7 +364,7 @@ describe("Event reminder rendered Communications history (#172)", () => {
       api("alpha.localhost", "/api/organization/communications/test-email", cookie, {
         body: JSON.stringify({
           audience: { eventId: null },
-          contentMarkdown: "Testing placeholders without event context.",
+          contentMarkdown: "Testing placeholders without event context.\n\n{setlist}",
           email: "test@example.test",
           subject: "Test reminder: {eventTitle}",
         }),
@@ -370,6 +375,159 @@ describe("Event reminder rendered Communications history (#172)", () => {
 
     expect(res.status).toBeGreaterThanOrEqual(400);
     const body = await res.json<{ message?: string }>();
-    expect(body.message).toContain("unresolvable placeholders: {eventTitle}");
+    expect(body.message).toContain("unresolvable placeholders: {eventTitle}, {setlist}");
+  });
+
+  it("resolves {setlist} in test emails and real deliveries for a selected event", async () => {
+    const cookie = await signIn();
+    const alphaStub = stores.get(stores.idFromName("organization-alpha"));
+    const now = new Date().toISOString();
+    const populatedEventId = crypto.randomUUID();
+    const emptyEventId = crypto.randomUUID();
+    const messageId = crypto.randomUUID();
+    const deliveryId = crypto.randomUUID();
+    const jobId = crypto.randomUUID();
+    const memberProfileId = crypto.randomUUID();
+
+    await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, phone, voice_part, global_status,
+           show_in_directory, created_at, updated_at)
+         VALUES (?, 'Johann Sebastian Bach', '+15550000001', 'B1', 'Active', 1, ?, ?)`,
+        memberProfileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, call_time, location, set_list_json, created_at, updated_at)
+         VALUES (?, 'Downtown Christmas Stroll', 'Performance', ?, '17:30', 'Main Hall', ?, ?, ?)`,
+        populatedEventId,
+        futureIsoDate({ days: 10 }),
+        JSON.stringify([{ title: "Adeste Fideles" }, { title: "God Rest You Merry, Gentlemen" }]),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, call_time, location, set_list_json, created_at, updated_at)
+         VALUES (?, 'Spring Showcase', 'Performance', ?, '18:00', 'Main Hall', '[]', ?, ?)`,
+        emptyEventId,
+        futureIsoDate({ days: 20 }),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO communication_messages
+          (id, channel, status, subject, content_markdown, audience_json, reach_json,
+           created_by, created_at, updated_at, queued_at)
+         VALUES (?, 'Email', 'Queued', 'Performance details for: {eventTitle}',
+           '### Set list\n\n{setlist}', ?,
+           '{"total":1,"email":1,"sms":0,"both":0,"unreachable":0}',
+           'communications-manager', ?, ?, ?)`,
+        messageId,
+        JSON.stringify({ eventId: populatedEventId, globalStatuses: ["Active"] }),
+        now,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO communication_deliveries
+          (id, message_id, profile_id, recipient_name, channel, destination, status,
+           created_at, updated_at, unsubscribe_url)
+         VALUES (?, ?, ?, 'Johann Sebastian Bach', 'email', 'bach@example.test', 'queued',
+           ?, ?, NULL)`,
+        deliveryId,
+        messageId,
+        memberProfileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+         VALUES (?, 'communication_delivery', ?, ?, ?)`,
+        jobId,
+        `communication_delivery:${messageId}`,
+        now,
+        now,
+      );
+      return null;
+    });
+
+    const populatedRes = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/communications/test-email", cookie, {
+        body: JSON.stringify({
+          audience: { eventId: populatedEventId },
+          contentMarkdown:
+            "Hi {recipientName},\n\n### Set list\n\n{setlist}\n\n{{RSVP_LINKS}}\n\n{{PLAYER_LINK}}",
+          email: "director@example.test",
+          subject: "Performance details for: {eventTitle}",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(populatedRes.status).toBe(202);
+
+    const emptyRes = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/communications/test-email", cookie, {
+        body: JSON.stringify({
+          audience: { eventId: emptyEventId },
+          contentMarkdown: "### Set list\n\n{setlist}",
+          email: "director@example.test",
+          subject: "Performance details for: {eventTitle}",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(emptyRes.status).toBe(202);
+
+    const sentEmails: { readonly html: string; readonly text: string }[] = [];
+    const send = vi.fn<(message: EmailMessage | EmailMessageBuilder) => Promise<EmailSendResult>>(
+      (message) => {
+        if ("to" in message) {
+          sentEmails.push({
+            html: "html" in message && typeof message.html === "string" ? message.html : "",
+            text: "text" in message && typeof message.text === "string" ? message.text : "",
+          });
+        }
+        return Promise.resolve({ messageId: `msg-${String(sentEmails.length)}` });
+      },
+    );
+    const batch = createMessageBatch("choir-management-jobs-local", [
+      {
+        attempts: 1,
+        body: {
+          attempt: 1,
+          idempotencyKey: `communication_delivery:${messageId}`,
+          jobId,
+          kind: "communication_delivery",
+          organizationId: "organization-alpha",
+          version: 1,
+        } satisfies DeliveryJob,
+        id: `delivery-${jobId}`,
+        timestamp: new Date(),
+      },
+    ]);
+    await processDeliveryBatch(batch, {
+      CONTROL_DB: database,
+      EXTERNAL_EFFECTS_MODE: "sandbox",
+      ORGANIZATION_FILES: organizationFiles,
+      ORGANIZATION_STORE: stores,
+      PLATFORM_EMAIL: { send } satisfies SendEmail,
+      PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "",
+      PLATFORM_EMAIL_FROM: "notifications@example.test",
+      PLATFORM_EMAIL_MODE: "sandbox",
+      PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
+      SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
+    });
+    expect(await getQueueResult(batch, createExecutionContext())).toMatchObject({
+      explicitAcks: [`delivery-${jobId}`],
+    });
+    expect(sentEmails).toHaveLength(1);
+    expect(sentEmails[0]?.html).toContain("<li");
+    expect(sentEmails[0]?.html).toContain("Adeste Fideles</li>");
+    expect(sentEmails[0]?.html).toContain("God Rest You Merry, Gentlemen</li>");
+    expect(sentEmails[0]?.text).toContain("- Adeste Fideles\n- God Rest You Merry, Gentlemen");
+    expect(sentEmails[0]?.text).not.toContain("{setlist}");
   });
 });
