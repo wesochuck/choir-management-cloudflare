@@ -19,7 +19,8 @@ async function expectNoSeriousAxeViolations(page: Page, context: string): Promis
   expect(blocking, `axe violations found for ${context}`).toEqual([]);
 }
 
-type ProfileTabKey = "dues" | "email" | "folders" | "info" | "messages" | "performance";
+type ProfileTabKey =
+  "activity" | "dues" | "email" | "folders" | "info" | "messages" | "performance";
 
 async function selectProfileTab(
   dialog: Locator,
