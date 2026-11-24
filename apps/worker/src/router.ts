@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { requestId } from "hono/request-id";
 import type { ProblemDetails } from "@choir/contracts";
 import type { WorkerHonoEnvironment } from "./routes/helpers";
-import { boundJsonRequestBody, MAX_JSON_BODY_BYTES } from "./routes/helpers";
+import { createJsonBodyGuardMiddleware } from "./routes/helpers";
 import { registerOrganizationGroupRoutes } from "./routes/groups/organizationRoutes";
 import { registerPlatformGroupRoutes } from "./routes/groups/platformRoutes";
 import { registerPublicGroupRoutes } from "./routes/groups/publicRoutes";
@@ -169,19 +169,7 @@ router.use("*", async (context, next) => {
   setCorsHeaders(context.res.headers, allowOrigin);
 });
 
-router.use("*", async (context, next) => {
-  if (!(await boundJsonRequestBody(context))) {
-    return context.json(
-      {
-        code: "request_body_too_large",
-        message: `JSON request bodies must be ${String(MAX_JSON_BODY_BYTES)} bytes or smaller.`,
-        requestId: context.get("requestId"),
-      } satisfies ProblemDetails,
-      413,
-    );
-  }
-  await next();
-});
+router.use("*", createJsonBodyGuardMiddleware());
 
 registerPublicGroupRoutes(router);
 registerSingerGroupRoutes(router);

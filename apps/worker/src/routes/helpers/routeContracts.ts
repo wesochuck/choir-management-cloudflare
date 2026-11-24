@@ -57,23 +57,53 @@ export interface WorkerHonoEnvironment {
 export const MAX_JSON_BODY_BYTES = 1_048_576;
 const JSON_BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+const ORGANIZATION_FILE_UPLOAD_PATH = /^\/api\/organization\/files\/[^/]+$/;
+const TRACK_IMPORT_FILE_UPLOAD_PATH =
+  /^\/api\/organization\/music\/track-import\/sessions\/[^/]+\/files\/[^/]+$/;
+
 interface JsonRequestContext {
   req: {
     method: string;
+    url: string;
     header(name: string): string | undefined;
     raw: Request;
   };
 }
 
-function jsonContentType(contentType: string | undefined): boolean {
+export function jsonContentType(contentType: string | undefined): boolean {
   if (!contentType) return true;
   const mediaType = contentType.split(";", 1)[0]?.trim().toLowerCase();
   return mediaType === "application/json" || mediaType?.endsWith("+json") === true;
 }
 
-async function readBoundedBody(
+export function isNonJsonBodyRoute(method: string, pathname: string): boolean {
+  const upperMethod = method.toUpperCase();
+  if (pathname.startsWith("/api/auth/")) {
+    return true;
+  }
+  if (upperMethod === "PUT") {
+    return (
+      ORGANIZATION_FILE_UPLOAD_PATH.test(pathname) || TRACK_IMPORT_FILE_UPLOAD_PATH.test(pathname)
+    );
+  }
+  if (upperMethod === "POST") {
+    return (
+      pathname === "/api/public/donations/artwork/upload" ||
+      pathname === "/api/public/donations/sponsor-artwork" ||
+      pathname === "/api/organization/music/import" ||
+      pathname === "/api/organization/profiles/import" ||
+      pathname === "/api/organization/contact-imports" ||
+      pathname === "/api/webhook/stripe" ||
+      pathname === "/api/webhook/stripe/v2"
+    );
+  }
+  return false;
+}
+
+export async function readBoundedBody(
   body: ReadableStream<Uint8Array>,
   maxBytes: number,
+  cancelReason = "request_body_too_large",
 ): Promise<ArrayBuffer | null> {
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
@@ -83,7 +113,7 @@ async function readBoundedBody(
     while (!result.done) {
       totalBytes += result.value.byteLength;
       if (totalBytes > maxBytes) {
-        await reader.cancel("json_body_too_large");
+        await reader.cancel(cancelReason);
         return null;
       }
       chunks.push(result.value);
@@ -105,7 +135,10 @@ async function readBoundedBody(
   return buffer;
 }
 
-export async function boundJsonRequestBody(context: JsonRequestContext): Promise<boolean> {
+export async function boundJsonRequestBody(
+  context: JsonRequestContext,
+  maxBytes = MAX_JSON_BODY_BYTES,
+): Promise<boolean> {
   const method = context.req.method.toUpperCase();
   if (!JSON_BODY_METHODS.has(method)) return true;
   if (!jsonContentType(context.req.header("content-type"))) return true;
@@ -114,15 +147,69 @@ export async function boundJsonRequestBody(context: JsonRequestContext): Promise
   if (contentLengthHeader !== undefined) {
     const contentLength = Number(contentLengthHeader);
     if (!Number.isSafeInteger(contentLength) || contentLength < 0) return false;
-    if (contentLength > MAX_JSON_BODY_BYTES) return false;
+    if (contentLength > maxBytes) return false;
   }
 
   const body = context.req.raw.body;
   if (!body) return true;
-  const boundedBody = await readBoundedBody(body, MAX_JSON_BODY_BYTES);
+  const boundedBody = await readBoundedBody(body, maxBytes, "json_body_too_large");
   if (!boundedBody) return false;
   context.req.raw = new Request(context.req.raw, { body: boundedBody });
   return true;
+}
+
+export function createJsonBodyGuardMiddleware(maxBytes = MAX_JSON_BODY_BYTES) {
+  return async (
+    context: Context<WorkerHonoEnvironment>,
+    next: () => Promise<void>,
+  ): Promise<Response | undefined> => {
+    const method = context.req.method.toUpperCase();
+    if (!JSON_BODY_METHODS.has(method)) {
+      await next();
+      return undefined;
+    }
+
+    const pathname = new URL(context.req.url).pathname;
+    if (isNonJsonBodyRoute(method, pathname)) {
+      if (pathname.startsWith("/api/auth/") && !(await boundJsonRequestBody(context, maxBytes))) {
+        return context.json(
+          {
+            code: "request_body_too_large",
+            message: `JSON request bodies must be ${String(maxBytes)} bytes or smaller.`,
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          413,
+        );
+      }
+      await next();
+      return undefined;
+    }
+
+    if (!jsonContentType(context.req.header("content-type"))) {
+      return context.json(
+        {
+          code: "unsupported_media_type",
+          message: "Requests to this endpoint must use application/json.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        415,
+      );
+    }
+
+    if (!(await boundJsonRequestBody(context, maxBytes))) {
+      return context.json(
+        {
+          code: "request_body_too_large",
+          message: `JSON request bodies must be ${String(maxBytes)} bytes or smaller.`,
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        413,
+      );
+    }
+
+    await next();
+    return undefined;
+  };
 }
 
 async function readJsonValue(context: Context<WorkerHonoEnvironment>): Promise<unknown> {

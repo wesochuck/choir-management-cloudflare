@@ -3,6 +3,9 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 import type { Env } from "../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
+import { readBoundedBody } from "../routes/helpers/routeContracts";
+
+const MAX_STRIPE_WEBHOOK_BODY_BYTES = 1_000_000;
 
 export interface StripeHonoEnvironment {
   Bindings: Env;
@@ -40,9 +43,26 @@ export function problem(
 
 export async function readRawBody(context: StripeContext): Promise<string | Response> {
   try {
-    const bytes = await context.req.raw.clone().arrayBuffer();
-    if (bytes.byteLength > 1_000_000)
+    const contentLengthHeader = context.req.header("content-length");
+    if (contentLengthHeader !== undefined) {
+      const contentLength = Number(contentLengthHeader);
+      if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
+        return problem(context, "invalid_webhook_body", "Webhook payload could not be read.", 400);
+      }
+      if (contentLength > MAX_STRIPE_WEBHOOK_BODY_BYTES) {
+        return problem(context, "request_too_large", "Webhook payload is too large.", 413);
+      }
+    }
+    const cloned = context.req.raw.clone();
+    if (!cloned.body) return "";
+    const bytes = await readBoundedBody(
+      cloned.body,
+      MAX_STRIPE_WEBHOOK_BODY_BYTES,
+      "webhook_body_too_large",
+    );
+    if (!bytes) {
       return problem(context, "request_too_large", "Webhook payload is too large.", 413);
+    }
     return new TextDecoder().decode(bytes);
   } catch {
     return problem(context, "invalid_webhook_body", "Webhook payload could not be read.", 400);
