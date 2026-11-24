@@ -1,8 +1,12 @@
 import type { SqlStorageValue } from "@cloudflare/workers-types";
 import { communicationScheduledMessageSchema } from "@choir/contracts";
 import {
+  CommunicationRenderLimitError,
+  DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
+  DEFAULT_COMMUNICATION_RENDER_SUBJECT_LIMIT,
   formatUpcomingPerformancesList,
   renderCommunicationTemplate,
+  replaceBoundedPattern,
   replaceUpcomingPerformancesPlaceholder,
   shouldIncludeUnpublishedUpcomingPerformances,
   usesUpcomingPerformancesPlaceholder,
@@ -15,6 +19,89 @@ import {
   queryUpcomingPerformancesForCommunication,
 } from "./shared";
 import { upcomingCommunications } from "./upcoming";
+
+function renderBulletinContentWithLinks(
+  storage: DurableObjectStorage,
+  raw: { readonly contentMarkdown: string; readonly recipientName: string },
+  context: Record<string, string> | null,
+  eventId: string | null,
+  targetAudiences: readonly string[],
+  upcomingByVisibility: Map<boolean, ReturnType<typeof queryUpcomingPerformancesForCommunication>>,
+): string {
+  try {
+    const templatedContent = renderCommunicationTemplate(
+      raw.contentMarkdown,
+      raw.recipientName,
+      context ?? undefined,
+      { field: "body" },
+    );
+    const bodyLimit = { field: "body" as const, limit: DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT };
+    let contentWithLinks = replaceBoundedPattern(
+      templatedContent,
+      /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/gi,
+      () => (eventId ? "[Open RSVP](/schedule)" : "RSVP link unavailable"),
+      bodyLimit,
+    );
+    contentWithLinks = replaceBoundedPattern(
+      contentWithLinks,
+      /\{\{PLAYER_LINK\}\}|\{playerLink\}/gi,
+      () => (eventId ? "[Open practice player](/practice)" : "Practice player unavailable"),
+      bodyLimit,
+    );
+    contentWithLinks = replaceBoundedPattern(
+      contentWithLinks,
+      /\{\{TICKET_LINK\}\}|\{ticketLink\}/gi,
+      () => "[View ticket order](/tickets)",
+      bodyLimit,
+    );
+    contentWithLinks = replaceBoundedPattern(
+      contentWithLinks,
+      /\{\{TICKET_ORDER_LINK\}\}|\{ticketOrderLink\}/gi,
+      () => "[View order details](/tickets)",
+      bodyLimit,
+    );
+    contentWithLinks = replaceBoundedPattern(
+      contentWithLinks,
+      /\{\{AUDITION_LINK\}\}|\{auditionLink\}/gi,
+      () => "[Review audition details](/auditions)",
+      bodyLimit,
+    );
+
+    if (usesUpcomingPerformancesPlaceholder(contentWithLinks)) {
+      const includeUnpublished = shouldIncludeUnpublishedUpcomingPerformances(targetAudiences);
+      let upcoming = upcomingByVisibility.get(includeUnpublished);
+      if (!upcoming) {
+        upcoming = queryUpcomingPerformancesForCommunication(storage, includeUnpublished);
+        upcomingByVisibility.set(includeUnpublished, upcoming);
+      }
+      contentWithLinks = replaceUpcomingPerformancesPlaceholder(
+        contentWithLinks,
+        formatUpcomingPerformancesList(upcoming.performances, {
+          allowRelativeLinks: true,
+          timezone: upcoming.timezone,
+        }),
+      );
+    }
+    return contentWithLinks;
+  } catch (error: unknown) {
+    if (!(error instanceof CommunicationRenderLimitError)) throw error;
+    return raw.contentMarkdown.slice(0, DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT);
+  }
+}
+
+function renderBulletinSubject(
+  raw: { readonly recipientName: string; readonly subject: string },
+  context: Record<string, string> | null,
+): string {
+  try {
+    return renderCommunicationTemplate(raw.subject, raw.recipientName, context ?? undefined, {
+      field: "subject",
+    });
+  } catch (error: unknown) {
+    if (!(error instanceof CommunicationRenderLimitError)) throw error;
+    return raw.subject.slice(0, DEFAULT_COMMUNICATION_RENDER_SUBJECT_LIMIT);
+  }
+}
 
 function bulletinPreview(value: string): string {
   return value
@@ -95,44 +182,15 @@ export function listMemberBulletinsFromStore(
       // Ignore malformed audienceJson
     }
     const context = eventCommunicationContext(storage, eventId);
-    const templatedContent = renderCommunicationTemplate(
-      raw.contentMarkdown,
-      raw.recipientName,
-      context ?? undefined,
+    const templatedSubject = renderBulletinSubject(raw, context);
+    const contentWithLinks = renderBulletinContentWithLinks(
+      storage,
+      raw,
+      context,
+      eventId,
+      targetAudiences,
+      upcomingByVisibility,
     );
-    const templatedSubject = renderCommunicationTemplate(
-      raw.subject,
-      raw.recipientName,
-      context ?? undefined,
-    );
-    let contentWithLinks = templatedContent
-      .replace(
-        /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/gi,
-        eventId ? "[Open RSVP](/schedule)" : "RSVP link unavailable",
-      )
-      .replace(
-        /\{\{PLAYER_LINK\}\}|\{playerLink\}/gi,
-        eventId ? "[Open practice player](/practice)" : "Practice player unavailable",
-      )
-      .replace(/\{\{TICKET_LINK\}\}|\{ticketLink\}/gi, "[View ticket order](/tickets)")
-      .replace(/\{\{TICKET_ORDER_LINK\}\}|\{ticketOrderLink\}/gi, "[View order details](/tickets)")
-      .replace(/\{\{AUDITION_LINK\}\}|\{auditionLink\}/gi, "[Review audition details](/auditions)");
-
-    if (usesUpcomingPerformancesPlaceholder(contentWithLinks)) {
-      const includeUnpublished = shouldIncludeUnpublishedUpcomingPerformances(targetAudiences);
-      let upcoming = upcomingByVisibility.get(includeUnpublished);
-      if (!upcoming) {
-        upcoming = queryUpcomingPerformancesForCommunication(storage, includeUnpublished);
-        upcomingByVisibility.set(includeUnpublished, upcoming);
-      }
-      contentWithLinks = replaceUpcomingPerformancesPlaceholder(
-        contentWithLinks,
-        formatUpcomingPerformancesList(upcoming.performances, {
-          allowRelativeLinks: true,
-          timezone: upcoming.timezone,
-        }),
-      );
-    }
 
     return {
       contentMarkdown: contentWithLinks,

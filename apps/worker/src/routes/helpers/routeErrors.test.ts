@@ -1,3 +1,4 @@
+import { CommunicationRenderLimitError } from "@choir/domain";
 import { describe, expect, it } from "vitest";
 
 import { CommunicationRepositoryError } from "../../organization/organizationCommunications";
@@ -68,6 +69,20 @@ describe("routeErrors communicationProblem", () => {
       code: "unknown_code",
       message: "Custom fallback message",
       requestId: "req-5",
+    });
+  });
+
+  it("maps CommunicationRenderLimitError to HTTP 400 validation problem details (SEC-01)", () => {
+    const result = communicationProblem(
+      new CommunicationRenderLimitError("body", 120),
+      "req-6",
+      "Fallback message",
+    );
+    expect(result.status).toBe(400);
+    expect(result.problem).toEqual({
+      code: "communication_render_limit_exceeded",
+      message: "Rendered communication body exceeds the maximum length of 120 characters.",
+      requestId: "req-6",
     });
   });
 });

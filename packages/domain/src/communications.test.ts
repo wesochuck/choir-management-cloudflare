@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CommunicationRenderLimitError,
   communicationDeliveryIssueGuidance,
   communicationDeliveryIssueKind,
   communicationDeliveryIssueLabel,
@@ -12,6 +13,7 @@ import {
   renderOrganizationLogoPlaceholder,
   summarizeCommunicationDeliveries,
 } from "./communications";
+import { replaceUpcomingPerformancesPlaceholder } from "./upcomingPerformances";
 
 describe("Organization communications", () => {
   it("calculates channel-specific reach without counting unreachable recipients", () => {
@@ -171,5 +173,70 @@ describe("Organization communications", () => {
     expect(formatCommunicationSetList(undefined)).toBe("- Set list not published");
     expect(formatCommunicationSetList([{ title: "   " }])).toBe("- Set list not published");
     expect(formatCommunicationSetList([], "")).toBe("");
+  });
+
+  it("enforces rendered-size budgets for body, subject, and upcoming performance expansions (SEC-01)", () => {
+    const exactBody = renderCommunicationTemplate(
+      "Hi {recipientName}: {setlist}",
+      "Ada",
+      { setlist: "- Song A\n- Song B" },
+      { field: "body", maxLength: 25 },
+    );
+    expect(exactBody).toBe("Hi Ada: - Song A\n- Song B");
+    expect(exactBody.length).toBe(25);
+
+    expect(() =>
+      renderCommunicationTemplate(
+        "Hi {recipientName}: {setlist}!",
+        "Ada",
+        { setlist: "- Song A\n- Song B" },
+        { field: "body", maxLength: 25 },
+      ),
+    ).toThrow(CommunicationRenderLimitError);
+
+    try {
+      renderCommunicationTemplate(
+        "{setlist}".repeat(500),
+        "Ada",
+        { setlist: "X".repeat(100) },
+        { field: "body", maxLength: 250 },
+      );
+      expect.unreachable("Expected repeated placeholder expansion to throw");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(CommunicationRenderLimitError);
+      if (error instanceof CommunicationRenderLimitError) {
+        expect(error.code).toBe("communication_render_limit_exceeded");
+        expect(error.field).toBe("body");
+        expect(error.limit).toBe(250);
+      }
+    }
+
+    const exactSubject = renderCommunicationTemplate(
+      "Re: {eventTitle}",
+      "Ada",
+      { eventTitle: "Spring Gala" },
+      { field: "subject", maxLength: 15 },
+    );
+    expect(exactSubject).toBe("Re: Spring Gala");
+    expect(exactSubject.length).toBe(15);
+
+    expect(() =>
+      renderCommunicationTemplate(
+        "Re: {eventTitle}!",
+        "Ada",
+        { eventTitle: "Spring Gala" },
+        { field: "subject", maxLength: 15 },
+      ),
+    ).toThrow(CommunicationRenderLimitError);
+
+    const exactUpcoming = replaceUpcomingPerformancesPlaceholder(
+      "Shows:\n{{UPCOMING_PERFORMANCES}}",
+      "- Gala",
+      13,
+    );
+    expect(exactUpcoming).toBe("Shows:\n- Gala");
+    expect(() =>
+      replaceUpcomingPerformancesPlaceholder("Shows:\n{{UPCOMING_PERFORMANCES}}!", "- Gala", 13),
+    ).toThrow(CommunicationRenderLimitError);
   });
 });

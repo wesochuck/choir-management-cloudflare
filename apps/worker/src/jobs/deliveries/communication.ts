@@ -1,11 +1,15 @@
 import { organizationStoreStub } from "../../organization/rpc/client";
 import {
+  CommunicationRenderLimitError,
+  DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
+  DEFAULT_COMMUNICATION_RENDER_SUBJECT_LIMIT,
   extractCommunicationPlaceholders,
   formatUpcomingPerformancesList,
   renderCommunicationTemplate,
   renderOrganizationLogoPlaceholder,
   replaceUpcomingPerformancesPlaceholder,
   usesUpcomingPerformancesPlaceholder,
+  type CommunicationRenderLimits,
 } from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
 import { readOrganizationTicketWillCallCsv } from "../../organization/organizationTicketing";
@@ -103,6 +107,7 @@ async function renderDeliveryContent(
   orgName: string,
   logoUrl: string | null,
   canonicalOrigin: string | null,
+  bodyLimit = DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
 ): Promise<string> {
   const logoPlaceholder = renderOrganizationLogoPlaceholder({
     channel: delivery.channel,
@@ -117,11 +122,13 @@ async function renderDeliveryContent(
       organizationName: orgName,
       ...(deliveryJob.context ?? {}),
     },
+    { field: "body", maxLength: bodyLimit },
   );
   const contentWithEventTicketLink = renderEventTicketLink(
     templatedContent,
     deliveryJob.context?.eventTicketPath ?? null,
     canonicalOrigin,
+    bodyLimit,
   );
   const contentWithRsvpLinks = await renderRsvpLinks(
     env,
@@ -130,6 +137,7 @@ async function renderDeliveryContent(
     deliveryJob.context?.eventId ?? null,
     delivery,
     canonicalOrigin,
+    bodyLimit,
   );
   const contentWithPlayerLinks = await renderPlayerLinks(
     env,
@@ -138,6 +146,7 @@ async function renderDeliveryContent(
     deliveryJob.context?.eventId ?? null,
     delivery,
     canonicalOrigin,
+    bodyLimit,
   );
   const contentWithPollLinks = await renderPollLinks(
     env,
@@ -145,12 +154,14 @@ async function renderDeliveryContent(
     contentWithPlayerLinks,
     delivery,
     canonicalOrigin,
+    bodyLimit,
   );
   return renderUpcomingPerformancesContent(
     contentWithPollLinks,
     deliveryJob.upcomingPerformancesContext,
     canonicalOrigin,
     delivery.unsubscribeUrl,
+    bodyLimit,
   );
 }
 
@@ -171,8 +182,12 @@ function renderUpcomingPerformancesContent(
   >["upcomingPerformancesContext"],
   canonicalOrigin: string | null,
   unsubscribeUrl: string | null,
+  bodyLimit = DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
 ): string {
   if (!usesUpcomingPerformancesPlaceholder(content) || !upcomingContext) {
+    if (content.length > bodyLimit) {
+      throw new CommunicationRenderLimitError("body", bodyLimit);
+    }
     return content;
   }
   const ticketOrigin = canonicalOrigin ?? safeOriginFromUrl(unsubscribeUrl);
@@ -180,7 +195,7 @@ function renderUpcomingPerformancesContent(
     canonicalOrigin: ticketOrigin,
     timezone: upcomingContext.timezone,
   });
-  return replaceUpcomingPerformancesPlaceholder(content, formattedList);
+  return replaceUpcomingPerformancesPlaceholder(content, formattedList, bodyLimit);
 }
 
 function checkUnresolvedPlaceholders(subject: string, content: string): string | null {
@@ -191,10 +206,86 @@ function checkUnresolvedPlaceholders(subject: string, content: string): string |
   return `unresolved_placeholders: Cannot deliver communication due to unresolvable placeholders: ${unresolved.join(", ")}`;
 }
 
+async function renderDeliverySubjectAndBody(
+  env: JobConsumerEnv,
+  job: DeliveryJob,
+  deliveryJob: CommunicationDeliveryJob,
+  delivery: CommunicationDeliveryJob["deliveries"][number],
+  orgName: string,
+  logoUrl: string | null,
+  canonicalOrigin: string | null,
+  bodyLimit: number,
+  subjectLimit: number,
+): Promise<
+  | { readonly failureDetail: string; readonly ok: false }
+  | { readonly ok: true; readonly renderedContent: string; readonly renderedSubject: string }
+> {
+  try {
+    const renderedContent = await renderDeliveryContent(
+      env,
+      job,
+      deliveryJob,
+      delivery,
+      orgName,
+      logoUrl,
+      canonicalOrigin,
+      bodyLimit,
+    );
+    const renderedSubject = renderCommunicationTemplate(
+      deliveryJob.subject,
+      delivery.recipientName,
+      {
+        organizationName: orgName,
+        ...(deliveryJob.context ?? {}),
+      },
+      { field: "subject", maxLength: subjectLimit },
+    );
+    const unresolvedDetail = checkUnresolvedPlaceholders(renderedSubject, renderedContent);
+    if (unresolvedDetail) {
+      return { failureDetail: unresolvedDetail, ok: false };
+    }
+    return { ok: true, renderedContent, renderedSubject };
+  } catch (error: unknown) {
+    if (error instanceof CommunicationRenderLimitError) {
+      return { failureDetail: `${error.code}: ${error.message}`, ok: false };
+    }
+    throw error;
+  }
+}
+
+function resolveCommunicationRenderLimits(renderLimits?: CommunicationRenderLimits): {
+  readonly bodyLimit: number;
+  readonly subjectLimit: number;
+} {
+  return {
+    bodyLimit: renderLimits?.body ?? DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
+    subjectLimit: renderLimits?.subject ?? DEFAULT_COMMUNICATION_RENDER_SUBJECT_LIMIT,
+  };
+}
+
+async function resolveCommunicationDeliveryContext(env: JobConsumerEnv, organizationId: string) {
+  const senderConfig = await readOrganizationEmailSenderConfig(env, organizationId);
+  const branding = await readOrganizationBrandingConfig(env, organizationId);
+  const trimmedOrgName = branding.organizationName.trim();
+  const orgName =
+    trimmedOrgName.length > 0 ? trimmedOrgName : (senderConfig.fromName ?? "Choir Management");
+  const canonicalOrigin = await resolveCanonicalOrigin(env, organizationId);
+  const origin = await deliveryOrigin(
+    env,
+    organizationId,
+    { unsubscribeUrl: null },
+    canonicalOrigin,
+  );
+  const logoUrl = branding.logoFileId ? `${origin}/api/public/logo` : null;
+  return { branding, canonicalOrigin, logoUrl, orgName, senderConfig };
+}
+
 export async function deliverCommunicationJob(
   env: JobConsumerEnv,
   job: DeliveryJob,
+  renderLimits?: CommunicationRenderLimits,
 ): Promise<void> {
+  const { bodyLimit, subjectLimit } = resolveCommunicationRenderLimits(renderLimits);
   const stub = organizationStoreStub(env, job.organizationId);
   const deliveryJob = await stub.claimCommunicationDeliveryBatch({
     organizationId: job.organizationId,
@@ -208,22 +299,11 @@ export async function deliverCommunicationJob(
     return;
   }
   const emailAttachment = await readCommunicationEmailAttachment(env, job, deliveryJob);
-  const senderConfig = await readOrganizationEmailSenderConfig(env, job.organizationId);
-  const branding = await readOrganizationBrandingConfig(env, job.organizationId);
-  const trimmedOrgName = branding.organizationName.trim();
-  const orgName =
-    trimmedOrgName.length > 0 ? trimmedOrgName : (senderConfig.fromName ?? "Choir Management");
-  const canonicalOrigin = await resolveCanonicalOrigin(env, job.organizationId);
-  const origin = await deliveryOrigin(
-    env,
-    job.organizationId,
-    { unsubscribeUrl: null },
-    canonicalOrigin,
-  );
-  const logoUrl = branding.logoFileId ? `${origin}/api/public/logo` : null;
+  const { branding, canonicalOrigin, logoUrl, orgName, senderConfig } =
+    await resolveCommunicationDeliveryContext(env, job.organizationId);
 
   for (const delivery of deliveryJob.deliveries) {
-    const renderedContent = await renderDeliveryContent(
+    const rendered = await renderDeliverySubjectAndBody(
       env,
       job,
       deliveryJob,
@@ -231,25 +311,17 @@ export async function deliverCommunicationJob(
       orgName,
       logoUrl,
       canonicalOrigin,
+      bodyLimit,
+      subjectLimit,
     );
-    const renderedSubject = renderCommunicationTemplate(
-      deliveryJob.subject,
-      delivery.recipientName,
-      {
-        organizationName: orgName,
-        ...(deliveryJob.context ?? {}),
-      },
-    );
-
-    const failureDetail = checkUnresolvedPlaceholders(renderedSubject, renderedContent);
-    if (failureDetail) {
+    if (!rendered.ok) {
       await recordCommunicationDeliveryResults(env, {
         jobId: job.jobId,
         organizationId: job.organizationId,
         results: [
           {
             deliveryId: delivery.id,
-            failureDetail,
+            failureDetail: rendered.failureDetail,
             providerMessageId: null,
             status: "failed",
           },
@@ -257,6 +329,7 @@ export async function deliverCommunicationJob(
       });
       continue;
     }
+    const { renderedContent, renderedSubject } = rendered;
 
     if (
       !(await stub.checkCommunicationDelivery({

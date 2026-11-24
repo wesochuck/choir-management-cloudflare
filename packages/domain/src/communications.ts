@@ -100,21 +100,104 @@ export function formatCommunicationSetList(
   return lines.length > 0 ? lines.join("\n") : emptyFallback;
 }
 
+export const DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT = 200_000;
+export const DEFAULT_COMMUNICATION_RENDER_SUBJECT_LIMIT = 1_000;
+
+export interface CommunicationRenderLimits {
+  readonly body?: number | undefined;
+  readonly subject?: number | undefined;
+}
+
+export interface RenderCommunicationTemplateOptions {
+  readonly field?: "body" | "subject" | undefined;
+  readonly maxLength?: number | undefined;
+}
+
+export class CommunicationRenderLimitError extends Error {
+  readonly code = "communication_render_limit_exceeded" as const;
+  readonly field: "body" | "subject";
+  readonly limit: number;
+
+  constructor(field: "body" | "subject", limit: number) {
+    super(
+      `Rendered communication ${field} exceeds the maximum length of ${String(limit)} characters.`,
+    );
+    this.name = "CommunicationRenderLimitError";
+    this.field = field;
+    this.limit = limit;
+  }
+}
+
+export function replaceBoundedPattern(
+  input: string,
+  pattern: RegExp,
+  replacer: (match: RegExpExecArray) => string,
+  options: {
+    readonly field?: "body" | "subject" | undefined;
+    readonly limit: number;
+  },
+): string {
+  const field = options.field ?? "body";
+  const limit = options.limit;
+  if (!Number.isFinite(limit) || limit < 0) {
+    throw new CommunicationRenderLimitError(field, limit);
+  }
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  const regex = new RegExp(pattern.source, flags);
+  const parts: string[] = [];
+  let length = 0;
+  let lastIndex = 0;
+
+  const append = (part: string): void => {
+    if (part.length > limit - length) {
+      throw new CommunicationRenderLimitError(field, limit);
+    }
+    length += part.length;
+    parts.push(part);
+  };
+
+  for (let match = regex.exec(input); match !== null; match = regex.exec(input)) {
+    if (match.index > lastIndex) {
+      append(input.slice(lastIndex, match.index));
+    }
+    append(replacer(match));
+    lastIndex = match.index + match[0].length;
+    if (match[0].length === 0) {
+      regex.lastIndex += 1;
+    }
+  }
+
+  if (lastIndex < input.length) {
+    append(input.slice(lastIndex));
+  }
+
+  return parts.join("");
+}
+
 export function renderCommunicationTemplate(
   template: string,
   recipientName: string,
   values: Readonly<Record<string, string>> = {},
+  options: RenderCommunicationTemplateOptions = {},
 ): string {
+  const field = options.field ?? "body";
+  const limit =
+    options.maxLength ??
+    (field === "subject"
+      ? DEFAULT_COMMUNICATION_RENDER_SUBJECT_LIMIT
+      : DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT);
   const replacements: Record<string, string> = { ...values };
   for (const key of communicationRecipientNamePlaceholderKeys) {
     replacements[key] = recipientName;
   }
-  return template.replace(
+  return replaceBoundedPattern(
+    template,
     /\{\{([^{}]+)\}\}|\{([^{}]+)\}/g,
-    (match, doubleBracedName: string | undefined, singleBracedName: string | undefined) => {
-      const name = doubleBracedName ?? singleBracedName;
-      return name === undefined ? match : (replacements[name] ?? match);
+    (match) => {
+      const name = match[1] ?? match[2];
+      return name === undefined ? match[0] : (replacements[name] ?? match[0]);
     },
+    { field, limit },
   );
 }
 

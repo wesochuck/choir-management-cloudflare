@@ -26,6 +26,8 @@ import {
   type OrganizationEvent,
 } from "@choir/contracts";
 import {
+  DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
+  DEFAULT_COMMUNICATION_RENDER_SUBJECT_LIMIT,
   communicationReach,
   dedupeCommunicationCandidates,
   extractCommunicationPlaceholders,
@@ -39,6 +41,7 @@ import {
   ticketSalesPath,
   usesUpcomingPerformancesPlaceholder,
   type CommunicationRecipientCandidate,
+  type CommunicationRenderLimits,
 } from "@choir/domain";
 import { z } from "zod";
 
@@ -890,6 +893,7 @@ interface TestEmailTemplateOptions {
   readonly contentMarkdown: string;
   readonly event: OrganizationEvent | null;
   readonly fromName: string | null;
+  readonly renderLimits?: CommunicationRenderLimits | undefined;
   readonly subject: string;
   readonly timezone: string;
 }
@@ -899,6 +903,8 @@ export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
   templatedContent: string;
   templatedSubject: string;
 } {
+  const bodyLimit = options.renderLimits?.body ?? DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT;
+  const subjectLimit = options.renderLimits?.subject ?? DEFAULT_COMMUNICATION_RENDER_SUBJECT_LIMIT;
   const testRecipientName = "Test recipient";
   const trimmedOrgName = options.branding.organizationName.trim();
   const orgName =
@@ -932,22 +938,28 @@ export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
   const testRsvpLink = `[Open RSVP page](https://${options.baseDomain || "localhost"}/rsvp?sample=1)\n\n(No login required.)`;
   const testPlayerLink = `[Open practice player](https://${options.baseDomain || "localhost"}/player?sample=1)\n\n(No login required.)`;
 
-  const preparedContent = options.contentMarkdown
-    .split("{{RSVP_LINKS}}")
-    .join(testRsvpLink)
-    .split("{{PLAYER_LINK}}")
-    .join(testPlayerLink);
+  const templatedContent = renderCommunicationTemplate(
+    options.contentMarkdown,
+    testRecipientName,
+    {
+      PLAYER_LINK: testPlayerLink,
+      RSVP_LINKS: testRsvpLink,
+      organizationLogo: logoPlaceholder,
+      organizationName: orgName,
+      ...eventContext,
+    },
+    { field: "body", maxLength: bodyLimit },
+  );
 
-  const templatedContent = renderCommunicationTemplate(preparedContent, testRecipientName, {
-    organizationLogo: logoPlaceholder,
-    organizationName: orgName,
-    ...eventContext,
-  });
-
-  const templatedSubject = renderCommunicationTemplate(options.subject, testRecipientName, {
-    organizationName: orgName,
-    ...eventContext,
-  });
+  const templatedSubject = renderCommunicationTemplate(
+    options.subject,
+    testRecipientName,
+    {
+      organizationName: orgName,
+      ...eventContext,
+    },
+    { field: "subject", maxLength: subjectLimit },
+  );
 
   return {
     fromName: options.fromName ?? undefined,
@@ -956,13 +968,54 @@ export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
   };
 }
 
+function assertTestEmailPlaceholdersResolved(subject: string, content: string): void {
+  const unresolvedSubjectPlaceholders = extractCommunicationPlaceholders(subject);
+  const unresolvedContentPlaceholders = extractCommunicationPlaceholders(content);
+  const unresolved = [
+    ...new Set([...unresolvedSubjectPlaceholders, ...unresolvedContentPlaceholders]),
+  ];
+  if (unresolved.length > 0) {
+    throw new Error(
+      `Cannot send test email due to unresolvable placeholders: ${unresolved.join(", ")}`,
+    );
+  }
+}
+
+function finalizeTestEmailContent(input: {
+  readonly bodyLimit: number;
+  readonly canonicalOrigin: string;
+  readonly selectedEvent: OrganizationEvent | null;
+  readonly templatedContent: string;
+  readonly upcomingContext: Awaited<
+    ReturnType<ReturnType<typeof organizationStoreStub>["readUpcomingPerformancesContext"]>
+  > | null;
+}): string {
+  const contentWithEventTicketLink = renderEventTicketLink(
+    input.templatedContent,
+    input.selectedEvent ? ticketSalesPath(input.selectedEvent) : null,
+    input.canonicalOrigin,
+    input.bodyLimit,
+  );
+  if (!input.upcomingContext) return contentWithEventTicketLink;
+  return replaceUpcomingPerformancesPlaceholder(
+    contentWithEventTicketLink,
+    formatUpcomingPerformancesList(input.upcomingContext.performances, {
+      canonicalOrigin: input.canonicalOrigin,
+      timezone: input.upcomingContext.timezone,
+    }),
+    input.bodyLimit,
+  );
+}
+
 export async function handleTestEmailDelivery(
   env: Env,
   organizationId: string,
   data: CommunicationTestEmailRequest,
   canonicalOrigin: string,
   idempotencyKey?: string,
+  renderLimits?: CommunicationRenderLimits,
 ): Promise<void> {
+  const bodyLimit = renderLimits?.body ?? DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT;
   await assertEmailProviderRecipientAvailable(env.CONTROL_DB, data.email);
   const eventId = data.eventId ?? data.audience?.eventId ?? null;
   const includeUpcoming = usesUpcomingPerformancesPlaceholder(data.contentMarkdown);
@@ -987,36 +1040,19 @@ export async function handleTestEmailDelivery(
     contentMarkdown: data.contentMarkdown,
     event: selectedEvent,
     fromName: senderConfig.fromName,
+    renderLimits,
     subject: data.subject,
     timezone,
   });
-  const contentWithEventTicketLink = renderEventTicketLink(
-    templatedContent,
-    selectedEvent ? ticketSalesPath(selectedEvent) : null,
+  const contentWithUpcomingPerformances = finalizeTestEmailContent({
+    bodyLimit,
     canonicalOrigin,
-  );
-  const contentWithUpcomingPerformances = upcomingContext
-    ? replaceUpcomingPerformancesPlaceholder(
-        contentWithEventTicketLink,
-        formatUpcomingPerformancesList(upcomingContext.performances, {
-          canonicalOrigin,
-          timezone: upcomingContext.timezone,
-        }),
-      )
-    : contentWithEventTicketLink;
+    selectedEvent,
+    templatedContent,
+    upcomingContext,
+  });
 
-  const unresolvedSubjectPlaceholders = extractCommunicationPlaceholders(templatedSubject);
-  const unresolvedContentPlaceholders = extractCommunicationPlaceholders(
-    contentWithUpcomingPerformances,
-  );
-  const unresolved = [
-    ...new Set([...unresolvedSubjectPlaceholders, ...unresolvedContentPlaceholders]),
-  ];
-  if (unresolved.length > 0) {
-    throw new Error(
-      `Cannot send test email due to unresolvable placeholders: ${unresolved.join(", ")}`,
-    );
-  }
+  assertTestEmailPlaceholdersResolved(templatedSubject, contentWithUpcomingPerformances);
 
   const delivery = await deliverOrganizationCommunication(env, {
     channel: "email",

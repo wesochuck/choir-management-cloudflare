@@ -1,5 +1,5 @@
 import type { ProblemDetails } from "@choir/contracts";
-import { MusicCsvError } from "@choir/domain";
+import { CommunicationRenderLimitError, MusicCsvError } from "@choir/domain";
 import { z } from "zod";
 
 import { EmailRecipientSuppressedError } from "../../communications/emailFeedback";
@@ -39,6 +39,16 @@ export function communicationProblem(error: unknown, requestIdValue: string, mes
       requestId: requestIdValue,
     }),
   );
+  if (error instanceof CommunicationRenderLimitError) {
+    return {
+      problem: {
+        code: error.code,
+        message: error.message,
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      status: 400 as const,
+    };
+  }
   const suppression = error instanceof EmailRecipientSuppressedError;
   const repositoryError = error instanceof CommunicationRepositoryError ? error : null;
   const status = suppression ? error.status : repositoryError ? repositoryError.status : 503;

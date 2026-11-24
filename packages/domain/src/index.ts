@@ -198,6 +198,9 @@ export {
   type SetListTimingItem,
 } from "./setList";
 export {
+  CommunicationRenderLimitError,
+  DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
+  DEFAULT_COMMUNICATION_RENDER_SUBJECT_LIMIT,
   communicationDeliveryIssueGuidance,
   communicationDeliveryIssueKind,
   communicationDeliveryIssueLabel,
@@ -207,13 +210,16 @@ export {
   maskCommunicationDestination,
   renderCommunicationTemplate,
   renderOrganizationLogoPlaceholder,
+  replaceBoundedPattern,
   summarizeCommunicationDeliveries,
   type CommunicationDeliveryIssueKind,
   type CommunicationFailureCategory,
+  type CommunicationRenderLimits,
   type DeliveryChannel,
   type DeliveryRecord,
   type DeliveryStatus,
   type ReachableRecipient,
+  type RenderCommunicationTemplateOptions,
 } from "./communications";
 export {
   dedupeCommunicationCandidates,

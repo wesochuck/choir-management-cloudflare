@@ -1,4 +1,9 @@
 import { organizationBrandingSchema } from "@choir/contracts";
+import {
+  CommunicationRenderLimitError,
+  DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
+  replaceBoundedPattern,
+} from "@choir/domain";
 import { z } from "zod";
 import type { Env } from "../../env";
 import { issuePlayerToken } from "../../organization/organizationPlayerLinks";
@@ -276,12 +281,16 @@ export async function renderAuditionLink(
   content: string,
   auditionId: string,
   kind: z.infer<typeof auditionNotificationJobSchema>["kind"],
+  maxLength = DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
 ): Promise<string> {
   const hasPlaceholder = auditionLinkPlaceholderPattern.test(content);
   // Scheduling always sends a link, including for Organizations whose older copy of the system
   // template predates the placeholder. This keeps customized templates useful without allowing
   // the scheduling workflow to silently omit the applicant's update link.
   if (!hasPlaceholder && kind !== "scheduled_confirmation" && kind !== "audition_reminder") {
+    if (content.length > maxLength) {
+      throw new CommunicationRenderLimitError("body", maxLength);
+    }
     return content;
   }
   const issuedAt = Math.floor(Date.now() / 1_000);
@@ -299,9 +308,19 @@ export async function renderAuditionLink(
   const link = `${await deliveryOrigin(env, organizationId, { unsubscribeUrl: null })}/auditions?token=${encodeURIComponent(token)}`;
   const replacement = `[Review or update your audition](${link})\n\n(No login required.)`;
   if (hasPlaceholder) {
-    return content.replace(auditionLinkPlaceholderReplacementPattern, () => replacement);
+    return replaceBoundedPattern(
+      content,
+      auditionLinkPlaceholderReplacementPattern,
+      () => replacement,
+      { field: "body", limit: maxLength },
+    );
   }
-  return `${content.trimEnd()}\n\n${replacement}`;
+  const trimmed = content.trimEnd();
+  const combinedLength = trimmed.length + 2 + replacement.length;
+  if (combinedLength > maxLength) {
+    throw new CommunicationRenderLimitError("body", maxLength);
+  }
+  return `${trimmed}\n\n${replacement}`;
 }
 
 export const scheduledEventJobResponseSchema = z.object({
@@ -416,18 +435,29 @@ export async function renderRsvpLinks(
     readonly unsubscribeUrl: string | null;
   },
   canonicalOrigin?: string | null,
+  maxLength = DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
 ): Promise<string> {
-  if (!rsvpPlaceholderPattern.test(content)) return content;
+  if (!rsvpPlaceholderPattern.test(content)) {
+    if (content.length > maxLength) {
+      throw new CommunicationRenderLimitError("body", maxLength);
+    }
+    return content;
+  }
   if (!eventId) {
-    return content.replace(
+    return replaceBoundedPattern(
+      content,
       rsvpPlaceholderReplacementPattern,
       () => "RSVP link unavailable; select an event before sending this message.",
+      { field: "body", limit: maxLength },
     );
   }
   const token = await issueRsvpToken(env, organizationId, eventId, delivery.profileId);
   const rsvpLink = `${await deliveryOrigin(env, organizationId, delivery, canonicalOrigin)}/rsvp?token=${encodeURIComponent(token)}`;
   const replacement = `[Open RSVP page](${rsvpLink})\n\n(No login required.)`;
-  return content.replace(rsvpPlaceholderReplacementPattern, () => replacement);
+  return replaceBoundedPattern(content, rsvpPlaceholderReplacementPattern, () => replacement, {
+    field: "body",
+    limit: maxLength,
+  });
 }
 
 export async function renderPlayerLinks(
@@ -441,27 +471,55 @@ export async function renderPlayerLinks(
     readonly unsubscribeUrl: string | null;
   },
   canonicalOrigin?: string | null,
+  maxLength = DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
 ): Promise<string> {
-  if (!playerPlaceholderPattern.test(content)) return content;
+  if (!playerPlaceholderPattern.test(content)) {
+    if (content.length > maxLength) {
+      throw new CommunicationRenderLimitError("body", maxLength);
+    }
+    return content;
+  }
   if (!eventId) {
-    return content.replace(
+    return replaceBoundedPattern(
+      content,
       playerPlaceholderReplacementPattern,
       () => "Practice player unavailable; select an event before sending this message.",
+      { field: "body", limit: maxLength },
     );
   }
   const token = await issuePlayerToken(env, organizationId, eventId, delivery.profileId);
   const playerLink = `${await deliveryOrigin(env, organizationId, delivery, canonicalOrigin)}/player?token=${encodeURIComponent(token)}`;
   const replacement = `[Open practice player](${playerLink})\n\n(No login required.)`;
-  return content.replace(playerPlaceholderReplacementPattern, () => replacement);
+  return replaceBoundedPattern(content, playerPlaceholderReplacementPattern, () => replacement, {
+    field: "body",
+    limit: maxLength,
+  });
 }
 
-export function addTicketWalletHint(content: string, enabled: boolean): string {
-  if (!enabled) return content;
-  return content.replace(
+export function addTicketWalletHint(
+  content: string,
+  enabled: boolean,
+  maxLength = DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
+): string {
+  if (!enabled) {
+    if (content.length > maxLength) {
+      throw new CommunicationRenderLimitError("body", maxLength);
+    }
+    return content;
+  }
+  let replaced = false;
+  return replaceBoundedPattern(
+    content,
     ticketLinkPlaceholderPattern,
-    (link) =>
-      link +
-      "\n\nTo save your ticket to Apple Wallet or Google Wallet, open your ticket and choose **Add to Wallet**. WalletWallet will open so you can save the pass.",
+    (match) => {
+      if (replaced) return match[0];
+      replaced = true;
+      return (
+        match[0] +
+        "\n\nTo save your ticket to Apple Wallet or Google Wallet, open your ticket and choose **Add to Wallet**. WalletWallet will open so you can save the pass."
+      );
+    },
+    { field: "body", limit: maxLength },
   );
 }
 
@@ -474,11 +532,15 @@ export async function renderTicketLinks(
   eventStartsAt: string,
   isRefund = false,
   canonicalOrigin?: string | null,
+  maxLength = DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
 ): Promise<string> {
   if (
     !ticketLinkPlaceholderPattern.test(content) &&
     !ticketOrderLinkPlaceholderPattern.test(content)
   ) {
+    if (content.length > maxLength) {
+      throw new CommunicationRenderLimitError("body", maxLength);
+    }
     return content;
   }
   const issuedAt = Math.floor(Date.now() / 1_000);
@@ -494,10 +556,14 @@ export async function renderTicketLinks(
     version: 1,
   });
   const link = `${await deliveryOrigin(env, organizationId, { unsubscribeUrl: null }, canonicalOrigin)}/tickets/order/success?token=${encodeURIComponent(token)}`;
-  return content.replace(ticketLinksPlaceholderReplacementPattern, (placeholder) =>
-    isRefund || /order/i.test(placeholder)
-      ? `[View order details](${link})`
-      : `[View ticket / QR code](${link})`,
+  return replaceBoundedPattern(
+    content,
+    ticketLinksPlaceholderReplacementPattern,
+    (match) =>
+      isRefund || /order/i.test(match[0])
+        ? `[View order details](${link})`
+        : `[View ticket / QR code](${link})`,
+    { field: "body", limit: maxLength },
   );
 }
 
@@ -505,18 +571,28 @@ export function renderEventTicketLink(
   content: string,
   eventTicketPath: string | null,
   canonicalOrigin: string | null,
+  maxLength = DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
 ): string {
-  if (!eventTicketLinkPlaceholderPattern.test(content)) return content;
+  if (!eventTicketLinkPlaceholderPattern.test(content)) {
+    if (content.length > maxLength) {
+      throw new CommunicationRenderLimitError("body", maxLength);
+    }
+    return content;
+  }
   if (!eventTicketPath || !canonicalOrigin || !eventTicketPath.startsWith("/")) {
-    return content.replace(
+    return replaceBoundedPattern(
+      content,
       eventTicketLinkPlaceholderReplacementPattern,
-      "Ticket purchase page unavailable.",
+      () => "Ticket purchase page unavailable.",
+      { field: "body", limit: maxLength },
     );
   }
   const link = new URL(eventTicketPath, canonicalOrigin).toString();
-  return content.replace(
+  return replaceBoundedPattern(
+    content,
     eventTicketLinkPlaceholderReplacementPattern,
-    `[View event details and buy tickets](${link})`,
+    () => `[View event details and buy tickets](${link})`,
+    { field: "body", limit: maxLength },
   );
 }
 
@@ -538,11 +614,17 @@ export async function renderPollLinks(
     readonly unsubscribeUrl: string | null;
   },
   canonicalOrigin?: string | null,
+  maxLength = DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
 ): Promise<string> {
   const pollIds = [
     ...new Set([...content.matchAll(pollPlaceholderPattern)].map((match) => match[1])),
   ];
-  if (pollIds.length === 0) return content;
+  if (pollIds.length === 0) {
+    if (content.length > maxLength) {
+      throw new CommunicationRenderLimitError("body", maxLength);
+    }
+    return content;
+  }
 
   const origin = await deliveryOrigin(env, organizationId, delivery, canonicalOrigin);
   const issuedAt = Math.floor(Date.now() / 1_000);
@@ -567,12 +649,18 @@ export async function renderPollLinks(
       ),
     ),
   );
-  return content.replace(pollPlaceholderPattern, (_match, pollId: string) => {
-    const token = tokens.get(pollId);
-    return token
-      ? `[Respond Here (No login required)](${origin}/poll?token=${encodeURIComponent(token)})`
-      : "Poll link unavailable; please contact your organization.";
-  });
+  return replaceBoundedPattern(
+    content,
+    pollPlaceholderPattern,
+    (match) => {
+      const pollId = match[1] ?? "";
+      const token = tokens.get(pollId);
+      return token
+        ? `[Respond Here (No login required)](${origin}/poll?token=${encodeURIComponent(token)})`
+        : "Poll link unavailable; please contact your organization.";
+    },
+    { field: "body", limit: maxLength },
+  );
 }
 
 export async function readOrganizationEmailSenderConfig(

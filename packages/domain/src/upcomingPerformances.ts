@@ -1,3 +1,4 @@
+import { DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT, replaceBoundedPattern } from "./communications";
 import { eventWebsiteVisibility } from "./eventWebsiteVisibility";
 import { ticketSalesPath } from "./ticketLinks";
 
@@ -29,8 +30,12 @@ export function usesUpcomingPerformancesPlaceholder(text: string): boolean {
 export function replaceUpcomingPerformancesPlaceholder(
   content: string,
   replacement: string,
+  maxLength = DEFAULT_COMMUNICATION_RENDER_BODY_LIMIT,
 ): string {
-  return content.replace(upcomingPerformancesReplacementPattern, () => replacement);
+  return replaceBoundedPattern(content, upcomingPerformancesReplacementPattern, () => replacement, {
+    field: "body",
+    limit: maxLength,
+  });
 }
 
 /**
