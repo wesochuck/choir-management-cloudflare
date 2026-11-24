@@ -600,10 +600,11 @@ test("Email & Notifications tab: four existing flags, suppression text, and #126
   const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
   await expect(profileDialog).toBeVisible();
 
-  // Verify all 6 tabs exist in Edit Profile
-  await expectProfileTabCount(profileDialog, 6);
+  // Verify all 7 tabs exist in Edit Profile
+  await expectProfileTabCount(profileDialog, 7);
   await expectProfileTabVisible(profileDialog, "Profile Info", "info");
   await expectProfileTabVisible(profileDialog, "Email & Notifications", "email");
+  await expectProfileTabVisible(profileDialog, "Activity", "activity");
   await expectProfileTabVisible(profileDialog, "Performance RSVPs", "performance");
   await expectProfileTabVisible(profileDialog, "Dues", "dues");
   await expectProfileTabVisible(profileDialog, "Folder numbers", "folders");
@@ -804,10 +805,10 @@ test("narrow-screen section selector accessibility and axe compliance in Edit Pr
   const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
   await expect(profileDialog).toBeVisible();
 
-  // On narrow screens, native section selector is visible and has all 6 options
+  // On narrow screens, native section selector is visible and has all 7 options
   const sectionSelect = profileDialog.getByLabel("Profile section", { exact: true });
   await expect(sectionSelect).toBeVisible();
-  await expect(sectionSelect.locator("option")).toHaveCount(6);
+  await expect(sectionSelect.locator("option")).toHaveCount(7);
 
   // Desktop rail is hidden from accessibility tree on mobile viewport
   await expect(profileDialog.getByRole("tab")).toHaveCount(0);
@@ -815,6 +816,12 @@ test("narrow-screen section selector accessibility and axe compliance in Edit Pr
   // Selecting section via native select switches active panel
   await sectionSelect.selectOption("email");
   await expect(profileDialog.getByLabel("Do not email")).toBeVisible();
+
+  await sectionSelect.selectOption("activity");
+  await expect(
+    profileDialog.getByRole("heading", { level: 4, name: "Portal access" }),
+  ).toBeVisible();
+  await expectNoSeriousAxeViolations(page, "Edit Profile Activity panel");
 
   await sectionSelect.selectOption("info");
   await expect(profileDialog.getByLabel("Display name")).toBeVisible();
@@ -839,9 +846,9 @@ test("desktop vertical section rail keyboard navigation in Edit Profile", async 
   const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
   await expect(profileDialog).toBeVisible();
 
-  // All 6 tabs exist on desktop
+  // All 7 tabs exist on desktop
   const tabs = profileDialog.getByRole("tab");
-  await expect(tabs).toHaveCount(6);
+  await expect(tabs).toHaveCount(7);
 
   // Keyboard navigation through vertical tabs
   const infoTab = profileDialog.getByRole("tab", { name: "Profile Info" });
@@ -852,6 +859,16 @@ test("desktop vertical section rail keyboard navigation in Edit Profile", async 
   await expect(emailTab).toBeFocused();
   await expect(emailTab).toHaveAttribute("aria-selected", "true");
 
+  await page.keyboard.press("ArrowDown");
+  const activityTab = profileDialog.getByRole("tab", { name: "Activity" });
+  await expect(activityTab).toBeFocused();
+  await expect(activityTab).toHaveAttribute("aria-selected", "true");
+  await expect(
+    profileDialog.getByRole("heading", { level: 4, name: "Portal access" }),
+  ).toBeVisible();
+
+  await page.keyboard.press("ArrowUp");
+  await expect(emailTab).toBeFocused();
   await page.keyboard.press("ArrowUp");
   await expect(infoTab).toBeFocused();
   await expect(infoTab).toHaveAttribute("aria-selected", "true");
