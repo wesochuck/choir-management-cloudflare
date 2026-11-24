@@ -51,8 +51,16 @@ const fetchWorker = async (request: Request): Promise<Response> => {
   return response;
 };
 
-const apiRequest = (hostname: string, path: string, cookie?: string, init?: RequestInit) =>
-  organizationRequest(hostname, path, cookie, init);
+const apiRequest = (hostname: string, path: string, cookie?: string, init?: RequestInit) => {
+  if (typeof init?.body === "string") {
+    const headers = new Headers(init.headers);
+    if (!headers.has("content-type")) {
+      headers.set("content-type", "application/json");
+    }
+    return organizationRequest(hostname, path, cookie, { ...init, headers });
+  }
+  return organizationRequest(hostname, path, cookie, init);
+};
 
 const signInAdmin = () =>
   signInWithOtp(exports.default, "alpha.localhost", ADMIN_EMAIL, (email) =>

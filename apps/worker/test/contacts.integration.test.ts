@@ -288,7 +288,11 @@ describe("Organization Contacts API", () => {
           bravoCookie,
           init === undefined
             ? undefined
-            : { ...init, body: JSON.stringify({ displayName: "Bravo Intruder" }) },
+            : {
+                ...init,
+                body: JSON.stringify({ displayName: "Bravo Intruder" }),
+                headers: { "content-type": "application/json" },
+              },
         ),
       );
       expect(response.status).toBe(404);

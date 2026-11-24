@@ -118,7 +118,7 @@ describe("JSON body guard middleware (SEC-04)", () => {
       method: "POST",
     } as RequestInit);
 
-    const response = await app.fetch(request);
+    const response = await app.request(request);
     expect(response.status).toBe(415);
     expect(await response.json()).toMatchObject({
       code: "unsupported_media_type",
@@ -140,7 +140,7 @@ describe("JSON body guard middleware (SEC-04)", () => {
       method: "POST",
     } as RequestInit);
 
-    const response = await app.fetch(request);
+    const response = await app.request(request);
     expect(response.status).toBe(413);
     expect(await response.json()).toMatchObject({
       code: "request_body_too_large",
@@ -159,7 +159,7 @@ describe("JSON body guard middleware (SEC-04)", () => {
       method: "POST",
     });
     expect(exactRequest.headers.get("content-type")).toBeNull();
-    const exactResponse = await app.fetch(exactRequest);
+    const exactResponse = await app.request(exactRequest);
     expect(exactResponse.status).toBe(200);
     expect(handlerSpy).toHaveBeenCalledTimes(1);
 
@@ -167,7 +167,7 @@ describe("JSON body guard middleware (SEC-04)", () => {
     const overPayload = '{"ok":"1234567"}';
     expect(overPayload.length).toBe(16);
     const tracked = createTrackedChunkedStream([overPayload]);
-    const overResponse = await app.fetch(
+    const overResponse = await app.request(
       new Request("https://alpha.localhost/api/public/rsvp", {
         body: tracked.stream,
         duplex: "half",
@@ -184,7 +184,7 @@ describe("JSON body guard middleware (SEC-04)", () => {
 
     // Binary upload larger than the 16-byte JSON cap with image/png media type passes.
     const pngBytes = new Uint8Array(64).fill(0x42);
-    const artworkResponse = await app.fetch(
+    const artworkResponse = await app.request(
       new Request("https://alpha.localhost/api/public/donations/artwork/upload", {
         body: pngBytes,
         headers: { "content-type": "image/png" },
@@ -194,7 +194,7 @@ describe("JSON body guard middleware (SEC-04)", () => {
     expect(artworkResponse.status).toBe(201);
     expect(await artworkResponse.json()).toEqual({ bytes: 64 });
 
-    const privateFileResponse = await app.fetch(
+    const privateFileResponse = await app.request(
       new Request(
         "https://alpha.localhost/api/organization/files/11111111-1111-4111-8111-111111111111",
         {
@@ -218,7 +218,7 @@ describe("JSON body guard middleware (SEC-04)", () => {
       webhookPayload,
       1_700_000_000,
     );
-    const webhookResponse = await app.fetch(
+    const webhookResponse = await app.request(
       new Request("https://alpha.localhost/api/webhook/stripe", {
         body: webhookPayload,
         headers: {

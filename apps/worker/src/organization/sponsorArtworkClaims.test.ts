@@ -553,7 +553,7 @@ describe("Public donation artwork bounded streaming caps (SEC-05)", () => {
       overPng.subarray(0, 16),
       overPng.subarray(16),
     ]);
-    const preOverRes = await app.fetch(
+    const preOverRes = await app.request(
       new Request("https://alpha.localhost/api/public/donations/artwork/upload", {
         body: preOverStream.stream,
         duplex: "half",
@@ -565,6 +565,7 @@ describe("Public donation artwork bounded streaming caps (SEC-05)", () => {
         },
         method: "POST",
       } as RequestInit),
+      undefined,
       env,
     );
     expect(preOverRes.status).toBe(413);
@@ -576,7 +577,7 @@ describe("Public donation artwork bounded streaming caps (SEC-05)", () => {
       exactPng.subarray(0, 16),
       exactPng.subarray(16),
     ]);
-    const preExactRes = await app.fetch(
+    const preExactRes = await app.request(
       new Request("https://alpha.localhost/api/public/donations/artwork/upload", {
         body: preExactStream.stream,
         duplex: "half",
@@ -588,6 +589,7 @@ describe("Public donation artwork bounded streaming caps (SEC-05)", () => {
         },
         method: "POST",
       } as RequestInit),
+      undefined,
       env,
     );
     expect(preExactRes.status).toBe(201);
@@ -610,7 +612,7 @@ describe("Public donation artwork bounded streaming caps (SEC-05)", () => {
       overPng.subarray(0, 16),
       overPng.subarray(16),
     ]);
-    const postOverRes = await app.fetch(
+    const postOverRes = await app.request(
       new Request(
         `https://alpha.localhost/api/public/donations/sponsor-artwork?token=${encodeURIComponent(sponsorToken)}`,
         {
@@ -623,6 +625,7 @@ describe("Public donation artwork bounded streaming caps (SEC-05)", () => {
           method: "POST",
         } as RequestInit,
       ),
+      undefined,
       env,
     );
     expect(postOverRes.status).toBe(413);
@@ -634,7 +637,7 @@ describe("Public donation artwork bounded streaming caps (SEC-05)", () => {
       exactPng.subarray(0, 16),
       exactPng.subarray(16),
     ]);
-    const postExactRes = await app.fetch(
+    const postExactRes = await app.request(
       new Request(
         `https://alpha.localhost/api/public/donations/sponsor-artwork?token=${encodeURIComponent(sponsorToken)}`,
         {
@@ -647,6 +650,7 @@ describe("Public donation artwork bounded streaming caps (SEC-05)", () => {
           method: "POST",
         } as RequestInit,
       ),
+      undefined,
       env,
     );
     expect(postExactRes.status).toBe(200);
