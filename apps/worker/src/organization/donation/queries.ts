@@ -113,6 +113,15 @@ export function sameCheckoutRequest(
   existing: DonationRow,
   checkout: z.infer<typeof createFakeCheckoutOperationSchema>["checkout"],
 ): boolean {
+  const trimmedSponsorName = checkout.sponsorName?.trim() ?? "";
+  const expectedSponsorName =
+    existing.includesProgramAd === 1
+      ? trimmedSponsorName.length > 0
+        ? trimmedSponsorName
+        : checkout.buyerName
+      : "";
+  const expectedArtworkFileId =
+    existing.includesProgramAd === 1 ? (checkout.artworkFileId ?? null) : null;
   return (
     existing.buyerName === checkout.buyerName &&
     existing.buyerEmail === checkout.buyerEmail.toLowerCase() &&
@@ -123,7 +132,8 @@ export function sameCheckoutRequest(
     existing.tributeName === checkout.tributeName &&
     existing.tributeNotifyEmail === checkout.tributeNotifyEmail &&
     (existing.selectedLevelId ?? null) === (checkout.levelId ?? null) &&
-    existing.sponsorName === (checkout.sponsorName?.trim() ?? "")
+    existing.sponsorName === expectedSponsorName &&
+    (existing.artworkFileId ?? null) === expectedArtworkFileId
   );
 }
 

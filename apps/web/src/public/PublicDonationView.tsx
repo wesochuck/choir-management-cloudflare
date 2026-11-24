@@ -246,6 +246,7 @@ export function PublicDonationView({
     } catch (failure: unknown) {
       if (shouldStartNewDonationCheckoutAttempt(failure)) {
         setCheckoutRequestId(crypto.randomUUID());
+        setUploadedArtwork(null);
       }
       await refreshPublicationAfterError(failure, setSettings);
       setError(donationFailureMessage(failure));

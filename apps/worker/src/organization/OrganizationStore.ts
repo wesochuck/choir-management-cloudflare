@@ -169,6 +169,12 @@ import {
 import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
 import { clearUnsuccessfulEventReminderMarkers } from "./schedulingStore";
 import { canMemberReadPrivateFileFromStore } from "./organizationStore/files";
+import {
+  deleteExpiredSponsorUploadClaimInStore,
+  listExpiredUnclaimedSponsorUploadsFromStore,
+  releasePendingSponsorArtworkInStore,
+  reservePendingSponsorArtworkInStore,
+} from "./sponsorArtworkClaims";
 import { dispatchPostRequest } from "./organizationStore/post";
 import { dispatchGetRequest } from "./organizationStore/read";
 import {
@@ -265,6 +271,26 @@ export class OrganizationStore extends DurableObject {
     input: Parameters<typeof canMemberReadPrivateFileFromStore>[1],
   ): boolean {
     return canMemberReadPrivateFileFromStore(this.ctx.storage, input);
+  }
+
+  reservePendingSponsorArtwork(input: Parameters<typeof reservePendingSponsorArtworkInStore>[1]) {
+    return reservePendingSponsorArtworkInStore(this.ctx.storage, input);
+  }
+
+  releasePendingSponsorArtwork(input: Parameters<typeof releasePendingSponsorArtworkInStore>[1]) {
+    return releasePendingSponsorArtworkInStore(this.ctx.storage, input);
+  }
+
+  listExpiredUnclaimedSponsorUploads(
+    input: Parameters<typeof listExpiredUnclaimedSponsorUploadsFromStore>[1],
+  ) {
+    return listExpiredUnclaimedSponsorUploadsFromStore(this.ctx.storage, input);
+  }
+
+  deleteExpiredSponsorUploadClaim(
+    input: Parameters<typeof deleteExpiredSponsorUploadClaimInStore>[1],
+  ) {
+    return deleteExpiredSponsorUploadClaimInStore(this.ctx.storage, input);
   }
 
   claimTicketWalletPass(input: Parameters<typeof claimTicketWalletPass>[1]) {

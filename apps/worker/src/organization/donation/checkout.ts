@@ -8,6 +8,7 @@ import { transactionProcessingFeeCents } from "@choir/domain";
 import type { z } from "zod";
 
 import { storedDonationSettings } from "../donationSettingsStore";
+import { claimSponsorArtworkForDonationInStore } from "../sponsorArtworkClaims";
 import { transactionFeeSettingsFromStore } from "../transactionFeeSettingsStore";
 import { resolveOrCreateContactForCommerce } from "../commerceContacts";
 import { findOrCreatePatron, upsertPatronAfterDonation } from "./patrons";
@@ -23,36 +24,71 @@ import type {
   createPendingCheckoutOperationSchema,
 } from "./types";
 
+class InvalidArtworkClaimError extends Error {
+  constructor() {
+    super("invalid_artwork_claim");
+    this.name = "InvalidArtworkClaimError";
+  }
+}
+
 function resolveCheckoutArtwork(
   storage: DurableObjectStorage,
   includesProgramAd: boolean,
   artworkFileIdCandidate: string | null | undefined,
-): {
-  artworkFileId: string | null;
-  artworkStatus: "not_applicable" | "not_received" | "received";
-  artworkUploadedAt: string | null;
-} {
+  checkoutRequestId: string,
+  donationId: string,
+  nowIso: string,
+):
+  | {
+      readonly artworkFileId: string | null;
+      readonly artworkStatus: "not_applicable" | "not_received" | "received";
+      readonly artworkUploadedAt: string | null;
+      readonly ok: true;
+    }
+  | { readonly ok: false } {
   if (!includesProgramAd) {
-    return { artworkFileId: null, artworkStatus: "not_applicable", artworkUploadedAt: null };
+    return {
+      artworkFileId: null,
+      artworkStatus: "not_applicable",
+      artworkUploadedAt: null,
+      ok: true,
+    };
   }
   if (!artworkFileIdCandidate) {
-    return { artworkFileId: null, artworkStatus: "not_received", artworkUploadedAt: null };
+    return {
+      artworkFileId: null,
+      artworkStatus: "not_received",
+      artworkUploadedAt: null,
+      ok: true,
+    };
   }
   const fileRow = storage.sql
     .exec<{ readonly id: string; readonly createdAt: string }>(
-      "SELECT id,created_at AS createdAt FROM private_files WHERE id = ? LIMIT 1",
+      `SELECT pf.id, pf.created_at AS createdAt
+       FROM private_files pf
+       JOIN sponsor_upload_claims c ON c.file_id = pf.id
+       WHERE pf.id = ?
+         AND pf.status = 'ready'
+         AND c.checkout_request_id = ?
+         AND c.expires_at > ?
+         AND (c.donation_id IS NULL OR c.donation_id = ?)
+       LIMIT 1`,
       artworkFileIdCandidate,
+      checkoutRequestId,
+      nowIso,
+      donationId,
     )
     .toArray()
     .at(0);
-  if (fileRow) {
-    return {
-      artworkFileId: fileRow.id,
-      artworkStatus: "received",
-      artworkUploadedAt: fileRow.createdAt,
-    };
+  if (!fileRow) {
+    return { ok: false };
   }
-  return { artworkFileId: null, artworkStatus: "not_received", artworkUploadedAt: null };
+  return {
+    artworkFileId: fileRow.id,
+    artworkStatus: "received",
+    artworkUploadedAt: fileRow.createdAt,
+    ok: true,
+  };
 }
 
 function resolveSponsorName(
@@ -114,11 +150,18 @@ export function createDonationCheckout(
     operation.checkout.sponsorName,
     operation.checkout.buyerName,
   );
-  const { artworkFileId, artworkStatus, artworkUploadedAt } = resolveCheckoutArtwork(
+  const resolvedArtwork = resolveCheckoutArtwork(
     storage,
     includesProgramAd,
     operation.checkout.artworkFileId,
+    operation.checkout.checkoutRequestId,
+    operation.donationId,
+    now,
   );
+  if (!resolvedArtwork.ok) {
+    return Response.json({ code: "invalid_artwork_claim" }, { status: 400 });
+  }
+  const { artworkFileId, artworkStatus, artworkUploadedAt } = resolvedArtwork;
 
   const patronId = findOrCreatePatron(
     storage,
@@ -145,9 +188,10 @@ export function createDonationCheckout(
     : null;
   const capturedPublicationId = publication?.id ?? null;
   const submittedArtworkAt = artworkUploadedAt ?? now;
-  storage.transactionSync(() => {
-    storage.sql.exec(
-      `INSERT INTO donations
+  try {
+    storage.transactionSync(() => {
+      storage.sql.exec(
+        `INSERT INTO donations
         (id, checkout_request_id, status, amount_cents,
          fee_cents,
          tribute_type, tribute_name, tribute_notify_email,
@@ -159,115 +203,132 @@ export function createDonationCheckout(
          sponsor_name, artwork_file_id, artwork_status,
          artwork_instructions, artwork_uploaded_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      operation.donationId,
-      operation.checkout.checkoutRequestId,
-      pending ? "pending" : "paid",
-      operation.checkout.amountCents,
-      feeCents,
-      operation.checkout.tributeType,
-      operation.checkout.tributeName,
-      operation.checkout.tributeNotifyEmail,
-      operation.checkout.anonymous ? 1 : 0,
-      operation.checkout.marketingConsent ? 1 : 0,
-      operation.checkout.buyerName,
-      operation.checkout.buyerEmail.toLowerCase(),
-      patronId,
-      operation.providerSessionId,
-      pending ? "" : `fake_payment_${operation.donationId}`,
-      now,
-      now,
-      donationContactId,
-      expiresAt,
-      selectedLevelId,
-      selectedLevelName,
-      includesProgramAd ? 1 : 0,
-      sponsorName,
-      artworkFileId,
-      artworkStatus,
-      artworkInstructions,
-      artworkUploadedAt,
-    );
-    captureDonationPublication(
-      storage,
-      operation.donationId,
-      capturedPublicationId,
-      publicationPaidAt,
-    );
-    recordPublicationArtwork(storage, operation.donationId, artworkFileId, submittedArtworkAt);
-    storage.sql.exec(
-      `INSERT INTO payment_attempts
+        operation.donationId,
+        operation.checkout.checkoutRequestId,
+        pending ? "pending" : "paid",
+        operation.checkout.amountCents,
+        feeCents,
+        operation.checkout.tributeType,
+        operation.checkout.tributeName,
+        operation.checkout.tributeNotifyEmail,
+        operation.checkout.anonymous ? 1 : 0,
+        operation.checkout.marketingConsent ? 1 : 0,
+        operation.checkout.buyerName,
+        operation.checkout.buyerEmail.toLowerCase(),
+        patronId,
+        operation.providerSessionId,
+        pending ? "" : `fake_payment_${operation.donationId}`,
+        now,
+        now,
+        donationContactId,
+        expiresAt,
+        selectedLevelId,
+        selectedLevelName,
+        includesProgramAd ? 1 : 0,
+        sponsorName,
+        artworkFileId,
+        artworkStatus,
+        artworkInstructions,
+        artworkUploadedAt,
+      );
+      if (artworkFileId) {
+        const claimed = claimSponsorArtworkForDonationInStore(storage, {
+          checkoutRequestId: operation.checkout.checkoutRequestId,
+          donationId: operation.donationId,
+          fileId: artworkFileId,
+          nowIso: now,
+        });
+        if (!claimed) {
+          throw new InvalidArtworkClaimError();
+        }
+      }
+      captureDonationPublication(
+        storage,
+        operation.donationId,
+        capturedPublicationId,
+        publicationPaidAt,
+      );
+      recordPublicationArtwork(storage, operation.donationId, artworkFileId, submittedArtworkAt);
+      storage.sql.exec(
+        `INSERT INTO payment_attempts
         (id, payment_type, resource_id, checkout_request_id, provider_session_id,
          provider_payment_id, status, amount_cents, created_at, updated_at)
        VALUES (?, 'donation', ?, ?, ?, ?, ?, ?, ?, ?)`,
-      `payment-attempt:${operation.donationId}`,
-      operation.donationId,
-      operation.checkout.checkoutRequestId,
-      operation.providerSessionId,
-      pending ? "" : `fake_payment_${operation.donationId}`,
-      pending ? "pending" : "paid",
-      operation.checkout.amountCents + feeCents,
-      now,
-      now,
-    );
-    if (!pending) {
-      upsertPatronAfterDonation(storage, patronId, operation.checkout.amountCents, now);
-      insertDonationConfirmation(
-        storage,
-        {
-          amountCents: operation.checkout.amountCents,
-          anonymous: operation.checkout.anonymous ? 1 : 0,
-          artworkFileId,
-          artworkFileName: null,
-          artworkInstructions,
-          artworkStatus,
-          artworkUploadedAt,
-          buyerEmail: operation.checkout.buyerEmail.toLowerCase(),
-          buyerName: operation.checkout.buyerName,
-          contactId: donationContactId,
-          createdAt: now,
-          expiredAt: null,
-          feeCents,
-          id: operation.donationId,
-          includesProgramAd: includesProgramAd ? 1 : 0,
-          marketingConsent: operation.checkout.marketingConsent ? 1 : 0,
-          patronId,
-          paymentMethod: "stripe",
-          paymentReference: "",
-          providerPaymentId: `fake_payment_${operation.donationId}`,
-          providerSessionId: operation.providerSessionId,
-          refundRequested: 0,
-          selectedLevelId,
-          selectedLevelName,
-          sponsorName,
-          status: "paid",
-          thankYouSentAt: null,
-          tributeName: operation.checkout.tributeName,
-          tributeNotifyEmail: operation.checkout.tributeNotifyEmail,
-          tributeType: operation.checkout.tributeType,
-          updatedAt: now,
-        },
+        `payment-attempt:${operation.donationId}`,
+        operation.donationId,
+        operation.checkout.checkoutRequestId,
+        operation.providerSessionId,
+        pending ? "" : `fake_payment_${operation.donationId}`,
+        pending ? "pending" : "paid",
+        operation.checkout.amountCents + feeCents,
+        now,
         now,
       );
-    }
-    storage.sql.exec(
-      `INSERT INTO audit_events
+      if (!pending) {
+        upsertPatronAfterDonation(storage, patronId, operation.checkout.amountCents, now);
+        insertDonationConfirmation(
+          storage,
+          {
+            amountCents: operation.checkout.amountCents,
+            anonymous: operation.checkout.anonymous ? 1 : 0,
+            artworkFileId,
+            artworkFileName: null,
+            artworkInstructions,
+            artworkStatus,
+            artworkUploadedAt,
+            buyerEmail: operation.checkout.buyerEmail.toLowerCase(),
+            buyerName: operation.checkout.buyerName,
+            contactId: donationContactId,
+            createdAt: now,
+            expiredAt: null,
+            feeCents,
+            id: operation.donationId,
+            includesProgramAd: includesProgramAd ? 1 : 0,
+            marketingConsent: operation.checkout.marketingConsent ? 1 : 0,
+            patronId,
+            paymentMethod: "stripe",
+            paymentReference: "",
+            providerPaymentId: `fake_payment_${operation.donationId}`,
+            providerSessionId: operation.providerSessionId,
+            refundRequested: 0,
+            selectedLevelId,
+            selectedLevelName,
+            sponsorName,
+            status: "paid",
+            thankYouSentAt: null,
+            tributeName: operation.checkout.tributeName,
+            tributeNotifyEmail: operation.checkout.tributeNotifyEmail,
+            tributeType: operation.checkout.tributeType,
+            updatedAt: now,
+          },
+          now,
+        );
+      }
+      storage.sql.exec(
+        `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
        VALUES (?, 'public_visitor', 'anonymous', ?,
         'donation', ?, ?, ?, ?)`,
-      `donation:${operation.checkout.checkoutRequestId}`,
-      pending ? "donation.pending" : "donation.created",
-      operation.donationId,
-      operation.checkout.checkoutRequestId,
-      JSON.stringify({
-        amountCents: operation.checkout.amountCents,
-        feeCents,
-        tributeType: operation.checkout.tributeType,
-        anonymous: operation.checkout.anonymous,
-      }),
-      now,
-    );
-  });
+        `donation:${operation.checkout.checkoutRequestId}`,
+        pending ? "donation.pending" : "donation.created",
+        operation.donationId,
+        operation.checkout.checkoutRequestId,
+        JSON.stringify({
+          amountCents: operation.checkout.amountCents,
+          feeCents,
+          tributeType: operation.checkout.tributeType,
+          anonymous: operation.checkout.anonymous,
+        }),
+        now,
+      );
+    });
+  } catch (error: unknown) {
+    if (error instanceof InvalidArtworkClaimError) {
+      return Response.json({ code: "invalid_artwork_claim" }, { status: 400 });
+    }
+    throw error;
+  }
   if (!pending)
     cancelCheckoutReminderAfterPayment(storage, {
       organizationId: operation.organizationId,

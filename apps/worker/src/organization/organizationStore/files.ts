@@ -179,6 +179,7 @@ export function privateFileIsReferenced(storage: DurableObjectStorage, fileId: s
     )
     .one().count;
   if (publicWebsiteReference > 0 || websiteContentImageIsReferenced(storage, fileId)) return true;
+  if (isFileReferencedAsSponsorArtwork(storage, fileId)) return true;
   return (
     storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(

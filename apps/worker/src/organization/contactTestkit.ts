@@ -108,7 +108,7 @@ export function createContactTestAdapter(db: DatabaseSync): ContactTestContext {
     count += 1;
     const statement = db.prepare(query);
     const params = bindings.map(toSupportedValue);
-    if (isReadQuery(query)) {
+    if (isReadQuery(query) || /\bRETURNING\b/i.test(query)) {
       const rawRows: unknown = statement.all(...params);
       const fallback: readonly T[] = [];
       const rows: T[] = isRowArray(rawRows, fallback) ? rawRows : [];

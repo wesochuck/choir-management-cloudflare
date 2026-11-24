@@ -2598,6 +2598,24 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE communication_messages ADD COLUMN issues_reviewed_by TEXT",
     ],
   },
+  {
+    version: 146,
+    statements: [
+      `CREATE TABLE sponsor_upload_claims (
+        file_id TEXT PRIMARY KEY,
+        checkout_request_id TEXT NOT NULL,
+        level_id TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL CHECK (size_bytes > 0),
+        content_hash TEXT NOT NULL DEFAULT '',
+        donation_id TEXT REFERENCES donations(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX idx_sponsor_upload_claims_unclaimed
+       ON sponsor_upload_claims(expires_at, checkout_request_id)
+       WHERE donation_id IS NULL`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

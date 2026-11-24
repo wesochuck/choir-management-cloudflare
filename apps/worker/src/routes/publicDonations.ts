@@ -21,22 +21,40 @@ import {
 } from "../organization/organizationDonations";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
+import { evaluateEdgeRateLimit } from "../security/edgeRateLimit";
 import { verifySignedLinkScope } from "../security/signedLinks";
 import {
   MAX_PRIVATE_FILE_BYTES,
   readPrivateOrganizationFile,
+  reclaimPrivateOrganizationFile,
   uploadPrivateOrganizationFile,
 } from "../storage/privateFiles";
+import { reclaimExpiredSponsorUploadClaims } from "../storage/sponsorArtworkCleanup";
 import {
   ALLOWED_ARTWORK_MIME_TYPES,
   decodePrivateFileName,
   privateFileDownloadResponse,
-  sniffArtworkMimeType,
 } from "./helpers";
 import { preflightCheckoutRequest } from "./helpers/checkoutPreflight";
+import { readBoundedArtworkUpload } from "./helpers/donationArtworkUpload";
 import type { WorkerHonoEnvironment } from "./helpers";
 
+export interface PublicDonationRouteOptions {
+  readonly claimTtlMs?: number | undefined;
+  readonly maxArtworkBytes?: number | undefined;
+  readonly maxPendingArtworkBytes?: number | undefined;
+  readonly maxPendingArtworkCount?: number | undefined;
+}
+
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
+  registerPublicDonationsRoutesWithOptions(router);
+}
+
+export function registerPublicDonationsRoutesWithOptions(
+  router: Hono<WorkerHonoEnvironment>,
+  options: PublicDonationRouteOptions = {},
+): void {
+  const maxArtworkBytes = options.maxArtworkBytes ?? MAX_PRIVATE_FILE_BYTES;
   router.post("/api/public/donations/checkout", async (context) => {
     validateStartupConfig(context.env);
     const resolved = await resolveOrganization(new URL(context.req.url), context.env);
@@ -106,7 +124,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
               : "Online donation checkout is not available right now.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
-        error instanceof DonationError && (error.status === 409 || error.status === 501)
+        error instanceof DonationError &&
+          (error.status === 400 || error.status === 409 || error.status === 501)
           ? error.status
           : 503,
       );
@@ -181,7 +200,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
   });
 
-  // eslint-disable-next-line complexity -- Validates file size, MIME sniffing, and tenant storage for pre-checkout artwork.
+  // eslint-disable-next-line complexity -- Enforces edge throttling, bounded streaming, MIME sniffing, and pending upload quota/claims.
   router.post("/api/public/donations/artwork/upload", async (context) => {
     validateStartupConfig(context.env);
     const requestIdValue = context.get("requestId");
@@ -197,7 +216,24 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
 
+    const clientIp =
+      context.req.header("cf-connecting-ip") ??
+      context.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
+      "unknown";
+    const rateLimited = await evaluateEdgeRateLimit({
+      clientIp,
+      env: context.env,
+      limiterName: "PUBLIC_MUTATION_RATE_LIMITER",
+      operation: "donation_artwork_upload",
+      organizationId: resolved.value.organizationId,
+      requestId: requestIdValue,
+    });
+    if (rateLimited) return rateLimited;
+
     const levelId = context.req.header("x-donation-level-id")?.trim() ?? "";
+    const checkoutRequestId = z
+      .uuid()
+      .safeParse(context.req.header("x-checkout-request-id")?.trim() ?? "");
     const fileName = decodePrivateFileName(context.req.header("x-file-name") ?? undefined);
     const declaredContentType = context.req
       .header("content-type")
@@ -207,6 +243,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
 
     if (
       !levelId ||
+      !checkoutRequestId.success ||
       !fileName ||
       !declaredContentType ||
       !ALLOWED_ARTWORK_MIME_TYPES.has(declaredContentType)
@@ -215,34 +252,68 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: "validation_failed",
           message:
-            "A qualifying donation level ID, valid filename, and supported image or PDF format are required.",
+            "A qualifying donation level ID, checkout request ID, valid filename, and supported image or PDF format are required.",
           requestId: requestIdValue,
         } satisfies ProblemDetails,
         400,
       );
     }
 
-    // Verify level exists and includes program ad
-    try {
-      const url = new URL("https://organization.internal/internal/donations/settings");
-      url.searchParams.set("organizationId", resolved.value.organizationId);
-      const response = await invokeOrganizationRpc(
-        organizationStoreStub(context.env, resolved.value.organizationId),
-        url,
+    const artwork = await readBoundedArtworkUpload(
+      context.req.raw,
+      declaredContentType,
+      maxArtworkBytes,
+    );
+    if (!artwork.ok) {
+      return context.json(
+        {
+          code: artwork.code,
+          message: artwork.message,
+          requestId: requestIdValue,
+        } satisfies ProblemDetails,
+        artwork.status,
       );
-      const settings = donationSettingsSchema.safeParse(await response.json());
-      const level = settings.success ? settings.data.levels.find((l) => l.id === levelId) : null;
-      if (!level?.includesProgramAd) {
-        return context.json(
-          {
-            code: "level_not_eligible_for_ad",
-            message: "The selected donation level does not include a program advertisement.",
-            requestId: requestIdValue,
-          } satisfies ProblemDetails,
-          400,
-        );
+    }
+
+    const stub = organizationStoreStub(context.env, resolved.value.organizationId);
+    const fileId = crypto.randomUUID();
+    let reservation: Awaited<ReturnType<typeof stub.reservePendingSponsorArtwork>>;
+    try {
+      reservation = await stub.reservePendingSponsorArtwork({
+        checkoutRequestId: checkoutRequestId.data,
+        contentHash: artwork.contentHash,
+        contentType: artwork.contentType,
+        fileId,
+        fileName,
+        levelId,
+        maxPendingBytes: options.maxPendingArtworkBytes,
+        maxPendingCount: options.maxPendingArtworkCount,
+        organizationId: resolved.value.organizationId,
+        sizeBytes: artwork.sizeBytes,
+        ttlMs: options.claimTtlMs,
+      });
+      if (!reservation.ok && reservation.reason === "quota_exceeded") {
+        await reclaimExpiredSponsorUploadClaims(context.env, resolved.value.organizationId, {
+          requestId: requestIdValue,
+        });
+        reservation = await stub.reservePendingSponsorArtwork({
+          checkoutRequestId: checkoutRequestId.data,
+          contentHash: artwork.contentHash,
+          contentType: artwork.contentType,
+          fileId,
+          fileName,
+          levelId,
+          maxPendingBytes: options.maxPendingArtworkBytes,
+          maxPendingCount: options.maxPendingArtworkCount,
+          organizationId: resolved.value.organizationId,
+          sizeBytes: artwork.sizeBytes,
+          ttlMs: options.claimTtlMs,
+        });
       }
     } catch {
+      if (artwork.body instanceof ReadableStream) {
+        await artwork.body.cancel("reservation_error").catch(() => undefined);
+      }
       return context.json(
         {
           code: "service_unavailable",
@@ -253,46 +324,76 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
 
-    const bodyBuffer = await context.req.raw.arrayBuffer().catch(() => null);
-    if (
-      !bodyBuffer ||
-      bodyBuffer.byteLength === 0 ||
-      bodyBuffer.byteLength > MAX_PRIVATE_FILE_BYTES
-    ) {
+    if (!reservation.ok) {
+      if (artwork.body instanceof ReadableStream) {
+        await artwork.body.cancel("reservation_rejected").catch(() => undefined);
+      }
+      if (reservation.reason === "level_not_eligible_for_ad") {
+        return context.json(
+          {
+            code: "level_not_eligible_for_ad",
+            message: "The selected donation level does not include a program advertisement.",
+            requestId: requestIdValue,
+          } satisfies ProblemDetails,
+          400,
+        );
+      }
+      if (reservation.reason === "quota_exceeded") {
+        return context.json(
+          {
+            code: "pending_artwork_quota_exceeded",
+            message: "Too many pending artwork uploads. Please try again later.",
+            requestId: requestIdValue,
+          } satisfies ProblemDetails,
+          429,
+        );
+      }
       return context.json(
         {
           code: "validation_failed",
-          message: "The artwork file must be non-empty and at most 20 MB.",
+          message: "The artwork upload could not be accepted.",
           requestId: requestIdValue,
         } satisfies ProblemDetails,
         400,
       );
     }
 
-    const sniffedType = sniffArtworkMimeType(new Uint8Array(bodyBuffer.slice(0, 16)));
-    if (!sniffedType || sniffedType !== declaredContentType) {
+    if (reservation.reused) {
+      if (artwork.body instanceof ReadableStream) {
+        await artwork.body.cancel("reused_existing_claim").catch(() => undefined);
+      }
       return context.json(
         {
-          code: "validation_failed",
-          message: "The artwork file contents do not match the expected PDF, PNG, or JPEG format.",
+          contentType: reservation.contentType,
+          fileId: reservation.fileId,
+          fileName: reservation.fileName,
           requestId: requestIdValue,
-        } satisfies ProblemDetails,
-        400,
+          sizeBytes: reservation.sizeBytes,
+        },
+        201,
       );
     }
 
-    const fileId = crypto.randomUUID();
     try {
       const uploaded = await uploadPrivateOrganizationFile(context.env, {
         actorUserId: "public_sponsor",
-        body: bodyBuffer,
-        contentType: sniffedType,
-        fileId,
+        body: artwork.body,
+        contentType: artwork.contentType,
+        fileId: reservation.fileId,
         fileName,
         organizationId: resolved.value.organizationId,
         requestId: requestIdValue,
-        sizeBytes: bodyBuffer.byteLength,
+        sizeBytes: artwork.sizeBytes,
       });
+
+      for (const supersededFileId of reservation.supersededFileIds) {
+        await reclaimPrivateOrganizationFile(context.env, {
+          actorUserId: "public_sponsor",
+          fileId: supersededFileId,
+          organizationId: resolved.value.organizationId,
+          requestId: requestIdValue,
+        }).catch(() => undefined);
+      }
 
       return context.json(
         {
@@ -305,6 +406,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         201,
       );
     } catch {
+      await stub
+        .releasePendingSponsorArtwork({
+          checkoutRequestId: checkoutRequestId.data,
+          fileId: reservation.fileId,
+          organizationId: resolved.value.organizationId,
+        })
+        .catch(() => undefined);
       return context.json(
         {
           code: "service_unavailable",
@@ -450,6 +558,20 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
 
+    const clientIp =
+      context.req.header("cf-connecting-ip") ??
+      context.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
+      "unknown";
+    const rateLimited = await evaluateEdgeRateLimit({
+      clientIp,
+      env: context.env,
+      limiterName: "PUBLIC_MUTATION_RATE_LIMITER",
+      operation: "sponsor_artwork_upload",
+      organizationId: resolved.value.organizationId,
+      requestId: requestIdValue,
+    });
+    if (rateLimited) return rateLimited;
+
     const fileName = decodePrivateFileName(context.req.header("x-file-name") ?? undefined);
     const declaredContentType = context.req
       .header("content-type")
@@ -468,31 +590,19 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
 
-    const bodyBuffer = await context.req.raw.arrayBuffer().catch(() => null);
-    if (
-      !bodyBuffer ||
-      bodyBuffer.byteLength === 0 ||
-      bodyBuffer.byteLength > MAX_PRIVATE_FILE_BYTES
-    ) {
+    const artwork = await readBoundedArtworkUpload(
+      context.req.raw,
+      declaredContentType,
+      maxArtworkBytes,
+    );
+    if (!artwork.ok) {
       return context.json(
         {
-          code: "validation_failed",
-          message: "The artwork file must be non-empty and at most 20 MB.",
+          code: artwork.code,
+          message: artwork.message,
           requestId: requestIdValue,
         } satisfies ProblemDetails,
-        400,
-      );
-    }
-
-    const sniffedType = sniffArtworkMimeType(new Uint8Array(bodyBuffer.slice(0, 16)));
-    if (!sniffedType || sniffedType !== declaredContentType) {
-      return context.json(
-        {
-          code: "validation_failed",
-          message: "The artwork file contents do not match the expected PDF, PNG, or JPEG format.",
-          requestId: requestIdValue,
-        } satisfies ProblemDetails,
-        400,
+        artwork.status,
       );
     }
 
@@ -500,13 +610,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const uploaded = await uploadPrivateOrganizationFile(context.env, {
         actorUserId: "public_sponsor",
-        body: bodyBuffer,
-        contentType: sniffedType,
+        body: artwork.body,
+        contentType: artwork.contentType,
         fileId,
         fileName,
         organizationId: resolved.value.organizationId,
         requestId: requestIdValue,
-        sizeBytes: bodyBuffer.byteLength,
+        sizeBytes: artwork.sizeBytes,
       });
 
       const updatedDonation = await attachOrganizationDonationArtwork(context.env, {
