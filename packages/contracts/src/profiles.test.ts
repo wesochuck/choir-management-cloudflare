@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   memberProfileSchema,
   memberProfileUpdateRequestSchema,
+  organizationProfileActivityResponseSchema,
   organizationProfileDeleteResponseSchema,
   organizationProfileRequestSchema,
   organizationProfileSchema,
@@ -156,4 +157,145 @@ it("defaults profile deletion to retaining Contacts and rejects unknown policies
   expect(organizationProfileDeleteRequestSchema.safeParse({ contacts: "delete_all" }).success).toBe(
     false,
   );
+});
+
+describe("organizationProfileActivityResponseSchema", () => {
+  const baseProfileId = "11111111-1111-4111-8111-111111111111";
+  const baseEventId = "22222222-2222-4222-8222-222222222222";
+  const baseRequestId = "33333333-3333-4333-8333-333333333333";
+
+  it("parses a populated linked profile activity response", () => {
+    const parsed = organizationProfileActivityResponseSchema.parse({
+      attendance: {
+        lastAttendedEvent: {
+          eventId: baseEventId,
+          eventTitle: "Tuesday Rehearsal",
+          eventType: "Rehearsal",
+          startsAt: "2026-06-10T23:00:00.000Z",
+        },
+        recentRehearsals: {
+          absentCount: 1,
+          pendingCount: 0,
+          presentCount: 5,
+          totalCount: 6,
+        },
+      },
+      emailHealth: {
+        bounceReason: "",
+        doNotEmail: false,
+        lastBounceAt: null,
+        lastDeliveredAt: "2026-06-11T15:00:00.000Z",
+        providerEmailSuppressed: false,
+      },
+      lastPollResponseAt: "2026-06-08T12:00:00.000Z",
+      lastRsvpResponseAt: "2026-06-09T14:00:00.000Z",
+      portal: {
+        emailVerified: true,
+        hasGoogleAccount: true,
+        hasPassword: true,
+        joinedAt: "2026-01-15T12:00:00.000Z",
+        joinedViaInviteLink: true,
+        lastActiveAt: "2026-06-12T18:30:00.000Z",
+        linked: true,
+        passkeyCount: 2,
+        pendingInvitation: null,
+        role: "member",
+        twoFactorEnabled: true,
+      },
+      profileCreatedAt: "2026-01-10T10:00:00.000Z",
+      profileId: baseProfileId,
+      profileUpdatedAt: "2026-06-10T10:00:00.000Z",
+      requestId: baseRequestId,
+      timeline: [
+        {
+          actorType: "member",
+          detail: "Pending → Yes",
+          id: "rsvp:1",
+          kind: "rsvp_change",
+          occurredAt: "2026-06-09T14:00:00.000Z",
+          title: "RSVP updated for Spring Concert",
+        },
+      ],
+    });
+    expect(parsed.portal.lastActiveAt).toBe("2026-06-12T18:30:00.000Z");
+    expect(parsed.portal.passkeyCount).toBe(2);
+    expect(parsed.attendance.lastAttendedEvent?.eventTitle).toBe("Tuesday Rehearsal");
+    expect(parsed.timeline).toHaveLength(1);
+  });
+
+  it("defaults optional/nullable activity fields safely for unlinked profiles with pending invite", () => {
+    const parsed = organizationProfileActivityResponseSchema.parse({
+      attendance: {
+        recentRehearsals: { absentCount: 0, pendingCount: 0, presentCount: 0, totalCount: 0 },
+      },
+      emailHealth: {},
+      portal: {
+        linked: false,
+        pendingInvitation: {
+          createdAt: "2026-06-01T12:00:00.000Z",
+          expiresAt: "2026-06-09T12:00:00.000Z",
+          role: "member",
+        },
+      },
+      profileCreatedAt: "2026-06-01T10:00:00.000Z",
+      profileId: baseProfileId,
+      profileUpdatedAt: "2026-06-01T10:00:00.000Z",
+      requestId: baseRequestId,
+      timeline: [
+        {
+          id: "profile_created",
+          kind: "profile_created",
+          occurredAt: "2026-06-01T10:00:00.000Z",
+          title: "Profile created",
+        },
+      ],
+    });
+    expect(parsed.portal.lastActiveAt).toBeNull();
+    expect(parsed.portal.passkeyCount).toBeNull();
+    expect(parsed.portal.joinedViaInviteLink).toBe(false);
+    expect(parsed.portal.pendingInvitation?.role).toBe("member");
+    expect(parsed.attendance.lastAttendedEvent).toBeNull();
+    expect(parsed.emailHealth.lastDeliveredAt).toBeNull();
+    expect(parsed.lastPollResponseAt).toBeNull();
+    expect(parsed.lastRsvpResponseAt).toBeNull();
+    expect(parsed.timeline[0]?.actorType).toBeNull();
+    expect(parsed.timeline[0]?.detail).toBe("");
+  });
+
+  it("rejects invalid timeline size, unknown kinds, and negative counts", () => {
+    const tooManyEvents = Array.from({ length: 51 }, (_, index) => ({
+      id: `event-${String(index)}`,
+      kind: "attendance" as const,
+      occurredAt: "2026-06-01T10:00:00.000Z",
+      title: "Rehearsal",
+    }));
+    expect(
+      organizationProfileActivityResponseSchema.safeParse({
+        attendance: {
+          recentRehearsals: { absentCount: 0, pendingCount: 0, presentCount: 0, totalCount: 0 },
+        },
+        emailHealth: {},
+        portal: { linked: false },
+        profileCreatedAt: "2026-06-01T10:00:00.000Z",
+        profileId: baseProfileId,
+        profileUpdatedAt: "2026-06-01T10:00:00.000Z",
+        requestId: baseRequestId,
+        timeline: tooManyEvents,
+      }).success,
+    ).toBe(false);
+    expect(
+      organizationProfileActivityResponseSchema.safeParse({
+        attendance: {
+          recentRehearsals: { absentCount: -1, pendingCount: 0, presentCount: 0, totalCount: 0 },
+        },
+        emailHealth: {},
+        portal: { linked: false },
+        profileCreatedAt: "2026-06-01T10:00:00.000Z",
+        profileId: baseProfileId,
+        profileUpdatedAt: "2026-06-01T10:00:00.000Z",
+        requestId: baseRequestId,
+        timeline: [],
+      }).success,
+    ).toBe(false);
+  });
 });

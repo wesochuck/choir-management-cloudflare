@@ -1,4 +1,8 @@
 import { claimTicketWalletPass, finishTicketWalletPass } from "./ticketWalletStore";
+import {
+  readProfileActivityFromStore,
+  type ReadProfileActivityInput,
+} from "./profileActivityStore";
 import { queryCommunicationHistoryFromStore } from "./communicationStore/historyQueries";
 import { readCommunicationOverview } from "./communicationOverview";
 import {
@@ -1040,6 +1044,10 @@ export class OrganizationStore extends DurableObject {
     return Promise.resolve(
       queryUpcomingPerformancesForCommunication(this.ctx.storage, parsed.includeUnpublished),
     );
+  }
+
+  readProfileActivity(input: ReadProfileActivityInput) {
+    return readProfileActivityFromStore(this.ctx.storage, input);
   }
 
   private async dispatchRpcCall(call: OrganizationRpcCall): Promise<OrganizationRpcResult> {

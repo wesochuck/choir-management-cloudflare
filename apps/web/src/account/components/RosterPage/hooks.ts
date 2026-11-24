@@ -13,6 +13,7 @@ import {
   AuthApiError,
   createOrganizationProfile,
   deleteOrganizationProfile,
+  getOrganizationProfileActivity,
   getOrganizationProfileDeliveries,
   getOrganizationProfileFolderNumbers,
   getOrganizationProfilePerformanceHistory,
@@ -29,6 +30,7 @@ import {
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import type {
   PerformanceHistoryState,
+  ProfileActivityState,
   ProfileDeliveriesState,
   ProfileDuesState,
   ProfileFolderNumbersState,
@@ -83,6 +85,9 @@ export function useRosterPageController({
   const [baselineFolderNumbers, setBaselineFolderNumbers] = useState<
     readonly OrganizationProfileFolderNumber[]
   >([]);
+  const [profileActivity, setProfileActivity] = useState<ProfileActivityState>({
+    status: "idle",
+  });
   const [profileDeliveries, setProfileDeliveries] = useState<ProfileDeliveriesState>({
     status: "idle",
   });
@@ -152,6 +157,7 @@ export function useRosterPageController({
     setProfilePhotoFileId(candidate.photoFileId);
     setProfileEmail(candidate.email);
     setProfileTab(initialProfileTab);
+    setProfileActivity({ status: initialProfileTab === "activity" ? "loading" : "idle" });
     setPerformanceHistory({ status: initialProfileTab === "performance" ? "loading" : "idle" });
     setProfileStatusHistory({ status: "loading" });
     setProfileDues({ status: initialProfileTab === "dues" ? "loading" : "idle" });
@@ -163,6 +169,23 @@ export function useRosterPageController({
     setSuccess(null);
     setDialogOpen(true);
   }, [emailByProfileId, enabled, initialProfileId, initialProfileTab, roster]);
+
+  useEffect(() => {
+    if (!dialogOpen || !editingId || profileTab !== "activity") return;
+    const controller = new AbortController();
+    getOrganizationProfileActivity(editingId, controller.signal)
+      .then((data) => {
+        setProfileActivity({ data, status: "ready" });
+      })
+      .catch((activityError: unknown) => {
+        if (!(activityError instanceof DOMException && activityError.name === "AbortError")) {
+          setProfileActivity({ status: "error" });
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [dialogOpen, editingId, profileTab]);
 
   useEffect(() => {
     if (!dialogOpen || !editingId || profileTab !== "performance") return;
@@ -382,6 +405,7 @@ export function useRosterPageController({
     setPhotoPending(false);
     photoSaveFnRef.current = null;
     setProfileTab("info");
+    setProfileActivity({ status: "idle" });
     setPerformanceHistory({ status: "idle" });
     setProfileStatusHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
@@ -395,6 +419,7 @@ export function useRosterPageController({
   function openCreate() {
     setEditingId(null);
     setProfileTab("info");
+    setProfileActivity({ status: "idle" });
     setPerformanceHistory({ status: "idle" });
     setProfileStatusHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
@@ -415,6 +440,7 @@ export function useRosterPageController({
   function openEdit(candidate: OrganizationProfile) {
     setEditingId(candidate.id);
     setProfileTab("info");
+    setProfileActivity({ status: "idle" });
     setPerformanceHistory({ status: "idle" });
     setProfileStatusHistory({ status: "loading" });
     setProfileDues({ status: "idle" });
@@ -758,6 +784,7 @@ export function useRosterPageController({
     performanceHistory,
     performerLabel,
     profile,
+    profileActivity,
     profileDeliveries,
     profileDues,
     profileEmail,
@@ -779,6 +806,7 @@ export function useRosterPageController({
     setError,
     setPerformanceHistory,
     setProfile,
+    setProfileActivity,
     setProfileDeliveries,
     setProfileDues,
     setProfileEmail,

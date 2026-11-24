@@ -2,8 +2,11 @@ import { failure, success, type DomainResult } from "@choir/domain";
 
 type OrganizationRole = "administrator" | "member" | "owner";
 
+export const MEMBER_ACTIVITY_TOUCH_INTERVAL_MS = 15 * 60 * 1_000;
+
 interface BetterAuthMemberRow {
   readonly assertionExpiresAt: number | null;
+  readonly lastActiveAt: number | null;
   readonly mfaRequired: number;
   readonly organizationId: string;
   readonly profileId: string | null;
@@ -46,12 +49,51 @@ function normalizeBetterAuthRole(role: string): OrganizationRole | null {
   }
 }
 
+export interface OrganizationAuthDatabase {
+  prepare(query: string): {
+    bind(...values: unknown[]): {
+      first<T = Record<string, unknown>>(): Promise<T | null>;
+      run(): Promise<unknown>;
+    };
+  };
+}
+
+async function touchMemberLastActiveIfStale(
+  database: OrganizationAuthDatabase,
+  row: Pick<BetterAuthMemberRow, "lastActiveAt" | "organizationId" | "userId">,
+  nowTime: number,
+  options: {
+    readonly mfaRequired: boolean;
+    readonly mfaSatisfied: boolean;
+    readonly recordActivity: boolean | undefined;
+  },
+): Promise<void> {
+  if (options.recordActivity === false) return;
+  if (options.mfaRequired && !options.mfaSatisfied) return;
+  if (row.lastActiveAt !== null && nowTime - row.lastActiveAt < MEMBER_ACTIVITY_TOUCH_INTERVAL_MS) {
+    return;
+  }
+  await database
+    .prepare(
+      `UPDATE member
+       SET lastActiveAt = ?
+       WHERE organizationId = ? AND userId = ?
+         AND (lastActiveAt IS NULL OR lastActiveAt < ?)`,
+    )
+    .bind(nowTime, row.organizationId, row.userId, nowTime - MEMBER_ACTIVITY_TOUCH_INTERVAL_MS + 1)
+    .run();
+}
+
 export async function authorizeOrganizationMember(
-  database: D1Database,
+  database: OrganizationAuthDatabase,
   resolvedOrganizationId: string,
   sessionId: string | null | undefined,
   userId: string | null | undefined,
-  options: { readonly enforceMfa?: boolean; readonly now?: Date } = {},
+  options: {
+    readonly enforceMfa?: boolean;
+    readonly now?: Date;
+    readonly recordActivity?: boolean;
+  } = {},
 ): Promise<DomainResult<OrganizationAuthorizationContext>> {
   if (!sessionId || !userId) {
     return failure("unauthorized", "Sign in is required.");
@@ -59,7 +101,7 @@ export async function authorizeOrganizationMember(
 
   const row = await database
     .prepare(
-      `SELECT m.organizationId, m.profileId, m.role, m.userId,
+      `SELECT m.lastActiveAt, m.organizationId, m.profileId, m.role, m.userId,
         o.mfa_required AS mfaRequired,
         oma.expires_at AS assertionExpiresAt,
         saa.method AS sessionAssuranceMethod
@@ -93,7 +135,7 @@ export async function authorizeOrganizationMember(
     return failure("unauthorized", "A recent Organization MFA verification is required.");
   }
 
-  return authorizeOrganization(resolvedOrganizationId, {
+  const result = authorizeOrganization(resolvedOrganizationId, {
     active: true,
     mfaRequired,
     organizationId: row.organizationId,
@@ -101,4 +143,14 @@ export async function authorizeOrganizationMember(
     role,
     userId: row.userId,
   });
+
+  if (result.ok) {
+    await touchMemberLastActiveIfStale(database, row, nowTime, {
+      mfaRequired,
+      mfaSatisfied,
+      recordActivity: options.recordActivity,
+    });
+  }
+
+  return result;
 }

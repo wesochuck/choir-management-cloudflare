@@ -8,6 +8,7 @@ import { areFolderNumbersDirty, emptyProfile, profileRequestFrom } from "../Rost
 import { ProfileEditorFooter } from "./ProfileEditorFooter";
 import { ProfileEditorHeader } from "./ProfileEditorHeader";
 import { ProfileEditorNav } from "./ProfileEditorNav";
+import { ProfileActivityPanel } from "./panels/ProfileActivityPanel";
 import { ProfileEmailPanel } from "./panels/ProfileEmailPanel";
 import { ProfileInfoPanel } from "./panels/ProfileInfoPanel";
 import type { ProfileEditorDialogProps, ProfileTab } from "./types";
@@ -71,6 +72,7 @@ export function ProfileEditorDialog({
   open,
   performanceHistory,
   profile,
+  profileActivity,
   profileDeliveries,
   profileDues,
   profileEmail,
@@ -88,6 +90,7 @@ export function ProfileEditorDialog({
   sendPasswordReset,
   setPerformanceHistory,
   setProfile,
+  setProfileActivity,
   setProfileDeliveries,
   setProfileDues,
   setProfileEmail,
@@ -121,6 +124,7 @@ export function ProfileEditorDialog({
     info:
       hasProfileInfoChanged(profile, baselineProfile, profileEmail, baselineEmail) || photoPending,
     email: hasEmailSettingsChanged(profile, baselineProfile),
+    activity: false,
     folders: isFoldersDirty,
     performance: false,
     dues: false,
@@ -128,10 +132,16 @@ export function ProfileEditorDialog({
   };
   const isDirty = Object.values(dirtySections).some(Boolean);
 
-  // Independent tabs (RSVPs, dues, folders, messages) save through their own
-  // mutations or preserve form drafts. The outer profile form must never implicitly
+  // Independent tabs (activity, RSVPs, dues, folders, messages) save through their own
+  // mutations or are read-only. The outer profile form must never implicitly
   // submit from those panels when pristine.
-  const INDEPENDENT_TABS: readonly ProfileTab[] = ["performance", "dues", "folders", "messages"];
+  const INDEPENDENT_TABS: readonly ProfileTab[] = [
+    "activity",
+    "performance",
+    "dues",
+    "folders",
+    "messages",
+  ];
 
   function handleProfileSubmit(event: React.SyntheticEvent): void {
     event.preventDefault();
@@ -142,7 +152,9 @@ export function ProfileEditorDialog({
   }
 
   function handleTabChange(nextTab: ProfileTab) {
-    if (nextTab === "performance") {
+    if (nextTab === "activity") {
+      setProfileActivity({ status: "loading" });
+    } else if (nextTab === "performance") {
       setPerformanceHistory({ status: "loading" });
     } else if (nextTab === "dues") {
       setProfileDues({ status: "loading" });
@@ -276,6 +288,15 @@ export function ProfileEditorDialog({
 
               {editingId ? (
                 <>
+                  <TabsContent
+                    aria-labelledby="roster-profile-activity-tab"
+                    className="roster-profile-tab-panel"
+                    id="roster-profile-activity-panel"
+                    value="activity"
+                  >
+                    <ProfileActivityPanel state={profileActivity} />
+                  </TabsContent>
+
                   <TabsContent
                     aria-labelledby="roster-profile-performance-tab"
                     className="roster-profile-tab-panel"

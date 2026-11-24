@@ -2620,6 +2620,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     version: 147,
     statements: ["ALTER TABLE organization_metadata ADD COLUMN logo_verified_content_type TEXT"],
   },
+  {
+    version: 148,
+    statements: [
+      `CREATE INDEX IF NOT EXISTS idx_poll_responses_profile
+       ON poll_responses(profile_id, responded_at DESC, poll_id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

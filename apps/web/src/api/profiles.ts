@@ -12,6 +12,7 @@ import {
   organizationProfileImportResponseSchema,
   organizationProfileFolderNumberSchema,
   organizationProfileFolderNumbersResponseSchema,
+  organizationProfileActivityResponseSchema,
   organizationProfilePerformanceHistoryResponseSchema,
   organizationProfileStatusHistoryResponseSchema,
   organizationMemberRoleUpdateResponseSchema,
@@ -36,6 +37,7 @@ import {
   type OrganizationProfileFolderNumber,
   type OrganizationProfileFolderNumberUpdate,
   type OrganizationProfileRequest,
+  type OrganizationProfileActivityResponse,
   type OrganizationProfilePerformanceHistoryResponse,
   type OrganizationProfileStatusHistoryResponse,
 } from "@choir/contracts";
@@ -150,6 +152,17 @@ export async function getOrganizationProfileStatusHistory(
     { signal: signal ?? null },
   );
   return organizationProfileStatusHistoryResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationProfileActivity(
+  profileId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationProfileActivityResponse> {
+  const response = await request(
+    `/api/organization/profiles/${encodeURIComponent(profileId)}/activity`,
+    { signal: signal ?? null },
+  );
+  return organizationProfileActivityResponseSchema.parse(await response.json());
 }
 
 export async function getOrganizationProfileFolderNumbers(

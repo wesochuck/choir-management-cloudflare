@@ -62,6 +62,7 @@ export function RosterPageView({
     openEdit,
     performanceHistory,
     profile,
+    profileActivity,
     profileDeliveries,
     profileDues,
     profileEmail,
@@ -81,6 +82,7 @@ export function RosterPageView({
     setImportDialogOpen,
     setPerformanceHistory,
     setProfile,
+    setProfileActivity,
     setProfileDues,
     setProfileEmail,
     setProfileDeliveries,
@@ -808,6 +810,7 @@ export function RosterPageView({
         open={dialogOpen}
         performanceHistory={performanceHistory}
         profile={profile}
+        profileActivity={profileActivity}
         profileDeliveries={profileDeliveries}
         profileDues={profileDues}
         profileEmail={profileEmail}
@@ -824,6 +827,7 @@ export function RosterPageView({
         sendPasswordReset={sendPasswordReset}
         setPerformanceHistory={setPerformanceHistory}
         setProfile={setProfile}
+        setProfileActivity={setProfileActivity}
         setProfileDeliveries={setProfileDeliveries}
         setProfileDues={setProfileDues}
         setProfileEmail={setProfileEmail}

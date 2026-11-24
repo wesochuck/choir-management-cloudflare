@@ -291,6 +291,66 @@ export async function installOrganizationApi(
   await page.route("**/api/organization/profiles/*/deliveries", async (route) => {
     await fulfillJson(route, { deliveries: [], requestId });
   });
+  await page.route("**/api/organization/profiles/*/activity", async (route) => {
+    const url = route.request().url();
+    const parts = url.split("/");
+    const idIndex = parts.indexOf("profiles");
+    const rawId = idIndex >= 0 ? parts[idIndex + 1] : undefined;
+    const profileId =
+      rawId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId)
+        ? rawId
+        : fixtureIds.browserProfileId;
+    await fulfillJson(route, {
+      attendance: {
+        lastAttendedEvent: null,
+        recentRehearsals: { absentCount: 0, pendingCount: 0, presentCount: 0, totalCount: 0 },
+      },
+      emailHealth: {
+        bounceReason: "",
+        doNotEmail: false,
+        lastBounceAt: null,
+        lastDeliveredAt: null,
+        providerEmailSuppressed: false,
+      },
+      lastPollResponseAt: null,
+      lastRsvpResponseAt: null,
+      portal: {
+        emailVerified: true,
+        hasGoogleAccount: false,
+        hasPassword: true,
+        joinedAt: "2026-07-20T20:00:00.000Z",
+        joinedViaInviteLink: false,
+        lastActiveAt: "2026-07-21T18:00:00.000Z",
+        linked: true,
+        passkeyCount: 1,
+        pendingInvitation: null,
+        role: "member",
+        twoFactorEnabled: false,
+      },
+      profileCreatedAt: "2026-07-20T20:00:00.000Z",
+      profileId,
+      profileUpdatedAt: "2026-07-20T20:15:00.000Z",
+      requestId,
+      timeline: [
+        {
+          actorType: "member",
+          detail: "Linked Organization portal account",
+          id: "portal_joined",
+          kind: "portal_joined",
+          occurredAt: "2026-07-20T20:00:00.000Z",
+          title: "Joined Organization portal",
+        },
+        {
+          actorType: null,
+          detail: "",
+          id: "profile_created",
+          kind: "profile_created",
+          occurredAt: "2026-07-20T20:00:00.000Z",
+          title: "Profile created",
+        },
+      ],
+    });
+  });
   await page.route("**/api/singer/profile", async (route) => {
     if (route.request().method() === "PUT") {
       const body: unknown = route.request().postDataJSON();

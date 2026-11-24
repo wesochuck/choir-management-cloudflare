@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   AuthApiError,
   createOrganizationInvitation,
+  getOrganizationProfileActivity,
   getOrganizationProfileDeliveries,
   getOrganizationProfileFolderNumbers,
   getOrganizationProfilePerformanceHistory,
@@ -24,6 +25,7 @@ import {
 import { emptyProfile, getModifiedFolderNumbers, profileRequestFrom } from "../RosterPage/utils";
 import type {
   PerformanceHistoryState,
+  ProfileActivityState,
   ProfileDeliveriesState,
   ProfileDuesState,
   ProfileEditorDialogProps,
@@ -62,6 +64,7 @@ export function useProfileEditor({
     status: "idle",
   });
   const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
+  const [profileActivity, setProfileActivity] = useState<ProfileActivityState>({ status: "idle" });
   const [profileDeliveries, setProfileDeliveries] = useState<ProfileDeliveriesState>({
     status: "idle",
   });
@@ -96,6 +99,7 @@ export function useProfileEditor({
     setPhotoPending(false);
     photoSaveFnRef.current = null;
     setProfileTab("info");
+    setProfileActivity({ status: "idle" });
     setPerformanceHistory({ status: "idle" });
     setProfileStatusHistory({ status: "loading" });
     setProfileDues({ status: "idle" });
@@ -119,6 +123,7 @@ export function useProfileEditor({
     setPhotoPending(false);
     photoSaveFnRef.current = null;
     setProfileTab("info");
+    setProfileActivity({ status: "idle" });
     setPerformanceHistory({ status: "idle" });
     setProfileStatusHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
@@ -151,6 +156,23 @@ export function useProfileEditor({
       controller.abort();
     };
   }, [editingId, open]);
+
+  useEffect(() => {
+    if (!open || !editingId || profileTab !== "activity") return;
+    const controller = new AbortController();
+    getOrganizationProfileActivity(editingId, controller.signal)
+      .then((data) => {
+        setProfileActivity({ data, status: "ready" });
+      })
+      .catch((activityError: unknown) => {
+        if (!(activityError instanceof DOMException && activityError.name === "AbortError")) {
+          setProfileActivity({ status: "error" });
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [editingId, open, profileTab]);
 
   useEffect(() => {
     if (!open || !editingId || profileTab !== "performance") return;
@@ -383,6 +405,7 @@ export function useProfileEditor({
     onRsvpChanged,
     performanceHistory,
     profile,
+    profileActivity,
     profileDeliveries,
     profileDues,
     profileEmail,
@@ -399,6 +422,7 @@ export function useProfileEditor({
     sendPasswordReset,
     setPerformanceHistory,
     setProfile,
+    setProfileActivity,
     setProfileDeliveries,
     setProfileDues,
     setProfileEmail,

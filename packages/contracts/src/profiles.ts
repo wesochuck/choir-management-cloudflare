@@ -176,3 +176,111 @@ export type OrganizationImpersonatedProfile = z.infer<typeof organizationImperso
 export type OrganizationImpersonationStatusResponse = z.infer<
   typeof organizationImpersonationStatusResponseSchema
 >;
+
+export const organizationProfilePendingInvitationSchema = z.object({
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+  role: z.enum(["owner", "administrator", "member"]),
+});
+
+export const organizationProfilePortalActivitySchema = z.object({
+  emailVerified: z.boolean().nullable().default(null),
+  hasGoogleAccount: z.boolean().nullable().default(null),
+  hasPassword: z.boolean().nullable().default(null),
+  joinedAt: z.iso.datetime().nullable().default(null),
+  joinedViaInviteLink: z.boolean().default(false),
+  lastActiveAt: z.iso.datetime().nullable().default(null),
+  linked: z.boolean(),
+  passkeyCount: z.number().int().min(0).max(100).nullable().default(null),
+  pendingInvitation: organizationProfilePendingInvitationSchema.nullable().default(null),
+  role: z.enum(["owner", "administrator", "member"]).nullable().default(null),
+  twoFactorEnabled: z.boolean().nullable().default(null),
+});
+
+export const organizationProfileLastAttendedEventSchema = z.object({
+  eventId: z.uuid(),
+  eventTitle: z.string().min(1).max(500),
+  eventType: z.enum(["Performance", "Rehearsal", "Other"]),
+  startsAt: z.iso.datetime(),
+});
+
+export const organizationProfileRecentRehearsalsSchema = z.object({
+  absentCount: z.number().int().min(0),
+  pendingCount: z.number().int().min(0),
+  presentCount: z.number().int().min(0),
+  totalCount: z.number().int().min(0),
+});
+
+export const organizationProfileAttendanceSummarySchema = z.object({
+  lastAttendedEvent: organizationProfileLastAttendedEventSchema.nullable().default(null),
+  recentRehearsals: organizationProfileRecentRehearsalsSchema,
+});
+
+export const organizationProfileEmailHealthSchema = z.object({
+  bounceReason: z.string().max(500).default(""),
+  doNotEmail: z.boolean().default(false),
+  lastBounceAt: z.iso.datetime().nullable().default(null),
+  lastDeliveredAt: z.iso.datetime().nullable().default(null),
+  providerEmailSuppressed: z.boolean().default(false),
+});
+
+export const organizationProfileActivityKindSchema = z.enum([
+  "attendance",
+  "dues_payment",
+  "poll_response",
+  "portal_joined",
+  "profile_created",
+  "rsvp_change",
+  "status_change",
+]);
+
+export const organizationProfileActivityActorSchema = z.enum(["member", "administrator", "system"]);
+
+export const organizationProfileActivityEventSchema = z.object({
+  actorType: organizationProfileActivityActorSchema.nullable().default(null),
+  detail: z.string().max(1_000).default(""),
+  id: z.string().min(1).max(200),
+  kind: organizationProfileActivityKindSchema,
+  occurredAt: z.iso.datetime(),
+  title: z.string().min(1).max(500),
+});
+
+export const organizationProfileActivityResponseSchema = z.object({
+  attendance: organizationProfileAttendanceSummarySchema,
+  emailHealth: organizationProfileEmailHealthSchema,
+  lastPollResponseAt: z.iso.datetime().nullable().default(null),
+  lastRsvpResponseAt: z.iso.datetime().nullable().default(null),
+  portal: organizationProfilePortalActivitySchema,
+  profileCreatedAt: z.iso.datetime(),
+  profileId: z.uuid(),
+  profileUpdatedAt: z.iso.datetime(),
+  requestId: requestIdSchema,
+  timeline: z.array(organizationProfileActivityEventSchema).max(50),
+});
+
+export type OrganizationProfilePendingInvitation = z.infer<
+  typeof organizationProfilePendingInvitationSchema
+>;
+export type OrganizationProfilePortalActivity = z.infer<
+  typeof organizationProfilePortalActivitySchema
+>;
+export type OrganizationProfileLastAttendedEvent = z.infer<
+  typeof organizationProfileLastAttendedEventSchema
+>;
+export type OrganizationProfileRecentRehearsals = z.infer<
+  typeof organizationProfileRecentRehearsalsSchema
+>;
+export type OrganizationProfileAttendanceSummary = z.infer<
+  typeof organizationProfileAttendanceSummarySchema
+>;
+export type OrganizationProfileEmailHealth = z.infer<typeof organizationProfileEmailHealthSchema>;
+export type OrganizationProfileActivityKind = z.infer<typeof organizationProfileActivityKindSchema>;
+export type OrganizationProfileActivityActor = z.infer<
+  typeof organizationProfileActivityActorSchema
+>;
+export type OrganizationProfileActivityEvent = z.infer<
+  typeof organizationProfileActivityEventSchema
+>;
+export type OrganizationProfileActivityResponse = z.infer<
+  typeof organizationProfileActivityResponseSchema
+>;

@@ -32,7 +32,8 @@ export function applyTheme(preference: ThemePreference): void {
 
 export function rosterProfileTabFromSearch(search: string): RosterProfileTab {
   const tab = new URLSearchParams(search).get("tab");
-  return tab === "dues" ||
+  return tab === "activity" ||
+    tab === "dues" ||
     tab === "email" ||
     tab === "folders" ||
     tab === "messages" ||

@@ -134,9 +134,30 @@ function MessageIcon({ className }: { readonly className?: string | undefined })
   );
 }
 
+function ActivityIcon({ className }: { readonly className?: string | undefined }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      height="18"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width="18"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
 const ALL_SECTIONS: readonly NavSection[] = [
   { id: "info", label: "Profile info", icon: UserIcon },
   { id: "email", label: "Email & notifications", icon: MailIcon },
+  { id: "activity", label: "Activity", icon: ActivityIcon },
   { id: "performance", label: "Performance RSVPs", icon: CalendarIcon },
   { id: "dues", label: "Dues", icon: DuesIcon },
   { id: "folders", label: "Folder numbers", icon: FolderIcon },
@@ -144,6 +165,7 @@ const ALL_SECTIONS: readonly NavSection[] = [
 ];
 
 const VALID_PROFILE_TABS = new Set<string>([
+  "activity",
   "dues",
   "email",
   "folders",

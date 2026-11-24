@@ -225,3 +225,16 @@ Uncertain outcomes never authorize a new send. Reminder history/recovery details
 90 days; minimal opt-out, newest-attempt, and cooldown state remains. See the
 [operations runbook](../runbooks/incomplete-checkout-reminders.md) for rollback and failure
 handling.
+
+## Roster profile activity
+
+Control-plane D1 migration `0026_member_last_active_at.sql` adds a nullable `lastActiveAt` integer
+timestamp (Unix epoch milliseconds) to Better Auth's `member` table. `authorizeOrganizationMember()`
+updates it per `(organizationId, userId)` at most once every 15 minutes after successful,
+MFA-satisfied Organization authorization, keeping portal activity strictly Organization-scoped and
+unaffected by administrator impersonation or Platform Administrator elevation.
+
+Organization schema version 148 adds `idx_poll_responses_profile` on
+`poll_responses(profile_id, responded_at DESC, poll_id)` so the `readProfileActivity` Durable Object
+RPC aggregates attendance, RSVP history, status history, poll responses, dues payments, and email
+health using bounded, index-backed reads. Both migrations are additive and rollback-safe.

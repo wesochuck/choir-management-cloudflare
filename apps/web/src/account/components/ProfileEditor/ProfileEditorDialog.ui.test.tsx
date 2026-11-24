@@ -20,6 +20,7 @@ vi.mock("../../../api", async (importOriginal) => {
   return {
     ...actual,
     deletePrivateOrganizationFile: vi.fn(),
+    getOrganizationProfileActivity: vi.fn(),
     getOrganizationProfileFolderNumbers: vi.fn(),
     listOrganizationMemberships: vi.fn(),
     setOrganizationProfilePhoto: vi.fn(),
@@ -473,5 +474,75 @@ describe("ProfileEditorDialog photo save coordination", () => {
     });
     expect(legacyOption).toBeInTheDocument();
     expect(legacyOption).toBeDisabled();
+  });
+
+  it("loads the Activity tab on demand in edit mode and hides it in add mode", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.getOrganizationProfileActivity).mockResolvedValue({
+      attendance: {
+        lastAttendedEvent: {
+          eventId: "22222222-2222-4222-8222-222222222222",
+          eventTitle: "Tuesday Rehearsal",
+          eventType: "Rehearsal",
+          startsAt: "2026-06-09T23:00:00.000Z",
+        },
+        recentRehearsals: { absentCount: 0, pendingCount: 0, presentCount: 3, totalCount: 3 },
+      },
+      emailHealth: {
+        bounceReason: "",
+        doNotEmail: false,
+        lastBounceAt: null,
+        lastDeliveredAt: "2026-06-10T15:00:00.000Z",
+        providerEmailSuppressed: false,
+      },
+      lastPollResponseAt: null,
+      lastRsvpResponseAt: null,
+      portal: {
+        emailVerified: true,
+        hasGoogleAccount: false,
+        hasPassword: true,
+        joinedAt: "2026-01-15T12:00:00.000Z",
+        joinedViaInviteLink: false,
+        lastActiveAt: "2026-06-12T18:00:00.000Z",
+        linked: true,
+        passkeyCount: 1,
+        pendingInvitation: null,
+        role: "member",
+        twoFactorEnabled: false,
+      },
+      profileCreatedAt: "2026-01-10T10:00:00.000Z",
+      profileId: sampleProfile.id,
+      profileUpdatedAt: "2026-06-10T10:00:00.000Z",
+      requestId: "33333333-3333-4333-8333-333333333333",
+      timeline: [
+        {
+          actorType: "member",
+          detail: "Linked Organization portal account",
+          id: "portal_joined",
+          kind: "portal_joined",
+          occurredAt: "2026-01-15T12:00:00.000Z",
+          title: "Joined Organization portal",
+        },
+      ],
+    });
+
+    render(<ProfileEditorHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Open Add Profile" }));
+    expect(screen.queryByRole("tab", { name: "Activity" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await user.click(screen.getByRole("button", { name: "Open Editor" }));
+    expect(api.getOrganizationProfileActivity).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("tab", { name: "Activity" }));
+    expect(await screen.findByText("Portal access")).toBeInTheDocument();
+    expect(screen.getByText(/Tuesday Rehearsal/)).toBeInTheDocument();
+    expect(screen.getByText("3 present · 0 absent")).toBeInTheDocument();
+    expect(screen.getByText("Joined Organization portal")).toBeInTheDocument();
+    expect(api.getOrganizationProfileActivity).toHaveBeenCalledWith(
+      sampleProfile.id,
+      expect.any(AbortSignal),
+    );
   });
 });

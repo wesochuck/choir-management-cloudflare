@@ -6,6 +6,7 @@ export { ProfileEditorFooter } from "./ProfileEditorFooter";
 export { ProfileSettingSwitch } from "./ProfileSettingSwitch";
 export type {
   PerformanceHistoryState,
+  ProfileActivityState,
   ProfileDeliveriesState,
   ProfileDuesState,
   ProfileEditorDialogProps,

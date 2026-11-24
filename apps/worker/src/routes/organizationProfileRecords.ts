@@ -21,6 +21,7 @@ import {
   listOrganizationProfiles,
   listOrganizationProfileStatusHistory,
 } from "../organization/profiles";
+import { readOrganizationProfileActivity } from "../organization/profileActivity";
 import { authorizeOrganizationMember } from "../tenancy/authorizeOrganization";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
 
@@ -288,6 +289,54 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: "service_unavailable",
           message: "Profile status history is temporarily unavailable.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      );
+    }
+  });
+
+  router.get("/api/organization/profiles/:profileId/activity", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const profileId = z.uuid().safeParse(context.req.param("profileId"));
+    if (!profileId.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid Profile ID is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const activity = await readOrganizationProfileActivity(context.env, {
+        organizationId: authorization.organizationId,
+        profileId: profileId.data,
+        requestId: context.get("requestId"),
+      });
+      if (activity === null) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "The Organization Profile was not found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      return context.json(activity);
+    } catch {
+      return context.json(
+        {
+          code: "service_unavailable",
+          message: "Profile activity is temporarily unavailable.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,

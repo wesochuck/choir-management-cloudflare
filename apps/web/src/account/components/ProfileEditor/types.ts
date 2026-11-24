@@ -2,6 +2,7 @@ import type {
   DuesRecord,
   OrganizationMembershipSummary,
   OrganizationProfile,
+  OrganizationProfileActivityResponse,
   OrganizationProfileDeliveriesResponse,
   OrganizationProfileFolderNumber,
   OrganizationProfilePerformanceHistoryResponse,
@@ -11,7 +12,17 @@ import type {
   Season,
 } from "@choir/contracts";
 
-export type ProfileTab = "dues" | "email" | "folders" | "info" | "messages" | "performance";
+export type ProfileTab =
+  "activity" | "dues" | "email" | "folders" | "info" | "messages" | "performance";
+
+export type ProfileActivityState =
+  | { readonly status: "idle" }
+  | { readonly status: "loading" }
+  | { readonly status: "error" }
+  | {
+      readonly data: OrganizationProfileActivityResponse;
+      readonly status: "ready";
+    };
 
 export type ProfileStatusHistoryState =
   | { readonly status: "error" | "idle" | "loading" }
@@ -76,6 +87,7 @@ export interface ProfileEditorDialogProps {
   readonly open: boolean;
   readonly performanceHistory: PerformanceHistoryState;
   readonly profile: OrganizationProfileRequest;
+  readonly profileActivity: ProfileActivityState;
   readonly profileDeliveries: ProfileDeliveriesState;
   readonly profileDues: ProfileDuesState;
   readonly profileEmail: string;
@@ -104,6 +116,7 @@ export interface ProfileEditorDialogProps {
   readonly sendPasswordReset?: (() => Promise<void>) | undefined;
   readonly setPerformanceHistory: React.Dispatch<React.SetStateAction<PerformanceHistoryState>>;
   readonly setProfile: React.Dispatch<React.SetStateAction<OrganizationProfileRequest>>;
+  readonly setProfileActivity: React.Dispatch<React.SetStateAction<ProfileActivityState>>;
   readonly setProfileDeliveries: React.Dispatch<React.SetStateAction<ProfileDeliveriesState>>;
   readonly setProfileDues: React.Dispatch<React.SetStateAction<ProfileDuesState>>;
   readonly setProfileEmail: (email: string) => void;
