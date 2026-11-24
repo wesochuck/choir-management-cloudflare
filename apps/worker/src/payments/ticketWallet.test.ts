@@ -105,6 +105,12 @@ describe("wallet ticket issuance", () => {
           headers: { "content-type": "application/json" },
           status: 429,
         }),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          headers: { location: "https://other.example/redirect" },
+          status: 302,
+        }),
       );
     vi.stubGlobal("fetch", request);
 
@@ -113,7 +119,11 @@ describe("wallet ticket issuance", () => {
     });
     expect(request).toHaveBeenCalledWith(
       "https://api.walletwallet.dev/api/passes",
-      expect.objectContaining({ method: "POST", body: JSON.stringify(body) }),
+      expect.objectContaining({
+        body: JSON.stringify(body),
+        method: "POST",
+        redirect: "manual",
+      }),
     );
     expect(await issueWalletPass("test", body)).toEqual({
       shareUrl: "https://pass.walletwallet.dev/p/header-fallback",
@@ -123,6 +133,11 @@ describe("wallet ticket issuance", () => {
       providerError: "Monthly pass limit reached",
       rejected: true,
       status: 429,
+    });
+    expect(await issueWalletPass("test", body)).toEqual({
+      providerError: "Unexpected provider redirect",
+      rejected: true,
+      status: 302,
     });
   });
 });

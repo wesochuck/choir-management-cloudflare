@@ -130,11 +130,19 @@ async function readSafeProviderError(response: Response): Promise<string | undef
 export async function issueWalletPass(key: string, body: ReturnType<typeof walletPassBody>) {
   const response = await fetch(WALLET_API_URL, {
     method: "POST",
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(12000),
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify(body),
   });
+  if (response.status >= 300 && response.status < 400) {
+    await response.body?.cancel();
+    return {
+      providerError: "Unexpected provider redirect",
+      rejected: true,
+      status: response.status,
+    } as const;
+  }
   if ([400, 401, 403, 429].includes(response.status)) {
     const providerError = await readSafeProviderError(response);
     return { providerError, rejected: true, status: response.status } as const;
