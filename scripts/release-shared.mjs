@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
+import { isVerboseMode } from "./check-step-runner.mjs";
 import { verifyReleaseManifest } from "./release-artifact.mjs";
 
 export const WORKER_CONFIG = "apps/worker/wrangler.jsonc";
@@ -152,7 +153,8 @@ export async function deployVersion(versionId, message, options = {}) {
         ],
         { capture: true },
       );
-      if (output && typeof output === "string" && output.trim().length > 0) {
+      const quiet = options.quiet ?? !isVerboseMode();
+      if (!quiet && output && typeof output === "string" && output.trim().length > 0) {
         console.log(output.trim());
       }
       return;
@@ -184,7 +186,8 @@ export async function deployTriggers(envName, options = {}) {
         ["triggers", "deploy", "--config", options.workerConfig ?? WORKER_CONFIG, "--env", envName],
         { capture: true },
       );
-      if (output && typeof output === "string" && output.trim().length > 0) {
+      const quiet = options.quiet ?? !isVerboseMode();
+      if (!quiet && output && typeof output === "string" && output.trim().length > 0) {
         console.log(output.trim());
       }
       return;

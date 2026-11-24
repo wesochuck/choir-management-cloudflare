@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { buildStepEnv, isVerboseMode } from "./check-step-runner.mjs";
 import { createReleaseManifest, verifyReleaseManifest } from "./release-artifact.mjs";
 import { invalidateQualification, readQualification } from "./release-qualification.mjs";
 import { applyReleaseBuildDefaults } from "./release-environment.mjs";
@@ -126,6 +127,7 @@ export async function qualifyDeployment(commitSha, options = {}) {
   const retryDelayMs = options.retryDelayMs ?? 5000;
   const runner = options.runner ?? run;
   const sleeper = options.sleeper ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const verbose = options.verbose ?? isVerboseMode({ env: options.env ?? process.env });
 
   // Deduplicate retries: if the outer orchestrator controls retry attempts,
   // inner qualification scripts must not loop internally (pass 1 attempt).
@@ -134,20 +136,26 @@ export async function qualifyDeployment(commitSha, options = {}) {
   for (let attempt = 1; attempt <= outerAttempts; attempt += 1) {
     try {
       runner("npm", ["run", "qualify:staging"], {
-        env: {
-          ...process.env,
-          STAGING_EXPECTED_VERSION: commitSha,
-          STAGING_QUALIFY_ATTEMPTS: String(effectiveInnerAttempts),
-          STAGING_QUALIFY_RETRY_MS: String(retryDelayMs),
-          STAGING_WORKER_URL: options.stagingWorkerUrl ?? stagingWorkerUrl,
-          ...(options.env ?? {}),
-        },
+        env: buildStepEnv(
+          {
+            ...process.env,
+            STAGING_EXPECTED_VERSION: commitSha,
+            STAGING_QUALIFY_ATTEMPTS: String(effectiveInnerAttempts),
+            STAGING_QUALIFY_RETRY_MS: String(retryDelayMs),
+            STAGING_WORKER_URL: options.stagingWorkerUrl ?? stagingWorkerUrl,
+            ...(options.env ?? {}),
+          },
+          { command: "npm", verbose },
+        ),
       });
       runner("npm", ["run", "qualify:staging:evidence", "--", "--anonymous"], {
-        env: {
-          ...process.env,
-          ...(options.env ?? {}),
-        },
+        env: buildStepEnv(
+          {
+            ...process.env,
+            ...(options.env ?? {}),
+          },
+          { command: "npm", verbose },
+        ),
       });
       return;
     } catch (error) {
@@ -202,7 +210,13 @@ export async function runReleaseGate(options = {}) {
   console.log(`Running the complete local release gate: ${cached.reason}.`);
   await (options.invalidateQualification ?? invalidateQualification)(options.root);
   await runner("npx", ["playwright", "install", "chromium"]);
-  await runner("npm", ["run", "check:release"]);
+  if (options.verbose) {
+    await runner("npm", ["run", "check:release"], {
+      env: { ...process.env, CHECK_VERBOSE: "1" },
+    });
+  } else {
+    await runner("npm", ["run", "check:release"]);
+  }
   const fresh = await readEvidence(lookupOptions);
   if (!fresh.receipt)
     throw new Error(`Release gate produced no reusable evidence: ${fresh.reason}.`);
@@ -230,6 +244,7 @@ export async function deployStaging(options = {}) {
   }
 
   applyReleaseBuildDefaults(process.env, options.env);
+  const verbose = options.verbose ?? isVerboseMode({ argv, env: options.env ?? process.env });
 
   console.log("Verifying clean, current main checkout...");
   const checkoutVerifier = options.verifyCheckout ?? verifyCheckout;
@@ -240,6 +255,7 @@ export async function deployStaging(options = {}) {
   const qualification = await releaseGateRunner({
     runner: options.runner ?? run,
     force: argv.includes("--force-release-checks"),
+    ...(verbose ? { verbose: true } : {}),
   });
   if (checkoutVerifier() !== commitSha)
     throw new Error("The release commit changed during checks.");
@@ -278,17 +294,20 @@ export async function deployStaging(options = {}) {
     previousVersionId = activeVersionId(statusRunner());
 
     console.log("Applying forward-only staging migrations and version-external triggers...");
-    wranglerRunner([
-      "d1",
-      "migrations",
-      "apply",
-      "CONTROL_DB",
-      "--config",
-      workerConfig,
-      "--env",
-      "staging",
-      "--remote",
-    ]);
+    wranglerRunner(
+      [
+        "d1",
+        "migrations",
+        "apply",
+        "CONTROL_DB",
+        "--config",
+        workerConfig,
+        "--env",
+        "staging",
+        "--remote",
+      ],
+      { capture: !verbose },
+    );
     await deployTriggersRunner("staging");
 
     console.log("Uploading the verified artifact as an inactive Worker version...");
@@ -321,7 +340,11 @@ export async function deployStaging(options = {}) {
     trafficShifted = true;
 
     console.log("Qualifying the exact deployed build...");
-    await qualifyRunner(commitSha);
+    if (verbose) {
+      await qualifyRunner(commitSha, { verbose: true });
+    } else {
+      await qualifyRunner(commitSha);
+    }
 
     const finalStatus = statusRunner();
     if (activeVersionId(finalStatus) !== uploadedId) {

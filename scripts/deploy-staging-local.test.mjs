@@ -214,12 +214,14 @@ describe("local staging deployment safeguards", () => {
       expect(runner).toHaveBeenCalledTimes(2);
       expect(recordedRuns[0].args).toEqual(["run", "qualify:staging"]);
       expect(recordedRuns[0].env?.STAGING_QUALIFY_ATTEMPTS).toBe("20");
+      expect(recordedRuns[0].env?.CHECK_COMPACT).toBe("1");
       expect(recordedRuns[1].args).toEqual([
         "run",
         "qualify:staging:evidence",
         "--",
         "--anonymous",
       ]);
+      expect(recordedRuns[1].env?.CHECK_COMPACT).toBe("1");
     });
 
     it("deduplicates retries by setting inner attempts to 1 when outerMaxAttempts is active", async () => {

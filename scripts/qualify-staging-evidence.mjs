@@ -1,3 +1,4 @@
+import { DEFAULT_HEARTBEAT_MS, isCompactMode } from "./check-step-runner.mjs";
 import {
   buildAnonymousProbeRows,
   buildProbePlan,
@@ -18,6 +19,7 @@ const organizationSlugs = (process.env.STAGING_ORG_SLUGS ?? "lcc,lmc")
 const sessionCookie = process.env.STAGING_SESSION_COOKIE?.trim();
 const planOnly = process.argv.includes("--plan-only");
 const anonymous = process.argv.includes("--anonymous");
+const compact = isCompactMode();
 
 if (!sessionCookie && !planOnly && !anonymous) {
   console.error(
@@ -82,7 +84,9 @@ if (anonymous) {
   const rows = buildAnonymousProbeRows(routes, organizationSlugs);
   const statusCounts = new Map();
   let failed = 0;
-  for (const row of rows) {
+  let lastProgressAt = Date.now();
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
     const url = `${hostFor(row, row.organizationSlug)}${materializeRoutePath(row.route)}`;
     const method = row.method;
     const result = await request(url, method);
@@ -92,11 +96,16 @@ if (anonymous) {
     const detail =
       result.error ?? `${String(result.status)}${result.code ? ` ${result.code}` : ""}`;
     const displayId = row.organizationSlug ? `${row.id}@${row.organizationSlug}` : row.id;
-    console.log(`${passed ? "PASS" : "FAIL"} ${displayId.padEnd(50)} ${detail}`);
+    if (!compact || !passed) {
+      console.log(`${passed ? "PASS" : "FAIL"} ${displayId.padEnd(50)} ${detail}`);
+    } else if (Date.now() - lastProgressAt >= DEFAULT_HEARTBEAT_MS) {
+      console.log(`  … anonymous boundary probes: ${String(i + 1)}/${String(rows.length)}`);
+      lastProgressAt = Date.now();
+    }
     if (!passed) failed += 1;
   }
   console.log(
-    `\nAnonymous staging boundary: ${String(routes.length)} API routes across ${String(organizationSlugs.length)} seeded Organization host(s); ${String(rows.length)} safe requests; statuses ${[
+    `${compact ? "" : "\n"}Anonymous staging boundary: ${String(routes.length)} API routes across ${String(organizationSlugs.length)} seeded Organization host(s); ${String(rows.length)} safe requests; ${String(failed)} failed; statuses ${[
       ...statusCounts.entries(),
     ]
       .sort(([left], [right]) => Number(left) - Number(right))
@@ -138,13 +147,14 @@ if (anonymous) {
   }
 
   for (const row of rows) {
+    if (!planOnly && compact && !row.result.startsWith("FAIL")) continue;
     console.log(
       `${row.result.padEnd(30)} ${row.id.padEnd(42)} ${row.kind.padEnd(18)} ${row.route}`,
     );
   }
   if (!planOnly) {
     console.log(
-      `\nStaging route evidence: ${String(summary.pass)} passed, ${String(summary.fail)} failed, ${String(summary.skip)} skipped across ${String(rows.length)} qualified API routes.`,
+      `${compact ? "" : "\n"}Staging route evidence: ${String(summary.pass)} passed, ${String(summary.fail)} failed, ${String(summary.skip)} skipped across ${String(rows.length)} qualified API routes.`,
     );
   }
   if (failed > 0) process.exitCode = 1;

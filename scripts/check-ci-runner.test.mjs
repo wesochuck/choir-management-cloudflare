@@ -150,4 +150,66 @@ describe("check:ci runner", () => {
     expect(calls).toEqual([]);
     expect(restoreManifest).toHaveBeenCalledTimes(1);
   });
+
+  it("omits redundant per-step checklist in compact mode when all steps pass", async () => {
+    const logs = [];
+    const errors = [];
+    const seenMeta = [];
+    const result = await runCheckCi({
+      compact: true,
+      dev: false,
+      log: {
+        error: (line) => errors.push(String(line)),
+        log: (line) => logs.push(String(line)),
+      },
+      restoreManifest: vi.fn(),
+      runAuditJson: async (meta) => {
+        seenMeta.push(meta);
+        return { ...PASSED_AUDIT };
+      },
+      runStep: async (_step, meta) => {
+        seenMeta.push(meta);
+      },
+      steps: STEPS,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(seenMeta).toEqual([
+      { index: 1, total: 3 },
+      { index: 2, total: 3 },
+      { index: 3, total: 3 },
+    ]);
+    const output = logs.join("\n");
+    expect(output).toContain("All 3 steps passed");
+    expect(output).not.toContain("Local CI mirror summary:");
+    expect(output).not.toContain("Dependency audit: PASSED");
+    expect(errors).toEqual([]);
+  });
+
+  it("still prints the summary checklist in compact mode when a step fails", async () => {
+    const logs = [];
+    const errors = [];
+    const result = await runCheckCi({
+      compact: true,
+      dev: false,
+      log: {
+        error: (line) => errors.push(String(line)),
+        log: (line) => logs.push(String(line)),
+      },
+      restoreManifest: vi.fn(),
+      runAuditJson: async () => ({ ...PASSED_AUDIT }),
+      runStep: async () => {
+        const error = new Error("failed");
+        error.status = 1;
+        error.alreadyPrinted = true;
+        throw error;
+      },
+      steps: STEPS,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(logs.join("\n")).toContain("Local CI mirror summary:");
+    expect(errors.join("\n")).not.toContain("failed with exit 1");
+    expect(errors.join("\n")).toContain("1/2 steps failed");
+  });
 });

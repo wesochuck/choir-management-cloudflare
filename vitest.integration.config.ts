@@ -12,6 +12,13 @@
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
+const isVerbose = process.env.CHECK_VERBOSE === "1" || process.env.CHECK_VERBOSE === "true";
+const isCompact =
+  !isVerbose &&
+  (process.env.CHECK_COMPACT === "1" ||
+    process.env.CHECK_COMPACT === "true" ||
+    !process.stdout.isTTY);
+
 export default defineConfig(async () => ({
   plugins: [
     cloudflareTest({
@@ -32,6 +39,7 @@ export default defineConfig(async () => ({
     // tests even outside CI. The key is omitted entirely otherwise so plain
     // integration runs keep the default local `.only` behavior.
     ...(process.env.RELEASE_QUALIFICATION === "1" ? { allowOnly: false } : {}),
+    ...(isCompact ? { reporters: ["agent"], silent: "passed-only" as const } : {}),
     exclude: ["**/node_modules/**", "**/dist/**"],
     fileParallelism: true,
     include: ["apps/**/*.integration.test.ts"],

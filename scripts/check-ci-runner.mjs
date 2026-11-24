@@ -17,9 +17,10 @@ export const AUDIT_STEP_LABEL = "Audit high-severity dependencies";
  * @param {object} options
  * @param {Array} options.steps non-audit check steps, in gate order
  * @param {() => Promise<object>} options.runAuditJson resolves the typed audit outcome
- * @param {(step: object) => Promise<void>} options.runStep rejects on step failure
+ * @param {(step: object, meta?: { index: number, total: number }) => Promise<void>} options.runStep rejects on step failure
  * @param {() => void} options.restoreManifest always runs, success or failure
  * @param {boolean} [options.dev] explicit development mode
+ * @param {boolean} [options.compact] compact mode: steps print their own 1-line status
  * @param {{ log: Function, error: Function }} [options.log]
  */
 export async function runCheckCi({
@@ -28,13 +29,15 @@ export async function runCheckCi({
   runStep,
   restoreManifest,
   dev = false,
+  compact = false,
   log = console,
 }) {
   const results = [];
+  const total = steps.length + 1;
   let auditOutcome;
   try {
     try {
-      auditOutcome = await runAuditJson();
+      auditOutcome = await runAuditJson({ index: 1, total });
       if (!auditOutcome || typeof auditOutcome.outcome !== "string") {
         auditOutcome = {
           attempts: 0,
@@ -51,7 +54,9 @@ export async function runCheckCi({
     }
 
     if (auditOutcome.outcome === "passed") {
-      log.log("Dependency audit: PASSED — verified clean at the high threshold.");
+      if (!compact) {
+        log.log("Dependency audit: PASSED — verified clean at the high threshold.");
+      }
       results.push({ job: "static", label: AUDIT_STEP_LABEL, ok: true });
     } else if (auditOutcome.outcome === "unverified_network") {
       log.error(
@@ -77,44 +82,49 @@ export async function runCheckCi({
         label: AUDIT_STEP_LABEL,
         ok: false,
       });
-      return finish({ auditOutcome, dev, log, results });
+      return finish({ auditOutcome, compact, dev, log, results });
     }
 
-    for (const step of steps) {
+    for (let i = 0; i < steps.length; i += 1) {
+      const step = steps[i];
       try {
-        await runStep(step);
+        await runStep(step, { index: i + 2, total });
         results.push({ ...step, ok: true });
       } catch (error) {
         results.push({ ...step, ok: false });
-        log.error(
-          `\n✗ ${step.label} failed with exit ${error?.status ?? error?.message ?? error}.`,
-        );
+        if (!error?.alreadyPrinted) {
+          log.error(
+            `\n✗ ${step.label} failed with exit ${error?.status ?? error?.message ?? error}.`,
+          );
+        }
         if (auditOutcome.outcome === "passed") break;
       }
     }
-    return finish({ auditOutcome, dev, log, results });
+    return finish({ auditOutcome, compact, dev, log, results });
   } finally {
     restoreManifest();
   }
 }
 
-function finish({ auditOutcome, dev, log, results }) {
+function finish({ auditOutcome, compact, dev, log, results }) {
   const failed = results.filter((result) => !result.ok);
   const nonAuditFailed = failed.filter((result) => result.label !== AUDIT_STEP_LABEL);
   const degraded = auditOutcome.outcome === "unverified_network";
   const ran = results.length;
   const jobs = [...new Set(results.map((result) => result.job))];
 
-  log.log("\nLocal CI mirror summary:");
-  for (const result of results) {
-    const marker = result.ok ? "✓" : "✗";
-    const extra =
-      !result.ok &&
-      result.label === AUDIT_STEP_LABEL &&
-      result.auditOutcome === "unverified_network"
-        ? " (UNVERIFIED — registry unavailable)"
-        : "";
-    log.log(`  ${marker} ${(result.job ?? "").padEnd(14)} ${result.label}${extra}`);
+  if (!compact || failed.length > 0) {
+    log.log("\nLocal CI mirror summary:");
+    for (const result of results) {
+      const marker = result.ok ? "✓" : "✗";
+      const extra =
+        !result.ok &&
+        result.label === AUDIT_STEP_LABEL &&
+        result.auditOutcome === "unverified_network"
+          ? " (UNVERIFIED — registry unavailable)"
+          : "";
+      log.log(`  ${marker} ${(result.job ?? "").padEnd(14)} ${result.label}${extra}`);
+    }
   }
 
   if (failed.length === 0) {

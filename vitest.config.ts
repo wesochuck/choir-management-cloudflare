@@ -1,5 +1,12 @@
 import { defineConfig } from "vitest/config";
 
+const isVerbose = process.env.CHECK_VERBOSE === "1" || process.env.CHECK_VERBOSE === "true";
+const isCompact =
+  !isVerbose &&
+  (process.env.CHECK_COMPACT === "1" ||
+    process.env.CHECK_COMPACT === "true" ||
+    !process.stdout.isTTY);
+
 export default defineConfig({
   test: {
     // RELEASE_QUALIFICATION=1 (set by `npm run check:release`) forbids focused
@@ -7,6 +14,10 @@ export default defineConfig({
     // `npm test` keeps the default local behavior (`.only` permitted for fast
     // dev iteration); an explicit `allowOnly: undefined` would override it.
     ...(process.env.RELEASE_QUALIFICATION === "1" ? { allowOnly: false } : {}),
+    // In compact/non-TTY runs (gate scripts, AI runners, pipes), use Vitest's
+    // built-in `agent` reporter so passing files and passing console logs are
+    // suppressed while failures still print full diffs, logs, and stack traces.
+    ...(isCompact ? { reporters: ["agent"], silent: "passed-only" as const } : {}),
     coverage: {
       enabled: false,
       provider: "v8",

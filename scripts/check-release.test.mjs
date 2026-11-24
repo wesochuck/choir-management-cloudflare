@@ -69,5 +69,27 @@ describe("check:release strictness", () => {
     expect(e2eCall.env.RELEASE_QUALIFICATION).toBe("1");
     const ciCall = seen.find((call) => call.args.includes("check:ci"));
     expect(ciCall.env.RELEASE_QUALIFICATION).toBe("1");
+    expect(ciCall.env.CHECK_COMPACT).toBe("1");
+    expect(e2eCall.env.CHECK_COMPACT).toBe("1");
+  });
+
+  it("propagates CHECK_VERBOSE=1 when verbose mode is explicitly requested", async () => {
+    const seen = [];
+    const root = mkdtempSync(join(tmpdir(), "check-release-test-"));
+    const result = await checkRelease({
+      argv: ["node", "check-release.mjs", "--verbose"],
+      env: {},
+      root,
+      runner: (command, args, options) => {
+        seen.push({ args, command, env: options?.env });
+        return undefined;
+      },
+    });
+    expect(result).toBe(true);
+    expect(seen).toHaveLength(2);
+    for (const call of seen) {
+      expect(call.env.CHECK_VERBOSE).toBe("1");
+      expect(call.env.CHECK_COMPACT).toBeUndefined();
+    }
   });
 });

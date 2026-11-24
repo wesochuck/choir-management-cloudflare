@@ -4,6 +4,12 @@ import { defineConfig, devices } from "@playwright/test";
 // fail full release qualification even outside CI. Plain `npm run test:e2e`
 // still permits `.only` locally for fast dev iteration.
 const isReleaseQualification = process.env.RELEASE_QUALIFICATION === "1";
+const isVerbose = process.env.CHECK_VERBOSE === "1" || process.env.CHECK_VERBOSE === "true";
+const isCompact =
+  !isVerbose &&
+  (process.env.CHECK_COMPACT === "1" ||
+    process.env.CHECK_COMPACT === "true" ||
+    !process.stdout.isTTY);
 
 // WebKit smoke tags (plan Phase 6). Tests whose title contains `@webkit-smoke`
 // form the small cross-browser smoke set: mobile navigation, music playback,
@@ -18,10 +24,12 @@ export default defineConfig({
   forbidOnly: isReleaseQualification || Boolean(process.env.CI),
   retries: isReleaseQualification || Boolean(process.env.CI) ? 2 : 0,
   reporter: isReleaseQualification
-    ? [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]]
+    ? [[isCompact ? "dot" : "list"], ["html", { outputFolder: "playwright-report", open: "never" }]]
     : process.env.CI
       ? "github"
-      : "list",
+      : isCompact
+        ? "dot"
+        : "list",
   use: {
     baseURL: "http://127.0.0.1:4173",
     screenshot: "only-on-failure",

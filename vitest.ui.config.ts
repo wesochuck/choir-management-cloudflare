@@ -1,5 +1,12 @@
 import { defineConfig } from "vitest/config";
 
+const isVerbose = process.env.CHECK_VERBOSE === "1" || process.env.CHECK_VERBOSE === "true";
+const isCompact =
+  !isVerbose &&
+  (process.env.CHECK_COMPACT === "1" ||
+    process.env.CHECK_COMPACT === "true" ||
+    !process.stdout.isTTY);
+
 // Phase 4 UI interaction layer (plan §4.12): browser-like component tests run
 // here under jsdom + React Testing Library. Pure domain/Worker tests stay in
 // vitest.config.ts (Node, no DOM) so they remain fast. UI behavior specs use
@@ -11,6 +18,7 @@ export default defineConfig({
     // `npm run test:ui` keeps the default local behavior (`.only` permitted for
     // fast dev iteration); an explicit `allowOnly: undefined` would override it.
     ...(process.env.RELEASE_QUALIFICATION === "1" ? { allowOnly: false } : {}),
+    ...(isCompact ? { reporters: ["agent"], silent: "passed-only" as const } : {}),
     environment: "jsdom",
     setupFiles: ["./vitest.ui.setup.ts"],
     exclude: ["**/node_modules/**", "**/dist/**"],
