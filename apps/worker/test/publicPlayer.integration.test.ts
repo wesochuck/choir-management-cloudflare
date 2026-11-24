@@ -404,7 +404,7 @@ describe("public player signed flow", () => {
     const alphaStub = stores.get(stores.idFromName("organization-alpha"));
     await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
       state.storage.sql.exec(
-        "UPDATE organization_metadata SET logo_file_id = ? WHERE organization_id = ?",
+        "UPDATE organization_metadata SET logo_file_id = ?, logo_verified_content_type = 'image/png' WHERE organization_id = ?",
         logoFileId,
         "organization-alpha",
       );

@@ -9,7 +9,7 @@ import {
 import { usePersistedDraft } from "../persistence";
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 function getInitials(name: string | undefined): string {
   if (!name) return "CM";
@@ -167,7 +167,7 @@ export function OrganizationBrandingPanel() {
     if (!file) return;
 
     if (!ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) {
-      setError("Please select a valid image file (PNG, JPEG, WebP, or SVG).");
+      setError("Please select a valid image file (PNG, JPEG, or WebP).");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -305,7 +305,7 @@ export function OrganizationBrandingPanel() {
                 ) : null}
               </div>
               <span style={{ color: "var(--color-text-muted, #687078)", fontSize: "0.85rem" }}>
-                Supported formats: PNG, JPEG, WebP, SVG (max 5MB).
+                Supported formats: PNG, JPEG, WebP (max 5MB).
               </span>
             </div>
           </div>

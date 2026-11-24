@@ -64,15 +64,20 @@ export function privateFileDownloadResponse(file: PrivateFileReadResult): Respon
 }
 
 export const ALLOWED_ARTWORK_MIME_TYPES = new Set(["application/pdf", "image/png", "image/jpeg"]);
+export const MAX_PUBLIC_LOGO_BYTES = 5 * 1024 * 1024;
+export const ALLOWED_PUBLIC_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+export type VerifiedPublicLogoMimeType = "image/jpeg" | "image/png" | "image/webp";
 
 const PDF_HEADER = [0x25, 0x50, 0x44, 0x46] as const;
 const PNG_HEADER = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const;
 const JPEG_HEADER = [0xff, 0xd8, 0xff] as const;
+const RIFF_HEADER = [0x52, 0x49, 0x46, 0x46] as const;
+const WEBP_BRAND = [0x57, 0x45, 0x42, 0x50] as const;
 
-function matchesHeader(bytes: Uint8Array, header: readonly number[]): boolean {
-  if (bytes.length < header.length) return false;
+function matchesHeader(bytes: Uint8Array, header: readonly number[], offset = 0): boolean {
+  if (bytes.length < offset + header.length) return false;
   for (let i = 0; i < header.length; i++) {
-    if (bytes[i] !== header[i]) return false;
+    if (bytes[offset + i] !== header[i]) return false;
   }
   return true;
 }
@@ -84,4 +89,19 @@ export function sniffArtworkMimeType(
   if (matchesHeader(bytes, PNG_HEADER)) return "image/png";
   if (matchesHeader(bytes, JPEG_HEADER)) return "image/jpeg";
   return null;
+}
+
+export function sniffPublicLogoMimeType(bytes: Uint8Array): VerifiedPublicLogoMimeType | null {
+  if (matchesHeader(bytes, PNG_HEADER)) return "image/png";
+  if (matchesHeader(bytes, JPEG_HEADER)) return "image/jpeg";
+  if (matchesHeader(bytes, RIFF_HEADER, 0) && matchesHeader(bytes, WEBP_BRAND, 8)) {
+    return "image/webp";
+  }
+  return null;
+}
+
+export function isVerifiedPublicLogoMimeType(
+  value: string | null | undefined,
+): value is VerifiedPublicLogoMimeType {
+  return value === "image/png" || value === "image/jpeg" || value === "image/webp";
 }

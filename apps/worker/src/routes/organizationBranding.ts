@@ -7,7 +7,7 @@ import type { Hono } from "hono";
 
 import { validateStartupConfig } from "../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
-import { readPrivateOrganizationFile } from "../storage/privateFiles";
+import { readVerifiedLogoImage, verifyPublicLogoCandidate } from "../storage/publicLogo";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
 import { authorizeCalendarRoute } from "./helpers";
 import type { WorkerHonoEnvironment } from "./helpers";
@@ -74,12 +74,38 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      let logoVerifiedContentType: "image/jpeg" | "image/png" | "image/webp" | null | undefined;
+      if ("logoFileId" in parsed.data) {
+        if (parsed.data.logoFileId) {
+          const verified = await verifyPublicLogoCandidate(
+            context.env,
+            authorization.organizationId,
+            parsed.data.logoFileId,
+          );
+          if (!verified.ok) {
+            return context.json(
+              {
+                code: "invalid_logo_image",
+                message: "Organization logos must be valid PNG, JPEG, or WebP images up to 5 MB.",
+                requestId: context.get("requestId"),
+              } satisfies ProblemDetails,
+              400,
+            );
+          }
+          logoVerifiedContentType = verified.verifiedContentType;
+        } else {
+          logoVerifiedContentType = null;
+        }
+      }
       const stub = organizationStoreStub(context.env, authorization.organizationId);
       const response = await invokeOrganizationRpc(
         stub,
         `https://organization.internal/internal/branding/manage?organizationId=${encodeURIComponent(authorization.organizationId)}`,
         {
-          body: JSON.stringify(parsed.data),
+          body: JSON.stringify({
+            ...parsed.data,
+            ...(logoVerifiedContentType !== undefined ? { logoVerifiedContentType } : {}),
+          }),
           headers: { "content-type": "application/json" },
           method: "POST",
         },
@@ -87,11 +113,14 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       if (!response.ok) {
         return context.json(
           {
-            code: "service_unavailable",
-            message: "Branding settings could not be saved.",
+            code: response.status === 400 ? "invalid_logo_image" : "service_unavailable",
+            message:
+              response.status === 400
+                ? "Organization logos must be valid PNG, JPEG, or WebP images up to 5 MB."
+                : "Branding settings could not be saved.",
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
-          503,
+          response.status === 400 ? 400 : 503,
         );
       }
       const data = organizationBrandingSchema.parse(await response.json());
@@ -123,22 +152,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     try {
       const stub = organizationStoreStub(context.env, resolved.value.organizationId);
-      const brandingResponse = await invokeOrganizationRpc(
-        stub,
-        "https://organization.internal/internal/branding",
-      );
-      if (!brandingResponse.ok) {
-        return context.json(
-          {
-            code: "not_found",
-            message: "No Organization logo was found.",
-            requestId: context.get("requestId"),
-          } satisfies ProblemDetails,
-          404,
-        );
-      }
-      const branding = organizationBrandingSchema.safeParse(await brandingResponse.json());
-      if (!branding.success || !branding.data.logoFileId) {
+      const logoRef = await stub.readVerifiedOrganizationLogo(resolved.value.organizationId);
+      if (!logoRef.logoFileId || !logoRef.logoVerifiedContentType) {
         return context.json(
           {
             code: "not_found",
@@ -148,13 +163,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           404,
         );
       }
-      const file = await readPrivateOrganizationFile(
+      const logo = await readVerifiedLogoImage(
         context.env,
         resolved.value.organizationId,
-        branding.data.logoFileId,
-        context.req.header("range") ?? null,
+        logoRef.logoFileId,
+        logoRef.logoVerifiedContentType,
       );
-      if (!file) {
+      if (!logo) {
         return context.json(
           {
             code: "not_found",
@@ -164,17 +179,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           404,
         );
       }
-      context.header("etag", file.object.httpEtag);
+      context.header("etag", logo.etag);
       context.header("vary", "Host");
       context.header("cache-control", "public, max-age=3600, stale-while-revalidate=86400");
-      if (context.req.header("if-none-match") === file.object.httpEtag) {
+      context.header("content-disposition", "inline");
+      context.header("x-content-type-options", "nosniff");
+      if (context.req.header("if-none-match") === logo.etag) {
         return context.body(null, 304);
       }
-      context.header(
-        "content-type",
-        file.object.httpMetadata?.contentType ?? file.metadata.contentType,
-      );
-      return context.body(file.object.body);
+      context.header("content-type", logo.verifiedContentType);
+      return context.body(logo.bytes);
     } catch {
       return context.json(
         {

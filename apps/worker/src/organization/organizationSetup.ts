@@ -10,6 +10,7 @@ import {
 
 import type { Env } from "../env";
 import { mutateOrganizationStore, readOrganizationStore, storeErrorCode } from "./rpc/repository";
+import { verifyPublicLogoCandidate } from "../storage/publicLogo";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -61,11 +62,28 @@ export async function claimSetup(
 }
 
 export async function saveSetupProgress(
-  env: Pick<Env, "ORGANIZATION_STORE">,
+  env: Pick<Env, "ORGANIZATION_FILES" | "ORGANIZATION_STORE">,
   actor: ActorContext,
   progress: SetupProgressRequest,
 ): Promise<{ readonly saved: boolean }> {
   const validatedProgress = setupProgressRequestSchema.parse(progress);
+  let logoVerifiedContentType: "image/jpeg" | "image/png" | "image/webp" | null | undefined;
+  if (validatedProgress.data && "logoFileId" in validatedProgress.data) {
+    const rawLogoFileId = validatedProgress.data.logoFileId;
+    if (typeof rawLogoFileId === "string" && rawLogoFileId.trim().length > 0) {
+      const verified = await verifyPublicLogoCandidate(env, actor.organizationId, rawLogoFileId);
+      if (!verified.ok) {
+        throw new SetupError(
+          "invalid_logo_image",
+          400,
+          "Organization logos must be valid PNG, JPEG, or WebP images up to 5 MB.",
+        );
+      }
+      logoVerifiedContentType = verified.verifiedContentType;
+    } else {
+      logoVerifiedContentType = null;
+    }
+  }
   const response = await mutateOrganizationStore(
     env,
     actor.organizationId,
@@ -75,6 +93,7 @@ export async function saveSetupProgress(
       ...actor,
       step: validatedProgress.step,
       data: validatedProgress.data,
+      ...(logoVerifiedContentType !== undefined ? { logoVerifiedContentType } : {}),
     },
   );
   if (!response.ok) {

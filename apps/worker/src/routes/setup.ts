@@ -71,7 +71,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           message: error instanceof SetupError ? error.message : "Setup could not be claimed.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
-        error instanceof SetupError && error.status === 409 ? 409 : 503,
+        error instanceof SetupError && (error.status === 400 || error.status === 409)
+          ? error.status
+          : 503,
       );
     }
   });
@@ -116,7 +118,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             error instanceof SetupError ? error.message : "Setup progress could not be saved.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
-        error instanceof SetupError && error.status === 409 ? 409 : 503,
+        error instanceof SetupError && (error.status === 400 || error.status === 409)
+          ? error.status
+          : 503,
       );
     }
   });
@@ -143,7 +147,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           message: error instanceof SetupError ? error.message : "Setup could not be completed.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
-        error instanceof SetupError && error.status === 409 ? 409 : 503,
+        error instanceof SetupError && (error.status === 400 || error.status === 409)
+          ? error.status
+          : 503,
       );
     }
   });

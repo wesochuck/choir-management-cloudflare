@@ -167,6 +167,7 @@ import {
   schedulePaymentFeeReconciliationInStore,
 } from "./feeReconciliation";
 import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
+import { readVerifiedLogoFromStore } from "./brandingStore";
 import { clearUnsuccessfulEventReminderMarkers } from "./schedulingStore";
 import { canMemberReadPrivateFileFromStore } from "./organizationStore/files";
 import {
@@ -271,6 +272,10 @@ export class OrganizationStore extends DurableObject {
     input: Parameters<typeof canMemberReadPrivateFileFromStore>[1],
   ): boolean {
     return canMemberReadPrivateFileFromStore(this.ctx.storage, input);
+  }
+
+  readVerifiedOrganizationLogo(organizationId: string) {
+    return readVerifiedLogoFromStore(this.ctx.storage, organizationId);
   }
 
   reservePendingSponsorArtwork(input: Parameters<typeof reservePendingSponsorArtworkInStore>[1]) {

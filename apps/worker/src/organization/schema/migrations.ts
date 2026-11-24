@@ -2616,6 +2616,10 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        WHERE donation_id IS NULL`,
     ],
   },
+  {
+    version: 147,
+    statements: ["ALTER TABLE organization_metadata ADD COLUMN logo_verified_content_type TEXT"],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -12,12 +12,14 @@ import {
   writeJson,
 } from "@choir/testkit";
 import { env, exports } from "cloudflare:workers";
-import { applyD1Migrations, reset } from "cloudflare:test";
+import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 import {
   clearCapturedPlatformEmailsForTest,
   readCapturedPlatformEmailsForTest,
 } from "../src/auth/platformEmail";
+import { renderTestEmailPayload } from "../src/organization/organizationCommunications";
+import type { OrganizationStore } from "../src/organization/OrganizationStore";
 
 const USER_EMAIL = "branding.manager@example.test";
 const LOGO_FILE_ID = "88888888-8888-4888-8888-888888888888";
@@ -143,5 +145,188 @@ describe("Organization branding and public logo endpoint", () => {
       cookie,
     );
     expect(forbiddenUpdate.status).toBe(403);
+  });
+
+  it("rejects HTML, SVG, mislabeled bytes, and unverified legacy logo references while serving verified raster images (SEC-08)", async () => {
+    const cookie = await signIn();
+
+    const uploadFile = async (
+      fileId: string,
+      fileName: string,
+      contentType: string,
+      bytes: Uint8Array<ArrayBuffer>,
+    ) => {
+      const response = await exports.default.fetch(
+        api("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+          body: bytes,
+          headers: {
+            "content-length": String(bytes.byteLength),
+            "content-type": contentType,
+            "x-file-name": encodeURIComponent(fileName),
+          },
+          method: "PUT",
+        }),
+      );
+      expect(response.status).toBe(201);
+    };
+
+    const toArrayBufferBytes = (text: string): Uint8Array<ArrayBuffer> => {
+      const encoded = new TextEncoder().encode(text);
+      const copy = new Uint8Array(new ArrayBuffer(encoded.byteLength));
+      copy.set(encoded);
+      return copy;
+    };
+
+    const htmlFileId = "88888888-8888-4888-8888-888888888801";
+    const svgFileId = "88888888-8888-4888-8888-888888888802";
+    const mislabeledHtmlFileId = "88888888-8888-4888-8888-888888888803";
+    const mislabeledPngAsJpegId = "88888888-8888-4888-8888-888888888804";
+    const webpFileId = "88888888-8888-4888-8888-888888888805";
+    const jpegFileId = "88888888-8888-4888-8888-888888888806";
+
+    await uploadFile(
+      htmlFileId,
+      "poc.html",
+      "text/html",
+      toArrayBufferBytes("<!doctype html><h1>Injected</h1>"),
+    );
+    await uploadFile(
+      svgFileId,
+      "logo.svg",
+      "image/svg+xml",
+      toArrayBufferBytes('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+    );
+    await uploadFile(
+      mislabeledHtmlFileId,
+      "fake.png",
+      "image/png",
+      toArrayBufferBytes("<html><body>not a png</body></html>"),
+    );
+    const pngBytes = new Uint8Array(new ArrayBuffer(8));
+    pngBytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    await uploadFile(mislabeledPngAsJpegId, "wrong.jpg", "image/jpeg", pngBytes);
+
+    // 1. PUT /api/organization/branding rejects HTML, SVG, and mislabeled bytes.
+    for (const badFileId of [htmlFileId, svgFileId, mislabeledHtmlFileId, mislabeledPngAsJpegId]) {
+      const rejected = await jsonWrite(
+        "alpha.localhost",
+        "/api/organization/branding",
+        "PUT",
+        { logoFileId: badFileId },
+        cookie,
+      );
+      expect(rejected.status).toBe(400);
+      expect(await rejected.json()).toMatchObject({ code: "invalid_logo_image" });
+    }
+
+    // 2. POST /api/setup/progress also rejects HTML/SVG/mislabeled logoFileId.
+    const setupRejected = await jsonWrite(
+      "alpha.localhost",
+      "/api/setup/progress",
+      "POST",
+      { data: { logoFileId: htmlFileId }, step: "branding" },
+      cookie,
+    );
+    expect(setupRejected.status).toBe(400);
+    expect(await setupRejected.json()).toMatchObject({ code: "invalid_logo_image" });
+
+    // 3. Unverified legacy references in organization_metadata are refused at read time (404).
+    const alphaStub = stores.get(stores.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE organization_metadata SET logo_file_id = ?, logo_verified_content_type = NULL WHERE organization_id = 'organization-alpha'",
+        htmlFileId,
+      );
+      return null;
+    });
+    const legacyHtmlRes = await exports.default.fetch(api("alpha.localhost", "/api/public/logo"));
+    expect(legacyHtmlRes.status).toBe(404);
+
+    // Even if a legacy row points to a valid PNG without logo_verified_content_type, refuse it.
+    await uploadFile(LOGO_FILE_ID, "legacy.png", "image/png", pngBytes);
+    await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE organization_metadata SET logo_file_id = ?, logo_verified_content_type = NULL WHERE organization_id = 'organization-alpha'",
+        LOGO_FILE_ID,
+      );
+      return null;
+    });
+    const legacyUnverifiedPngRes = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/logo"),
+    );
+    expect(legacyUnverifiedPngRes.status).toBe(404);
+
+    // Even if logo_verified_content_type were forged to image/png for mislabeled HTML bytes, read-time sniff refuses it.
+    await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE organization_metadata SET logo_file_id = ?, logo_verified_content_type = 'image/png' WHERE organization_id = 'organization-alpha'",
+        mislabeledHtmlFileId,
+      );
+      return null;
+    });
+    const forgedMislabeledRes = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/logo"),
+    );
+    expect(forgedMislabeledRes.status).toBe(404);
+
+    // 4. Valid JPEG and WebP logos succeed and render across shell, public site, and email.
+    const jpegBytes = new Uint8Array(new ArrayBuffer(6));
+    jpegBytes.set([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+    await uploadFile(jpegFileId, "logo.jpg", "image/jpeg", jpegBytes);
+    const saveJpeg = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/branding",
+      "PUT",
+      { logoFileId: jpegFileId },
+      cookie,
+    );
+    expect(saveJpeg.status).toBe(200);
+    const publicJpeg = await exports.default.fetch(api("alpha.localhost", "/api/public/logo"));
+    expect(publicJpeg.status).toBe(200);
+    expect(publicJpeg.headers.get("content-type")).toBe("image/jpeg");
+    expect(publicJpeg.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(new Uint8Array(await publicJpeg.arrayBuffer())).toEqual(jpegBytes);
+
+    const webpBytes = new Uint8Array(new ArrayBuffer(12));
+    webpBytes.set([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]);
+    await uploadFile(webpFileId, "logo.webp", "image/webp", webpBytes);
+    const saveWebp = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/branding",
+      "PUT",
+      { logoFileId: webpFileId },
+      cookie,
+    );
+    expect(saveWebp.status).toBe(200);
+    const publicWebp = await exports.default.fetch(api("alpha.localhost", "/api/public/logo"));
+    expect(publicWebp.status).toBe(200);
+    expect(publicWebp.headers.get("content-type")).toBe("image/webp");
+    expect(new Uint8Array(await publicWebp.arrayBuffer())).toEqual(webpBytes);
+
+    // Authenticated shell branding, public site projection, and email rendering all resolve the verified logo.
+    const shellBranding = organizationBrandingSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/branding", cookie))
+      ).json(),
+    );
+    expect(shellBranding.logoFileId).toBe(webpFileId);
+
+    const commerceProjection = publishedOrganizationProjectionSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/public/commerce-projection"))
+      ).json(),
+    );
+    expect(commerceProjection.payload.settings.logoFileId).toBe(webpFileId);
+
+    const renderedEmail = renderTestEmailPayload({
+      baseDomain: "alpha.localhost",
+      branding: { logoFileId: shellBranding.logoFileId, organizationName: "Organization alpha" },
+      contentMarkdown: "{organizationLogo}",
+      event: null,
+      fromName: "Organization alpha",
+      subject: "Hello",
+      timezone: "America/New_York",
+    });
+    expect(renderedEmail.templatedContent).toContain("https://alpha.localhost/api/public/logo");
   });
 });

@@ -318,12 +318,21 @@ export function SetupView() {
                   </div>
                   <div>
                     <input
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      accept="image/png,image/jpeg,image/webp"
                       disabled={uploadingLogo || busy}
                       id="setup-org-logo-input"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
+                        if (
+                          !["image/png", "image/jpeg", "image/webp"].includes(
+                            file.type.toLowerCase(),
+                          )
+                        ) {
+                          setMessage("Please select a valid image file (PNG, JPEG, or WebP).");
+                          if (logoInputRef.current) logoInputRef.current.value = "";
+                          return;
+                        }
                         if (file.size > 5 * 1024 * 1024) {
                           setMessage("Logo file size must not exceed 5MB.");
                           if (logoInputRef.current) logoInputRef.current.value = "";

@@ -26,6 +26,7 @@ const saveProgressOperationSchema = z.object({
   organizationId: z.string().min(1).max(128),
   step: z.string().min(1),
   data: z.record(z.string(), z.unknown()).optional(),
+  logoVerifiedContentType: z.enum(["image/png", "image/jpeg", "image/webp"]).nullable().optional(),
 });
 
 const completeSetupOperationSchema = z.object({
@@ -166,6 +167,39 @@ function applyThemeData(
   return result;
 }
 
+function applySetupBrandingMetadata(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof saveProgressOperationSchema>,
+  now: string,
+): void {
+  if (operation.data && "logoFileId" in operation.data) {
+    const logoFileId =
+      typeof operation.data.logoFileId === "string" && operation.data.logoFileId.length > 0
+        ? operation.data.logoFileId
+        : null;
+    const verifiedContentType = logoFileId ? (operation.logoVerifiedContentType ?? null) : null;
+    storage.sql.exec(
+      "UPDATE organization_metadata SET logo_file_id = ?, logo_verified_content_type = ?, updated_at = ? WHERE organization_id = ?",
+      logoFileId,
+      verifiedContentType,
+      now,
+      operation.organizationId,
+    );
+  }
+  if (operation.data && "physicalAddress" in operation.data) {
+    const physicalAddress =
+      typeof operation.data.physicalAddress === "string"
+        ? operation.data.physicalAddress.trim()
+        : "";
+    storage.sql.exec(
+      "UPDATE organization_metadata SET physical_address = ?, updated_at = ? WHERE organization_id = ?",
+      physicalAddress,
+      now,
+      operation.organizationId,
+    );
+  }
+}
+
 function saveProgressUpdate(
   storage: DurableObjectStorage,
   operation: z.infer<typeof saveProgressOperationSchema>,
@@ -199,28 +233,7 @@ function saveProgressUpdate(
     now,
     operation.organizationId,
   );
-  if (operation.data && "logoFileId" in operation.data) {
-    const logoFileId =
-      typeof operation.data.logoFileId === "string" ? operation.data.logoFileId : null;
-    storage.sql.exec(
-      "UPDATE organization_metadata SET logo_file_id = ?, updated_at = ? WHERE organization_id = ?",
-      logoFileId,
-      now,
-      operation.organizationId,
-    );
-  }
-  if (operation.data && "physicalAddress" in operation.data) {
-    const physicalAddress =
-      typeof operation.data.physicalAddress === "string"
-        ? operation.data.physicalAddress.trim()
-        : "";
-    storage.sql.exec(
-      "UPDATE organization_metadata SET physical_address = ?, updated_at = ? WHERE organization_id = ?",
-      physicalAddress,
-      now,
-      operation.organizationId,
-    );
-  }
+  applySetupBrandingMetadata(storage, operation, now);
 }
 
 function saveProgressInsert(
@@ -247,28 +260,7 @@ function saveProgressInsert(
     now,
     now,
   );
-  if (operation.data && "logoFileId" in operation.data) {
-    const logoFileId =
-      typeof operation.data.logoFileId === "string" ? operation.data.logoFileId : null;
-    storage.sql.exec(
-      "UPDATE organization_metadata SET logo_file_id = ?, updated_at = ? WHERE organization_id = ?",
-      logoFileId,
-      now,
-      operation.organizationId,
-    );
-  }
-  if (operation.data && "physicalAddress" in operation.data) {
-    const physicalAddress =
-      typeof operation.data.physicalAddress === "string"
-        ? operation.data.physicalAddress.trim()
-        : "";
-    storage.sql.exec(
-      "UPDATE organization_metadata SET physical_address = ?, updated_at = ? WHERE organization_id = ?",
-      physicalAddress,
-      now,
-      operation.organizationId,
-    );
-  }
+  applySetupBrandingMetadata(storage, operation, now);
 }
 
 function saveProgress(
@@ -289,6 +281,15 @@ function saveProgress(
     .toArray()
     .at(0);
 
+  if (
+    operation.data &&
+    "logoFileId" in operation.data &&
+    typeof operation.data.logoFileId === "string" &&
+    operation.data.logoFileId.length > 0 &&
+    !operation.logoVerifiedContentType
+  ) {
+    return Response.json({ code: "invalid_logo_image" }, { status: 400 });
+  }
   if (existing) {
     saveProgressUpdate(storage, operation, existing, now);
   } else {
