@@ -411,6 +411,9 @@ export {
 export { timestampedExportFilename } from "./exportFilename";
 export {
   digitalScoreFileName,
+  memberCanAccessPiece,
+  memberCanAccessScoreFile,
+  resolveEffectiveSetList,
   resolveMemberScoreFile,
   scoreDescription,
   SCORE_BUNDLE_MAX_BYTES,
@@ -418,6 +421,9 @@ export {
   SCORE_MIME_TYPE,
   STANDARD_SCORE_KEYS,
   type ResolvedPieceScore,
+  type ScoreAccessEvent,
+  type ScoreAccessPiece,
+  type ScoreAccessSetListItem,
 } from "./digitalScore";
 
 export * from "./practiceTrackMatching";

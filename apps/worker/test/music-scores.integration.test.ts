@@ -194,6 +194,139 @@ describe("Organization music digital scores", () => {
       api("alpha.localhost", `/api/singer/events/${event.id}/scores/bundle`, memberCookie),
     );
     expect(bundleRes.status).toBe(403);
+
+    // Generic file download must enforce the same score policy (both full and range reads).
+    const genericUnapprovedRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${scoreFileId}`, memberCookie),
+    );
+    expect(genericUnapprovedRes.status).toBe(404);
+
+    const genericUnapprovedRangeRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${scoreFileId}`, memberCookie, {
+        headers: { range: "bytes=0-4" },
+      }),
+    );
+    expect(genericUnapprovedRangeRes.status).toBe(404);
+
+    // Admins retain direct access to unapproved scores.
+    const adminDirectRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${scoreFileId}`, adminCookie),
+    );
+    expect(adminDirectRes.status).toBe(200);
+
+    // Authorized ordinary resources remain readable by members (full and range reads).
+    const resourceBytes = new TextEncoder().encode("%PDF-1.4 member handbook");
+    const resourceFileId = "77777777-7777-4777-8777-777777777777";
+    const resourceUploadRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${resourceFileId}`, adminCookie, {
+        body: resourceBytes,
+        headers: {
+          "content-length": String(resourceBytes.byteLength),
+          "content-type": "application/pdf",
+          "x-file-name": encodeURIComponent("Member Handbook.pdf"),
+        },
+        method: "PUT",
+      }),
+    );
+    expect(resourceUploadRes.status).toBe(201);
+    const resourceCreateRes = await write(
+      "alpha.localhost",
+      "/api/organization/resources",
+      adminCookie,
+      {
+        fileId: resourceFileId,
+        sortOrder: 0,
+        title: "Member Handbook",
+        url: null,
+      },
+    );
+    expect(resourceCreateRes.status).toBe(201);
+
+    const memberResourceRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${resourceFileId}`, memberCookie),
+    );
+    expect(memberResourceRes.status).toBe(200);
+    expect(await memberResourceRes.text()).toBe("%PDF-1.4 member handbook");
+
+    const memberResourceRangeRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${resourceFileId}`, memberCookie, {
+        headers: { range: "bytes=0-4" },
+      }),
+    );
+    expect(memberResourceRangeRes.status).toBe(206);
+    expect(await memberResourceRangeRes.text()).toBe("%PDF-");
+
+    // Once the set list is approved, both download paths allow the member (including range reads).
+    const approveRes = await write(
+      "alpha.localhost",
+      `/api/organization/events/${event.id}`,
+      adminCookie,
+      {
+        rsvpDeadlineDate: "2030-01-01",
+        setList: [{ composer: "Anon", pieceId: piece.id, title: "Unapproved Anthem" }],
+        setListApproved: true,
+        startsAt: "2026-12-01T19:00:00.000Z",
+        title: "Draft Concert",
+        type: "Performance",
+        venueId,
+      },
+      "PUT",
+    );
+    expect(approveRes.status).toBe(200);
+
+    const approvedSingerRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/pieces/${piece.id}/score`, memberCookie),
+    );
+    expect(approvedSingerRes.status).toBe(200);
+
+    const approvedGenericRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${scoreFileId}`, memberCookie),
+    );
+    expect(approvedGenericRes.status).toBe(200);
+    expect(await approvedGenericRes.text()).toBe("%PDF-1.4 unapproved score");
+
+    const approvedGenericRangeRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${scoreFileId}`, memberCookie, {
+        headers: { range: "bytes=0-4" },
+      }),
+    );
+    expect(approvedGenericRangeRes.status).toBe(206);
+    expect(await approvedGenericRangeRes.text()).toBe("%PDF-");
+
+    // Withdrawing approval revokes access on both paths immediately.
+    const withdrawRes = await write(
+      "alpha.localhost",
+      `/api/organization/events/${event.id}`,
+      adminCookie,
+      {
+        rsvpDeadlineDate: "2030-01-01",
+        setList: [{ composer: "Anon", pieceId: piece.id, title: "Unapproved Anthem" }],
+        setListApproved: false,
+        startsAt: "2026-12-01T19:00:00.000Z",
+        title: "Draft Concert",
+        type: "Performance",
+        venueId,
+      },
+      "PUT",
+    );
+    expect(withdrawRes.status).toBe(200);
+
+    const revokedSingerRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/pieces/${piece.id}/score`, memberCookie),
+    );
+    expect(revokedSingerRes.status).toBe(403);
+
+    const revokedGenericRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${scoreFileId}`, memberCookie),
+    );
+    expect(revokedGenericRes.status).toBe(404);
+
+    const revokedGenericRangeRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${scoreFileId}`, memberCookie, {
+        headers: { range: "bytes=0-4" },
+      }),
+    );
+    expect(revokedGenericRangeRes.status).toBe(404);
   });
 
   it("rejects unauthenticated score access and cross-organization piece lookups", async () => {

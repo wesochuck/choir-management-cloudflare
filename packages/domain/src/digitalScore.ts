@@ -137,3 +137,108 @@ export function resolveMemberScoreFile(
 
   return null;
 }
+
+export interface ScoreAccessSetListItem {
+  readonly pieceId?: string | undefined;
+}
+
+export interface ScoreAccessEvent {
+  readonly id: string;
+  readonly isCanceled: boolean;
+  readonly parentPerformanceId: string | null;
+  readonly setList: readonly ScoreAccessSetListItem[];
+  readonly setListApproved: boolean;
+  readonly type: string;
+}
+
+export interface ScoreAccessPiece {
+  readonly id: string;
+  readonly parentId: string | null;
+  readonly scoreFileIds: Readonly<Record<string, string>>;
+}
+
+function isScoreAccessEventMap<TEvent extends ScoreAccessEvent>(
+  events: readonly TEvent[] | ReadonlyMap<string, TEvent>,
+): events is ReadonlyMap<string, TEvent> {
+  return !Array.isArray(events);
+}
+
+export function resolveEffectiveSetList<TEvent extends ScoreAccessEvent>(
+  targetEvent: TEvent,
+  events: readonly TEvent[] | ReadonlyMap<string, TEvent>,
+): {
+  readonly effectiveApproved: boolean;
+  readonly effectiveSetList: TEvent["setList"];
+} {
+  let effectiveSetList = targetEvent.setList;
+  let effectiveApproved = targetEvent.setListApproved;
+  if (targetEvent.type === "Rehearsal" && !effectiveApproved && targetEvent.parentPerformanceId) {
+    const parentEvent = isScoreAccessEventMap(events)
+      ? events.get(targetEvent.parentPerformanceId)
+      : events.find((event) => event.id === targetEvent.parentPerformanceId);
+    if (parentEvent?.setListApproved && !parentEvent.isCanceled) {
+      effectiveSetList = parentEvent.setList;
+      effectiveApproved = true;
+    }
+  }
+  return { effectiveApproved, effectiveSetList };
+}
+
+function collectApprovedScorePieceIds(events: readonly ScoreAccessEvent[]): Set<string> {
+  const eventsById = new Map(events.map((event) => [event.id, event]));
+  const approvedPieceIds = new Set<string>();
+  for (const event of events) {
+    if (event.isCanceled) continue;
+    const { effectiveApproved, effectiveSetList } = resolveEffectiveSetList(event, eventsById);
+    if (!effectiveApproved) continue;
+    for (const item of effectiveSetList) {
+      if (item.pieceId) {
+        approvedPieceIds.add(item.pieceId);
+      }
+    }
+  }
+  return approvedPieceIds;
+}
+
+export function memberCanAccessPiece(
+  piece: Pick<ScoreAccessPiece, "id" | "parentId">,
+  events: readonly ScoreAccessEvent[],
+): boolean {
+  const approvedPieceIds = collectApprovedScorePieceIds(events);
+  return (
+    approvedPieceIds.has(piece.id) ||
+    (piece.parentId !== null && approvedPieceIds.has(piece.parentId))
+  );
+}
+
+export function memberCanAccessScoreFile(
+  fileId: string,
+  pieces: readonly ScoreAccessPiece[],
+  events: readonly ScoreAccessEvent[],
+): boolean {
+  const approvedPieceIds = collectApprovedScorePieceIds(events);
+  if (approvedPieceIds.size === 0) return false;
+
+  const isPieceApproved = (piece: ScoreAccessPiece): boolean =>
+    approvedPieceIds.has(piece.id) ||
+    (piece.parentId !== null && approvedPieceIds.has(piece.parentId));
+
+  const parentIdsWithFallbackMovement = new Set<string>();
+  for (const piece of pieces) {
+    if (piece.parentId === null || !isPieceApproved(piece)) continue;
+    const hasOwnScore = Object.values(piece.scoreFileIds).some((value) => value.length > 0);
+    if (!hasOwnScore) {
+      parentIdsWithFallbackMovement.add(piece.parentId);
+    }
+  }
+
+  for (const piece of pieces) {
+    const ownsFile = Object.values(piece.scoreFileIds).some((candidate) => candidate === fileId);
+    if (!ownsFile) continue;
+    if (isPieceApproved(piece) || parentIdsWithFallbackMovement.has(piece.id)) {
+      return true;
+    }
+  }
+
+  return false;
+}

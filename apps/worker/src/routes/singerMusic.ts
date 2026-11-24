@@ -7,6 +7,8 @@ import type {
 import { singerLearningTrackPieceSchema } from "@choir/contracts";
 import {
   digitalScoreFileName,
+  memberCanAccessPiece,
+  resolveEffectiveSetList,
   resolveMemberScoreFile,
   SCORE_BUNDLE_MAX_BYTES,
 } from "@choir/domain";
@@ -57,25 +59,6 @@ async function resolveVoicePartForProfile(
     // Fall back to no voice part filter
   }
   return null;
-}
-
-function resolveEffectiveSetList(
-  targetEvent: OrganizationEvent,
-  events: readonly OrganizationEvent[],
-): {
-  readonly effectiveApproved: boolean;
-  readonly effectiveSetList: OrganizationEvent["setList"];
-} {
-  let effectiveSetList = targetEvent.setList;
-  let effectiveApproved = targetEvent.setListApproved;
-  if (targetEvent.type === "Rehearsal" && !effectiveApproved && targetEvent.parentPerformanceId) {
-    const parentEvent = events.find((e) => e.id === targetEvent.parentPerformanceId);
-    if (parentEvent?.setListApproved && !parentEvent.isCanceled) {
-      effectiveSetList = parentEvent.setList;
-      effectiveApproved = true;
-    }
-  }
-  return { effectiveApproved, effectiveSetList };
 }
 
 async function collectZipFilesForSetList(
@@ -140,25 +123,6 @@ async function collectZipFilesForSetList(
     });
   }
   return { files: filesToZip, status: "ready" };
-}
-
-function memberCanAccessPiece(
-  piece: OrganizationMusicPiece,
-  events: readonly OrganizationEvent[],
-): boolean {
-  const isPieceInSetList = (setList: readonly { readonly pieceId?: string | undefined }[]) =>
-    setList.some(
-      (item) =>
-        item.pieceId !== undefined &&
-        (item.pieceId === piece.id || (piece.parentId !== null && item.pieceId === piece.parentId)),
-    );
-
-  return events.some((event) => {
-    if (event.isCanceled) return false;
-    const { effectiveApproved, effectiveSetList } = resolveEffectiveSetList(event, events);
-    if (!effectiveApproved) return false;
-    return isPieceInSetList(effectiveSetList);
-  });
 }
 
 function resolveScoreKeyAndFile(

@@ -1,6 +1,7 @@
 import { type ProblemDetails, type PrivateFileResponse } from "@choir/contracts";
 import { createAuth } from "../auth/config";
 import { validateStartupConfig } from "../env";
+import { organizationStoreStub } from "../organization/rpc/client";
 import {
   PrivateFileStorageError,
   findPrivateFileStorageError,
@@ -174,6 +175,24 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      if (authorization.value.role === "member") {
+        const stub = organizationStoreStub(context.env, organizationId);
+        const allowed = await stub.canMemberReadPrivateFile({
+          actorUserId: authorization.value.userId,
+          fileId: fileId.data,
+          organizationId,
+        });
+        if (!allowed) {
+          return context.json(
+            {
+              code: "not_found",
+              message: "The private Organization file was not found.",
+              requestId: context.get("requestId"),
+            } satisfies ProblemDetails,
+            404,
+          );
+        }
+      }
       const file = await readPrivateOrganizationFile(
         context.env,
         organizationId,

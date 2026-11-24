@@ -168,6 +168,7 @@ import {
 } from "./feeReconciliation";
 import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
 import { clearUnsuccessfulEventReminderMarkers } from "./schedulingStore";
+import { canMemberReadPrivateFileFromStore } from "./organizationStore/files";
 import { dispatchPostRequest } from "./organizationStore/post";
 import { dispatchGetRequest } from "./organizationStore/read";
 import {
@@ -258,6 +259,12 @@ export class OrganizationStore extends DurableObject {
 
   readCommunicationHistory(input: Parameters<typeof queryCommunicationHistoryFromStore>[1]) {
     return queryCommunicationHistoryFromStore(this.ctx.storage, input);
+  }
+
+  canMemberReadPrivateFile(
+    input: Parameters<typeof canMemberReadPrivateFileFromStore>[1],
+  ): boolean {
+    return canMemberReadPrivateFileFromStore(this.ctx.storage, input);
   }
 
   claimTicketWalletPass(input: Parameters<typeof claimTicketWalletPass>[1]) {

@@ -1,3 +1,4 @@
+import { memberCanAccessScoreFile } from "@choir/domain";
 import { websiteContentImageIsReferenced } from "../publicWebsiteStore";
 import {
   privateFileIdSchema,
@@ -313,4 +314,175 @@ export function getPrivateFileMetadata(
   return metadata
     ? Response.json(metadata)
     : Response.json({ code: "private_file_not_found" }, { status: 404 });
+}
+
+function parseStringRecord(json: string): Record<string, string> {
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    const record: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "string" && value.length > 0) {
+        record[key] = value;
+      }
+    }
+    return record;
+  } catch {
+    return {};
+  }
+}
+
+function parseSetListPieceIds(json: string): readonly { readonly pieceId?: string | undefined }[] {
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    const items: { readonly pieceId?: string | undefined }[] = [];
+    for (const item of parsed) {
+      if (typeof item === "object" && item !== null && "pieceId" in item) {
+        const pieceId: unknown = Reflect.get(item, "pieceId");
+        if (typeof pieceId === "string" && pieceId.length > 0) {
+          items.push({ pieceId });
+        }
+      }
+    }
+    return items;
+  } catch {
+    return [];
+  }
+}
+
+function isFileReferencedAsMemberAccessibleAsset(
+  storage: DurableObjectStorage,
+  fileId: string,
+): boolean {
+  const directRefCount = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+      `SELECT
+        (SELECT COUNT(*) FROM organization_resources WHERE file_id = ?) +
+        (SELECT COUNT(*) FROM profiles WHERE photo_file_id = ?) +
+        (SELECT COUNT(*) FROM organization_metadata WHERE logo_file_id = ?) +
+        (SELECT COUNT(*) FROM public_website_settings WHERE hero_file_id = ? OR logo_file_id = ?) +
+        (SELECT COUNT(*) FROM public_website_documents WHERE file_id = ?) +
+        (SELECT COUNT(*) FROM events WHERE public_graphic_file_id = ?) +
+        (SELECT COUNT(*) FROM ticket_bundles WHERE public_graphic_file_id = ?) AS count`,
+      fileId,
+      fileId,
+      fileId,
+      fileId,
+      fileId,
+      fileId,
+      fileId,
+      fileId,
+    )
+    .one().count;
+  if (directRefCount > 0 || websiteContentImageIsReferenced(storage, fileId)) {
+    return true;
+  }
+  return storage.sql
+    .exec<{ readonly trackFileIdsJson: string }>(
+      "SELECT track_file_ids_json AS trackFileIdsJson FROM music_pieces",
+    )
+    .toArray()
+    .some(({ trackFileIdsJson }) =>
+      Object.values(parseStringRecord(trackFileIdsJson)).includes(fileId),
+    );
+}
+
+function isFileReferencedAsSponsorArtwork(storage: DurableObjectStorage, fileId: string): boolean {
+  return (
+    storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+        `SELECT
+          (SELECT COUNT(*) FROM donations WHERE artwork_file_id = ?) +
+          (SELECT COUNT(*) FROM donation_publication_inclusions WHERE artwork_file_id = ?) AS count`,
+        fileId,
+        fileId,
+      )
+      .one().count > 0
+  );
+}
+
+export function canMemberReadPrivateFileFromStore(
+  storage: DurableObjectStorage,
+  input: {
+    readonly actorUserId: string;
+    readonly fileId: string;
+    readonly organizationId: string;
+  },
+): boolean {
+  const parsedFileId = privateFileIdSchema.safeParse(input.fileId);
+  if (!parsedFileId.success) return false;
+  const organization = storage.sql
+    .exec<OrganizationIdentityRow>(
+      "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+    )
+    .toArray()
+    .at(0);
+  if (organization?.organizationId !== input.organizationId) return false;
+
+  const fileRow = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly uploadedBy: string }>(
+      "SELECT uploaded_by AS uploadedBy FROM private_files WHERE id = ? AND status = 'ready' LIMIT 1",
+      parsedFileId.data,
+    )
+    .toArray()
+    .at(0);
+  if (!fileRow) return false;
+
+  if (isFileReferencedAsMemberAccessibleAsset(storage, parsedFileId.data)) {
+    return true;
+  }
+
+  const scorePieces = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly id: string;
+      readonly parentId: string | null;
+      readonly scoreFileIdsJson: string;
+    }>(
+      "SELECT id, parent_id AS parentId, score_file_ids_json AS scoreFileIdsJson FROM music_pieces",
+    )
+    .toArray()
+    .map((row) => ({
+      id: row.id,
+      parentId: row.parentId,
+      scoreFileIds: parseStringRecord(row.scoreFileIdsJson),
+    }));
+
+  const isScoreFile = scorePieces.some((piece) =>
+    Object.values(piece.scoreFileIds).includes(parsedFileId.data),
+  );
+  if (isScoreFile) {
+    const activeEvents = storage.sql
+      .exec<{
+        readonly [column: string]: SqlStorageValue;
+        readonly id: string;
+        readonly isCanceled: number;
+        readonly parentPerformanceId: string | null;
+        readonly setListApproved: number;
+        readonly setListJson: string;
+        readonly type: string;
+      }>(
+        `SELECT id, type, parent_performance_id AS parentPerformanceId,
+          set_list_json AS setListJson, set_list_approved AS setListApproved,
+          is_canceled AS isCanceled
+         FROM events WHERE is_archived = 0`,
+      )
+      .toArray()
+      .map((event) => ({
+        id: event.id,
+        isCanceled: event.isCanceled === 1,
+        parentPerformanceId: event.parentPerformanceId,
+        setList: parseSetListPieceIds(event.setListJson),
+        setListApproved: event.setListApproved === 1,
+        type: event.type,
+      }));
+    return memberCanAccessScoreFile(parsedFileId.data, scorePieces, activeEvents);
+  }
+
+  if (isFileReferencedAsSponsorArtwork(storage, parsedFileId.data)) {
+    return false;
+  }
+
+  return fileRow.uploadedBy === input.actorUserId;
 }

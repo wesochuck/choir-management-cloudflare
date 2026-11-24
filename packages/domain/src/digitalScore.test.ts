@@ -1,140 +1,116 @@
 import { describe, expect, it } from "vitest";
-import { defaultRosterConfiguration } from "./rosterConfiguration";
-import { digitalScoreFileName, resolveMemberScoreFile, scoreDescription } from "./digitalScore";
 
-describe("digitalScore", () => {
-  const configuration = {
-    ...defaultRosterConfiguration,
-    voiceParts: [
-      { fullName: "Soprano 1", label: "S1", sectionCode: "S" },
-      { fullName: "Tenor 1", label: "T1", sectionCode: "T" },
-    ],
-  };
+import {
+  memberCanAccessPiece,
+  memberCanAccessScoreFile,
+  type ScoreAccessEvent,
+  type ScoreAccessPiece,
+} from "./digitalScore";
 
-  describe("scoreDescription", () => {
-    it("returns standard role descriptions", () => {
-      expect(scoreDescription("primary")).toBe("Choral Score");
-      expect(scoreDescription("full_score")).toBe("Full Score");
-      expect(scoreDescription("accompaniment")).toBe("Accompaniment");
-      expect(scoreDescription("vocal_score")).toBe("Vocal Score");
-    });
+const parentPiece: ScoreAccessPiece = {
+  id: "piece-parent",
+  parentId: null,
+  scoreFileIds: { primary: "file-parent-score" },
+};
 
-    it("resolves voice parts and sections from configuration", () => {
-      expect(scoreDescription("S1", configuration)).toBe("Soprano 1");
-      expect(scoreDescription("T1", configuration)).toBe("Tenor 1");
-      expect(scoreDescription("S", configuration)).toBe("Sopranos");
-    });
+const movementWithoutOwnScore: ScoreAccessPiece = {
+  id: "piece-movement-1",
+  parentId: "piece-parent",
+  scoreFileIds: {},
+};
 
-    it("formats unrecognized keys cleanly", () => {
-      expect(scoreDescription("custom_lead_sheet")).toBe("Custom Lead Sheet");
-    });
+const movementWithOwnScore: ScoreAccessPiece = {
+  id: "piece-movement-2",
+  parentId: "piece-parent",
+  scoreFileIds: { primary: "file-movement-score" },
+};
+
+const standalonePiece: ScoreAccessPiece = {
+  id: "piece-standalone",
+  parentId: null,
+  scoreFileIds: { primary: "file-standalone-score" },
+};
+
+const allPieces = [parentPiece, movementWithoutOwnScore, movementWithOwnScore, standalonePiece];
+
+describe("digitalScore member access policy (SEC-03)", () => {
+  it("denies score access when set lists are unapproved or events are canceled", () => {
+    const events: readonly ScoreAccessEvent[] = [
+      {
+        id: "evt-draft",
+        isCanceled: false,
+        parentPerformanceId: null,
+        setList: [{ pieceId: "piece-standalone" }],
+        setListApproved: false,
+        type: "Performance",
+      },
+      {
+        id: "evt-canceled",
+        isCanceled: true,
+        parentPerformanceId: null,
+        setList: [{ pieceId: "piece-standalone" }],
+        setListApproved: true,
+        type: "Performance",
+      },
+    ];
+
+    expect(memberCanAccessPiece(standalonePiece, events)).toBe(false);
+    expect(memberCanAccessScoreFile("file-standalone-score", allPieces, events)).toBe(false);
   });
 
-  describe("digitalScoreFileName", () => {
-    it("formats standard piece score filenames", () => {
-      expect(digitalScoreFileName("Ave Verum Corpus", null, "primary", configuration)).toBe(
-        "Ave Verum Corpus - Choral Score.pdf",
-      );
-      expect(digitalScoreFileName("Ave Verum Corpus", null, "T1", configuration)).toBe(
-        "Ave Verum Corpus - Tenor 1.pdf",
-      );
-      expect(digitalScoreFileName("Ave Verum Corpus", null, "full_score", configuration)).toBe(
-        "Ave Verum Corpus - Full Score.pdf",
-      );
-    });
+  it("allows parent score fallback when an approved movement has no own score", () => {
+    const events: readonly ScoreAccessEvent[] = [
+      {
+        id: "evt-approved",
+        isCanceled: false,
+        parentPerformanceId: null,
+        setList: [{ pieceId: "piece-movement-1" }],
+        setListApproved: true,
+        type: "Performance",
+      },
+    ];
 
-    it("prefixes movement with parent work title", () => {
-      expect(digitalScoreFileName("4. Pie Jesu", "Fauré Requiem", "primary", configuration)).toBe(
-        "Fauré Requiem - 4. Pie Jesu - Choral Score.pdf",
-      );
-      expect(digitalScoreFileName("4. Pie Jesu", "Fauré Requiem", "S1", configuration)).toBe(
-        "Fauré Requiem - 4. Pie Jesu - Soprano 1.pdf",
-      );
-    });
-
-    it("sanitizes unsafe characters and slashes", () => {
-      expect(digitalScoreFileName("Messiah / Part 1", null, "primary", configuration)).toBe(
-        "Messiah - Part 1 - Choral Score.pdf",
-      );
-    });
-
-    it("bounds filename to 255 characters", () => {
-      const fileName = digitalScoreFileName("x".repeat(500), null, "primary", configuration);
-      expect(fileName).toHaveLength(255);
-      expect(fileName.endsWith(".pdf")).toBe(true);
-    });
+    expect(memberCanAccessScoreFile("file-parent-score", allPieces, events)).toBe(true);
+    expect(memberCanAccessScoreFile("file-movement-score", allPieces, events)).toBe(false);
   });
 
-  describe("resolveMemberScoreFile", () => {
-    it("matches exact voice part score when present", () => {
-      const piece = {
-        scoreFileIds: {
-          primary: "file-primary",
-          T1: "file-tenor-1",
-        },
-      };
-      const result = resolveMemberScoreFile(piece, "T1");
-      expect(result).toEqual({
-        fileId: "file-tenor-1",
-        isParentFallback: false,
-        key: "T1",
-      });
-    });
+  it("does not expose parent score when an approved movement has its own score", () => {
+    const events: readonly ScoreAccessEvent[] = [
+      {
+        id: "evt-approved",
+        isCanceled: false,
+        parentPerformanceId: null,
+        setList: [{ pieceId: "piece-movement-2" }],
+        setListApproved: true,
+        type: "Performance",
+      },
+    ];
 
-    it("falls back to primary score when member part is missing", () => {
-      const piece = {
-        scoreFileIds: {
-          primary: "file-primary",
-          S1: "file-soprano-1",
-        },
-      };
-      const result = resolveMemberScoreFile(piece, "T1");
-      expect(result).toEqual({
-        fileId: "file-primary",
-        isParentFallback: false,
-        key: "primary",
-      });
-    });
+    expect(memberCanAccessScoreFile("file-movement-score", allPieces, events)).toBe(true);
+    expect(memberCanAccessScoreFile("file-parent-score", allPieces, events)).toBe(false);
+  });
 
-    it("falls back to parent work score for multi-work movements", () => {
-      const movement = {
-        scoreFileIds: {},
-      };
-      const parentPiece = {
-        scoreFileIds: {
-          primary: "file-parent-primary",
-          T1: "file-parent-tenor-1",
-        },
-      };
-      const result = resolveMemberScoreFile(movement, "T1", parentPiece);
-      expect(result).toEqual({
-        fileId: "file-parent-tenor-1",
-        isParentFallback: true,
-        key: "T1",
-      });
-    });
+  it("inherits approved parent performance set lists for linked rehearsals", () => {
+    const events: readonly ScoreAccessEvent[] = [
+      {
+        id: "evt-perf",
+        isCanceled: false,
+        parentPerformanceId: null,
+        setList: [{ pieceId: "piece-standalone" }],
+        setListApproved: true,
+        type: "Performance",
+      },
+      {
+        id: "evt-reh",
+        isCanceled: false,
+        parentPerformanceId: "evt-perf",
+        setList: [],
+        setListApproved: false,
+        type: "Rehearsal",
+      },
+    ];
 
-    it("falls back to parent primary score if movement has no scores and parent lacks part score", () => {
-      const movement = {
-        scoreFileIds: {},
-      };
-      const parentPiece = {
-        scoreFileIds: {
-          primary: "file-parent-primary",
-        },
-      };
-      const result = resolveMemberScoreFile(movement, "T1", parentPiece);
-      expect(result).toEqual({
-        fileId: "file-parent-primary",
-        isParentFallback: true,
-        key: "primary",
-      });
-    });
-
-    it("returns null if no scores exist anywhere", () => {
-      const movement = { scoreFileIds: {} };
-      const parentPiece = { scoreFileIds: {} };
-      expect(resolveMemberScoreFile(movement, "T1", parentPiece)).toBeNull();
-    });
+    expect(memberCanAccessPiece(standalonePiece, events)).toBe(true);
+    expect(memberCanAccessScoreFile("file-standalone-score", allPieces, events)).toBe(true);
   });
 });
