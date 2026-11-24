@@ -243,12 +243,17 @@ describe("ContactsPage", () => {
     expect(bravoHtml).not.toContain("Newsletter");
   });
 
-  it("offers a unified details action alongside edit and delete", () => {
+  it("opens details via row click and places delete to the left of edit without a chevron", () => {
     const queryClient = createTestQueryClient();
     seedOrganization(queryClient, { contacts: [janeSmith], lists: [] });
     const html = renderPage(queryClient);
-    expect(html).toContain("Show details for Jane Smith");
-    expect(html).toContain("Edit Jane Smith");
+    expect(html).toContain("View details for Jane Smith");
+    expect(html).not.toContain("Show details for Jane Smith");
+    expect(html).not.toContain("contact-table__chevron");
+    const deleteIndex = html.indexOf("Delete Jane Smith");
+    const editIndex = html.indexOf("Edit Jane Smith");
+    expect(deleteIndex).toBeGreaterThan(-1);
+    expect(editIndex).toBeGreaterThan(deleteIndex);
   });
 
   it("exposes the linked Organization Profile fixture shape used by the editor", () => {

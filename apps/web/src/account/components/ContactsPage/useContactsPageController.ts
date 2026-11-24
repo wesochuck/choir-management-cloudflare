@@ -78,7 +78,6 @@ export function useContactsPageController({ enabled }: { readonly enabled: boole
   const [bulkListId, setBulkListId] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [editorState, setEditorState] = useState<EditorState>({ kind: "closed" });
-  const [expandedContactId, setExpandedContactId] = useState<string | null>(null);
   const [viewingContactId, setViewingContactId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [editorBusy, setEditorBusy] = useState(false);
@@ -611,14 +610,12 @@ export function useContactsPageController({ enabled }: { readonly enabled: boole
     editorState,
     emailStatusByContactId,
     error,
-    expandedContactId,
     exportCsv,
     handleImported,
     handleInlineListCreated,
     hasFilters,
     importOpen,
     listFilter,
-    listNamesByContactId,
     lists,
     listsById,
     listsQuery,
@@ -635,7 +632,6 @@ export function useContactsPageController({ enabled }: { readonly enabled: boole
     setBulkBusy,
     setBulkListId,
     setError,
-    setExpandedContactId,
     setImportOpen,
     setListFilter,
     setSearchInput,

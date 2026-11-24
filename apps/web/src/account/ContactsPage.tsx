@@ -36,11 +36,6 @@ function phoneLabel(contact: Contact): string {
   return contact.phone;
 }
 
-function sourceLabel(contact: Contact): string {
-  if (!contact.source) return "No source";
-  return contact.source;
-}
-
 // eslint-disable-next-line complexity -- the contacts page coordinates filters, selection, bulk actions, editing, and export.
 export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
   const {
@@ -65,14 +60,12 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
     editorState,
     emailStatusByContactId,
     error,
-    expandedContactId,
     exportCsv,
     handleImported,
     handleInlineListCreated,
     hasFilters,
     importOpen,
     listFilter,
-    listNamesByContactId,
     lists,
     listsById,
     listsQuery,
@@ -89,7 +82,6 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
     setBulkBusy,
     setBulkListId,
     setError,
-    setExpandedContactId,
     setImportOpen,
     setListFilter,
     setSearchInput,
@@ -379,34 +371,6 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                     ),
                   },
                   {
-                    className: "contact-table__disclosure",
-                    header: "",
-                    headerContent: <span className="sr-only">Contact details</span>,
-                    id: "disclosure",
-                    mobileLabel: "Details",
-                    render: (contact, { presentation }) => {
-                      const expanded = expandedContactId === contact.id;
-                      return (
-                        <button
-                          aria-controls={
-                            expanded ? `contact-details-${contact.id}-${presentation}` : undefined
-                          }
-                          aria-expanded={expanded}
-                          aria-label={`${expanded ? "Hide" : "Show"} details for ${deriveDisplayName(contact)}`}
-                          className="contact-table__disclosure-button"
-                          onClick={() => {
-                            setExpandedContactId((current) =>
-                              current === contact.id ? null : contact.id,
-                            );
-                          }}
-                          type="button"
-                        >
-                          <span aria-hidden="true" className="contact-table__chevron" />
-                        </button>
-                      );
-                    },
-                  },
-                  {
                     header: "Name",
                     id: "name",
                     className: "contact-table__identity",
@@ -469,110 +433,45 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                     header: "Actions",
                     id: "actions",
                     mobileLabel: "Manage",
-                    render: (contact) => (
-                      <div className="table-actions">
-                        <button
-                          aria-label={`Edit ${deriveDisplayName({
-                            displayName: contact.displayName,
-                            email: contact.email,
-                            firstName: contact.firstName,
-                            lastName: contact.lastName,
-                            phone: contact.phone,
-                          })}`}
-                          className="button button--secondary button--small"
-                          onClick={() => {
-                            openEdit(contact);
-                          }}
-                          type="button"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    ),
+                    render: (contact) => {
+                      const displayName = deriveDisplayName({
+                        displayName: contact.displayName,
+                        email: contact.email,
+                        firstName: contact.firstName,
+                        lastName: contact.lastName,
+                        phone: contact.phone,
+                      });
+                      return (
+                        <div className="table-actions">
+                          <button
+                            aria-label={`Delete ${displayName}`}
+                            className="button button--danger button--small"
+                            onClick={() => {
+                              void deleteContact(contact);
+                            }}
+                            type="button"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            aria-label={`Edit ${displayName}`}
+                            className="button button--secondary button--small"
+                            onClick={() => {
+                              openEdit(contact);
+                            }}
+                            type="button"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      );
+                    },
                   },
                 ]}
                 emptyMessage={hasFilters ? "No contacts match these filters" : "No contacts yet"}
                 initialSort={{ columnId: "name", direction: "asc" }}
                 keySelector={(contact) => contact.id}
-                expandedRowId={expandedContactId}
-                isRowInteractive={(_, context) => context.presentation === "table"}
-                onRowClick={(contact) => {
-                  setExpandedContactId((current) => (current === contact.id ? null : contact.id));
-                }}
-                renderExpandedRow={(contact, presentation) => (
-                  <div
-                    className="contact-details"
-                    id={`contact-details-${contact.id}-${presentation}`}
-                  >
-                    <dl>
-                      <dt>Name</dt>
-                      <dd>{deriveDisplayName(contact)}</dd>
-                    </dl>
-                    <dl>
-                      <dt>Email</dt>
-                      <dd>
-                        {contact.email ? (
-                          <a href={`mailto:${contact.email}`}>{contact.email}</a>
-                        ) : (
-                          "No email"
-                        )}
-                      </dd>
-                    </dl>
-                    <dl>
-                      <dt>Lists</dt>
-                      <dd>{listNamesByContactId.formatted.get(contact.id) ?? "No lists"}</dd>
-                    </dl>
-                    <dl>
-                      <dt>Source</dt>
-                      <dd>{sourceLabel(contact)}</dd>
-                    </dl>
-                    <dl>
-                      <dt>Updated</dt>
-                      <dd>
-                        <time dateTime={contact.updatedAt}>
-                          {new Date(contact.updatedAt).toLocaleString(undefined, {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                          })}
-                        </time>
-                      </dd>
-                    </dl>
-                    <div className="table-actions">
-                      <button
-                        aria-label={`View details for ${deriveDisplayName({
-                          displayName: contact.displayName,
-                          email: contact.email,
-                          firstName: contact.firstName,
-                          lastName: contact.lastName,
-                          phone: contact.phone,
-                        })}`}
-                        className="button button--secondary button--small"
-                        onClick={() => {
-                          openDetails(contact);
-                        }}
-                        type="button"
-                      >
-                        Details
-                      </button>
-                      <button
-                        aria-label={`Delete ${deriveDisplayName({
-                          displayName: contact.displayName,
-                          email: contact.email,
-                          firstName: contact.firstName,
-                          lastName: contact.lastName,
-                          phone: contact.phone,
-                        })}`}
-                        className="button button--danger button--small"
-                        onClick={() => {
-                          void deleteContact(contact);
-                        }}
-                        type="button"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                )}
+                onRowClick={openDetails}
                 pagination={{
                   onPageChange: setTablePage,
                   onPageSizeChange: (nextSize) => {
@@ -583,9 +482,7 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                   pageSize: tablePageSize,
                   pageSizeOptions: [25, 50, 100],
                 }}
-                rowLabel={(contact) =>
-                  `${expandedContactId === contact.id ? "Hide" : "Show"} details for ${deriveDisplayName(contact)}`
-                }
+                rowLabel={(contact) => `View details for ${deriveDisplayName(contact)}`}
                 rows={contacts}
               />
             </div>

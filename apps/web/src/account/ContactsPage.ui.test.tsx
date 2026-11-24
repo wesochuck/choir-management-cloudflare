@@ -132,11 +132,6 @@ describe("ContactsPage list synchronization (#168)", () => {
     expect(await screen.findByText("1 shown")).toBeInTheDocument();
     expect(screen.getAllByText("Alice Allison").length).toBeGreaterThanOrEqual(1);
 
-    const [expandButton] = screen.getAllByRole("button", {
-      name: "Show details for Alice Allison",
-    });
-    if (!expandButton) throw new Error("Missing contact expansion button");
-    await user.click(expandButton);
     const [deleteBtn] = screen.getAllByRole("button", { name: "Delete Alice Allison" });
     expect(deleteBtn).toBeDefined();
     if (deleteBtn) {
@@ -178,11 +173,6 @@ describe("ContactsPage list synchronization (#168)", () => {
     expect(await screen.findByText("1 shown")).toBeInTheDocument();
     expect(screen.getAllByText("Alice Allison").length).toBeGreaterThanOrEqual(1);
 
-    const [expandButton] = screen.getAllByRole("button", {
-      name: "Show details for Alice Allison",
-    });
-    if (!expandButton) throw new Error("Missing contact expansion button");
-    await user.click(expandButton);
     const [deleteBtn] = screen.getAllByRole("button", { name: "Delete Alice Allison" });
     expect(deleteBtn).toBeDefined();
     if (deleteBtn) {
@@ -199,5 +189,48 @@ describe("ContactsPage list synchronization (#168)", () => {
     expect(screen.getByText("The contact could not be deleted.")).toBeInTheDocument();
     expect(screen.getAllByText("Alice Allison").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("1 shown")).toBeInTheDocument();
+  });
+
+  it("opens contact details on row click and renders Delete to the left of Edit without a chevron", async () => {
+    vi.spyOn(api, "listAllOrganizationContacts").mockResolvedValue({
+      contacts: [contact1],
+      memberships: [],
+      preferences: [],
+    });
+    vi.spyOn(api, "listOrganizationContactLists").mockResolvedValue([]);
+    vi.spyOn(api, "listOrganizationProfiles").mockResolvedValue([]);
+    const detailSpy = vi.spyOn(api, "getOrganizationContactDetail").mockResolvedValue({
+      activity: { donationCount: 0, ticketPurchaseCount: 0, ticketPurchases: [] },
+      contact: contact1,
+      lastEmailAt: null,
+      linkedProfile: null,
+      listIds: [],
+      lists: [],
+      preferences: [],
+    });
+
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ContactsPage enabled />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("1 shown")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Show details for Alice Allison" }),
+    ).not.toBeInTheDocument();
+
+    const table = screen.getByRole("table");
+    const row = within(table).getByRole("row", { name: "View details for Alice Allison" });
+    const rowButtons = within(row).getAllByRole("button");
+    expect(rowButtons.map((btn) => btn.getAttribute("aria-label"))).toEqual([
+      "Delete Alice Allison",
+      "Edit Alice Allison",
+    ]);
+
+    await user.click(within(row).getByText("Alice Allison"));
+    expect(detailSpy).toHaveBeenCalledWith(contact1.id, expect.any(AbortSignal));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });
