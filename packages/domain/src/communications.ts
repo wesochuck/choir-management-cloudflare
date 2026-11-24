@@ -145,6 +145,66 @@ export type CommunicationFailureCategory =
   | "timeout"
   | "unknown";
 
+export type CommunicationDeliveryIssueKind =
+  "bounced" | "complained" | "failed" | "provider_failed" | "rejected";
+
+export function communicationDeliveryIssueKind(
+  status: DeliveryStatus,
+  providerStatus: ProviderDeliveryStatus | null | undefined,
+): CommunicationDeliveryIssueKind | null {
+  if (providerStatus === "bounced") return "bounced";
+  if (providerStatus === "complained") return "complained";
+  if (providerStatus === "rejected") return "rejected";
+  if (providerStatus === "failed") return "provider_failed";
+  if (status === "failed") return "failed";
+  return null;
+}
+
+export function communicationDeliveryIssueLabel(kind: CommunicationDeliveryIssueKind): string {
+  switch (kind) {
+    case "bounced":
+      return "Bounced";
+    case "complained":
+      return "Complained";
+    case "rejected":
+      return "Rejected";
+    case "provider_failed":
+      return "Provider failed";
+    case "failed":
+      return "Failed";
+  }
+}
+
+export function communicationDeliveryIssueGuidance(input: {
+  readonly category: CommunicationFailureCategory;
+  readonly issueKind: CommunicationDeliveryIssueKind;
+}): string {
+  switch (input.issueKind) {
+    case "bounced":
+      return "Email bounced — check the address for typos or ask the recipient for an updated email.";
+    case "complained":
+      return "Recipient marked this as spam. Future emails are automatically suppressed.";
+    case "rejected":
+      return "Rejected by the email provider — verify the address or update it if needed.";
+    case "provider_failed":
+      return "The email provider could not deliver this message.";
+    case "failed":
+      switch (input.category) {
+        case "rate-limit":
+        case "timeout":
+          return "Temporary delivery error — safe to retry failed deliveries.";
+        case "invalid-destination":
+          return "Destination could not be reached — check the email address or phone number.";
+        case "authentication":
+          return "Provider authentication failed — check email delivery settings before retrying.";
+        case "provider-rejected":
+          return "Rejected during sending — check the recipient address or email settings.";
+        case "unknown":
+          return "Delivery failed during sending — you can retry failed deliveries.";
+      }
+  }
+}
+
 export function communicationFailureCategory(detail: string): CommunicationFailureCategory {
   const normalized = detail.toLowerCase();
   if (/429|rate[- ]?limit|too many/.test(normalized)) return "rate-limit";

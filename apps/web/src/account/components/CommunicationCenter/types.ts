@@ -5,6 +5,8 @@ import type {
   CommunicationDeliverySummary,
   CommunicationMessage,
   CommunicationReach,
+  CommunicationResolveDeliveryEmailRequest,
+  CommunicationResolveDeliveryEmailResponse,
   CommunicationScheduledMessage,
   CommunicationTemplate,
   ContactList,
@@ -119,8 +121,14 @@ export interface CommunicationCenterControllerModel {
   readonly reachState: CommunicationReachState;
   readonly recipientsExpanded: boolean;
   readonly removeConflictingPlaceholder: (tag: string) => void;
+  readonly resolveDeliveryEmail: (
+    messageId: string,
+    deliveryId: string,
+    input: CommunicationResolveDeliveryEmailRequest,
+  ) => Promise<CommunicationResolveDeliveryEmailResponse>;
   readonly resumeDraft: (draft: CommunicationMessage) => void;
   readonly retryDeliveries: (messageId: string) => Promise<void>;
+  readonly reviewIssues: (messageId: string) => Promise<void>;
   readonly rosterConfiguration: OrganizationRosterConfiguration | null;
   readonly saveDraft: () => Promise<boolean>;
   readonly saveTemplate: (templateName: string) => Promise<void>;

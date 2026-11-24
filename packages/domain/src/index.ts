@@ -198,12 +198,16 @@ export {
   type SetListTimingItem,
 } from "./setList";
 export {
+  communicationDeliveryIssueGuidance,
+  communicationDeliveryIssueKind,
+  communicationDeliveryIssueLabel,
   communicationFailureCategory,
   communicationReach,
   maskCommunicationDestination,
   renderCommunicationTemplate,
   renderOrganizationLogoPlaceholder,
   summarizeCommunicationDeliveries,
+  type CommunicationDeliveryIssueKind,
   type CommunicationFailureCategory,
   type DeliveryChannel,
   type DeliveryRecord,

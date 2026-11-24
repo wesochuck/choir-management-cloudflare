@@ -2,6 +2,8 @@ import type {
   CommunicationDeliveryRecipient,
   CommunicationDeliverySummary,
   CommunicationMessage,
+  CommunicationResolveDeliveryEmailRequest,
+  CommunicationResolveDeliveryEmailResponse,
   OrganizationBranding,
   OrganizationEvent,
   OrganizationVenue,
@@ -15,10 +17,41 @@ import {
   SAMPLE_COMMUNICATION_RECIPIENT_NAME,
 } from "../../communicationMarkdown";
 import { CommunicationPagination } from "./CommunicationPagination";
+import { DeliveryIssuesSection } from "./DeliveryIssuesSection";
 
 function deliveryStatusLabel(recipient: CommunicationDeliveryRecipient): string {
-  if (recipient.providerStatus === "delivered") return "Delivered";
-  return recipient.status.charAt(0).toUpperCase() + recipient.status.slice(1);
+  switch (recipient.providerStatus) {
+    case "delivered":
+      return "Delivered";
+    case "bounced":
+      return "Bounced";
+    case "complained":
+      return "Complained";
+    case "rejected":
+      return "Rejected";
+    case "failed":
+      return "Provider failed";
+    case "deferred":
+      return "Deferred";
+    default:
+      return recipient.status.charAt(0).toUpperCase() + recipient.status.slice(1);
+  }
+}
+
+function deliveryStatusPillVariant(recipient: CommunicationDeliveryRecipient): string {
+  switch (recipient.providerStatus) {
+    case "bounced":
+    case "complained":
+    case "rejected":
+    case "failed":
+      return "failed";
+    case "deferred":
+      return "queued";
+    case "delivered":
+      return "sent";
+    default:
+      return recipient.status;
+  }
 }
 
 function deliveryChannelLabel(channel: CommunicationDeliveryRecipient["channel"]): string {
@@ -49,7 +82,7 @@ function DeliveryStatsSummary({ summary }: { readonly summary: CommunicationDeli
           </p>
         </>
       ) : null}
-      {summary.failures.length > 0 ? (
+      {summary.failures.length > 0 && (summary.issues?.length ?? 0) === 0 ? (
         <ul>
           {summary.failures.map((failure, index) => (
             <li key={`${failure.maskedDestination}:${String(index)}`}>
@@ -64,6 +97,7 @@ function DeliveryStatsSummary({ summary }: { readonly summary: CommunicationDeli
 
 function MessageSnapshotPreview({
   branding,
+  defaultOpen,
   events,
   message,
   sampleRecipientName,
@@ -71,6 +105,7 @@ function MessageSnapshotPreview({
   venues,
 }: {
   readonly branding?: OrganizationBranding | null | undefined;
+  readonly defaultOpen: boolean;
   readonly events?: readonly OrganizationEvent[] | undefined;
   readonly message: CommunicationMessage;
   readonly sampleRecipientName: string;
@@ -108,7 +143,7 @@ function MessageSnapshotPreview({
   );
 
   return (
-    <details className="communication-delivery-preview" open>
+    <details className="communication-delivery-preview" open={defaultOpen}>
       <summary>Message snapshot</summary>
       <div className="communication-delivery-preview__content">
         {populatedSubject ? (
@@ -136,6 +171,7 @@ function MessageSnapshotPreview({
 }
 
 function DeliveryRecipientsDetails({
+  defaultOpen,
   loadingRecipients,
   nextCursor,
   onNextPage,
@@ -144,6 +180,7 @@ function DeliveryRecipientsDetails({
   recipients,
   totalCount,
 }: {
+  readonly defaultOpen: boolean;
   readonly loadingRecipients: boolean;
   readonly nextCursor: string | null;
   readonly onNextPage: () => void;
@@ -155,7 +192,7 @@ function DeliveryRecipientsDetails({
   if (recipients.length === 0) return null;
 
   return (
-    <details className="communication-delivery-recipients" open>
+    <details className="communication-delivery-recipients" open={defaultOpen}>
       <summary>Recipients ({String(totalCount)})</summary>
       <ul className="communication-delivery-recipients__list">
         {recipients.map((recipient, index) => (
@@ -167,7 +204,7 @@ function DeliveryRecipientsDetails({
               <strong>{recipient.recipientName}</strong>
               <p>{deliveryChannelLabel(recipient.channel)}</p>
             </div>
-            <span className={`status-pill status-pill--${recipient.status}`}>
+            <span className={`status-pill status-pill--${deliveryStatusPillVariant(recipient)}`}>
               {deliveryStatusLabel(recipient)}
             </span>
           </li>
@@ -193,7 +230,14 @@ interface CommunicationDeliveryDetailsProps {
   readonly busy: boolean;
   readonly events?: readonly OrganizationEvent[] | undefined;
   readonly message: CommunicationMessage;
+  readonly onResolveDeliveryEmail?:
+    | ((
+        deliveryId: string,
+        input: CommunicationResolveDeliveryEmailRequest,
+      ) => Promise<CommunicationResolveDeliveryEmailResponse>)
+    | undefined;
   readonly onRetry: () => Promise<void>;
+  readonly onReviewIssues?: (() => Promise<void>) | undefined;
   readonly summary: CommunicationDeliverySummary;
   readonly timezone?: string | null | undefined;
   readonly venues?: readonly OrganizationVenue[] | undefined;
@@ -204,7 +248,9 @@ export function CommunicationDeliveryDetails({
   busy,
   events,
   message,
+  onResolveDeliveryEmail,
   onRetry,
+  onReviewIssues,
   summary,
   timezone,
   venues,
@@ -292,6 +338,10 @@ export function CommunicationDeliveryDetails({
     summary.recipients[0]?.recipientName ??
     SAMPLE_COMMUNICATION_RECIPIENT_NAME;
 
+  const issues = summary.issues ?? [];
+  const unresolvedIssueCount = summary.unresolvedIssueCount ?? 0;
+  const hasUnresolvedIssues = unresolvedIssueCount > 0;
+
   return (
     <div
       aria-label={`Delivery details for ${messageLabel}`}
@@ -300,8 +350,31 @@ export function CommunicationDeliveryDetails({
       role="region"
     >
       <DeliveryStatsSummary summary={summary} />
+      <DeliveryIssuesSection
+        busy={busy}
+        hasMoreIssues={summary.hasMoreIssues ?? false}
+        issues={issues}
+        issuesReviewedAt={summary.issuesReviewedAt ?? null}
+        onResolveDeliveryEmail={onResolveDeliveryEmail}
+        onReviewIssues={onReviewIssues}
+        timezone={timezone}
+        unresolvedIssueCount={unresolvedIssueCount}
+      />
+      {summary.total.failed > 0 ? (
+        <div className="communication-delivery-actions">
+          <button
+            className="button button--secondary button--sm"
+            disabled={busy}
+            onClick={() => void onRetry()}
+            type="button"
+          >
+            Retry failed deliveries
+          </button>
+        </div>
+      ) : null}
       <MessageSnapshotPreview
         branding={branding}
+        defaultOpen={!hasUnresolvedIssues}
         events={events}
         message={message}
         sampleRecipientName={sampleRecipientName}
@@ -309,6 +382,7 @@ export function CommunicationDeliveryDetails({
         venues={venues}
       />
       <DeliveryRecipientsDetails
+        defaultOpen={!hasUnresolvedIssues}
         loadingRecipients={loadingRecipients}
         nextCursor={nextCursor}
         onNextPage={() => void handleNextPage()}
@@ -317,11 +391,6 @@ export function CommunicationDeliveryDetails({
         recipients={recipients}
         totalCount={totalCount}
       />
-      {summary.total.failed > 0 ? (
-        <button disabled={busy} onClick={() => void onRetry()} type="button">
-          Retry failed deliveries
-        </button>
-      ) : null}
     </div>
   );
 }

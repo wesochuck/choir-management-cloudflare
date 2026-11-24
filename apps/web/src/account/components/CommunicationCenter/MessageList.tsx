@@ -2,6 +2,8 @@ import { TicketNotificationDetails } from "./TicketNotificationDetails";
 import type {
   CommunicationDeliverySummary,
   CommunicationMessage,
+  CommunicationResolveDeliveryEmailRequest,
+  CommunicationResolveDeliveryEmailResponse,
   OrganizationBranding,
   OrganizationEvent,
   OrganizationVenue,
@@ -29,8 +31,16 @@ interface MessageListProps {
   readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
+  readonly onResolveDeliveryEmail?:
+    | ((
+        messageId: string,
+        deliveryId: string,
+        input: CommunicationResolveDeliveryEmailRequest,
+      ) => Promise<CommunicationResolveDeliveryEmailResponse>)
+    | undefined;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
   readonly onRetryDeliveries: (messageId: string) => Promise<void>;
+  readonly onReviewIssues?: ((messageId: string) => Promise<void>) | undefined;
   readonly timezone?: string | null | undefined;
   readonly unifiedMessages: readonly UnifiedCommunicationItem[];
   readonly venues?: readonly OrganizationVenue[] | undefined;
@@ -48,8 +58,16 @@ interface MessageCardProps {
   readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
+  readonly onResolveDeliveryEmail?:
+    | ((
+        messageId: string,
+        deliveryId: string,
+        input: CommunicationResolveDeliveryEmailRequest,
+      ) => Promise<CommunicationResolveDeliveryEmailResponse>)
+    | undefined;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
   readonly onRetryDeliveries: (messageId: string) => Promise<void>;
+  readonly onReviewIssues?: ((messageId: string) => Promise<void>) | undefined;
   readonly timezone?: string | null | undefined;
   readonly venues?: readonly OrganizationVenue[] | undefined;
 }
@@ -215,6 +233,57 @@ function QueuedByMetadata({ item }: { readonly item: UnifiedCommunicationItem })
   );
 }
 
+function MessageDeliveryDetailsPanel({
+  branding,
+  busy,
+  deliverySummary,
+  events,
+  message,
+  onResolveDeliveryEmail,
+  onRetryDeliveries,
+  onReviewIssues,
+  timezone,
+  venues,
+}: {
+  readonly branding?: OrganizationBranding | null | undefined;
+  readonly busy: boolean;
+  readonly deliverySummary: CommunicationDeliverySummary;
+  readonly events?: readonly OrganizationEvent[] | undefined;
+  readonly message: CommunicationMessage;
+  readonly onResolveDeliveryEmail?:
+    | ((
+        messageId: string,
+        deliveryId: string,
+        input: CommunicationResolveDeliveryEmailRequest,
+      ) => Promise<CommunicationResolveDeliveryEmailResponse>)
+    | undefined;
+  readonly onRetryDeliveries: (messageId: string) => Promise<void>;
+  readonly onReviewIssues?: ((messageId: string) => Promise<void>) | undefined;
+  readonly timezone?: string | null | undefined;
+  readonly venues?: readonly OrganizationVenue[] | undefined;
+}) {
+  return (
+    <div className="communication-message-card__details-panel">
+      <CommunicationDeliveryDetails
+        branding={branding}
+        busy={busy}
+        events={events}
+        message={message}
+        onResolveDeliveryEmail={
+          onResolveDeliveryEmail
+            ? (deliveryId, input) => onResolveDeliveryEmail(message.id, deliveryId, input)
+            : undefined
+        }
+        onRetry={() => onRetryDeliveries(message.id)}
+        onReviewIssues={onReviewIssues ? () => onReviewIssues(message.id) : undefined}
+        summary={deliverySummary}
+        timezone={timezone}
+        venues={venues}
+      />
+    </div>
+  );
+}
+
 function MessageCard({
   branding,
   busy,
@@ -227,8 +296,10 @@ function MessageCard({
   onCreateFollowUp,
   onDeleteDraft,
   onOpenDeliveryDetails,
+  onResolveDeliveryEmail,
   onResumeDraft,
   onRetryDeliveries,
+  onReviewIssues,
   timezone,
   venues,
 }: MessageCardProps) {
@@ -305,18 +376,18 @@ function MessageCard({
 
       <AutomationContext item={item} />
       {isDetailsOpen ? (
-        <div className="communication-message-card__details-panel">
-          <CommunicationDeliveryDetails
-            branding={branding}
-            busy={busy}
-            events={events}
-            message={item.message}
-            onRetry={() => onRetryDeliveries(item.id)}
-            summary={deliverySummary}
-            timezone={timezone}
-            venues={venues}
-          />
-        </div>
+        <MessageDeliveryDetailsPanel
+          branding={branding}
+          busy={busy}
+          deliverySummary={deliverySummary}
+          events={events}
+          message={item.message}
+          onResolveDeliveryEmail={onResolveDeliveryEmail}
+          onRetryDeliveries={onRetryDeliveries}
+          onReviewIssues={onReviewIssues}
+          timezone={timezone}
+          venues={venues}
+        />
       ) : null}
     </article>
   );
@@ -335,8 +406,10 @@ export function MessageList({
   onCreateFollowUp,
   onDeleteDraft,
   onOpenDeliveryDetails,
+  onResolveDeliveryEmail,
   onResumeDraft,
   onRetryDeliveries,
+  onReviewIssues,
   timezone,
   unifiedMessages,
   venues,
@@ -365,8 +438,10 @@ export function MessageList({
           onCreateFollowUp={onCreateFollowUp}
           onDeleteDraft={onDeleteDraft}
           onOpenDeliveryDetails={onOpenDeliveryDetails}
+          onResolveDeliveryEmail={onResolveDeliveryEmail}
           onResumeDraft={onResumeDraft}
           onRetryDeliveries={onRetryDeliveries}
+          onReviewIssues={onReviewIssues}
           timezone={timezone}
           venues={venues}
         />

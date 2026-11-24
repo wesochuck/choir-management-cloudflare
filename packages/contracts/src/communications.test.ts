@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { communicationOverviewItemSchema } from "./communicationOverview";
 import {
+  communicationDeliveryIssueSchema,
+  communicationDeliverySummarySchema,
+  communicationResolveDeliveryEmailRequestSchema,
+  communicationResolveDeliveryEmailResponseSchema,
+  communicationReviewIssuesResponseSchema,
   communicationScheduledMessageSchema,
   COMMUNICATION_AUDIENCE_CONTACT_IDS_MAX,
   COMMUNICATION_AUDIENCE_CONTACT_LISTS_MAX,
@@ -380,5 +386,111 @@ describe("upcoming communication compatibility", () => {
     expect(
       communicationScheduledMessageSchema.safeParse({ ...message, id: "unrelated-string" }).success,
     ).toBe(false);
+  });
+});
+
+describe("communication delivery issue resolution contracts", () => {
+  const MESSAGE_ID = "10000000-0000-4000-8000-000000000010";
+  const DELIVERY_ID = "10000000-0000-4000-8000-000000000011";
+  const REQUEST_ID = "10000000-0000-4000-8000-000000000012";
+
+  it("parses delivery issues and preserves backward-compatible summary defaults", () => {
+    const baseSummary = {
+      email: { failed: 0, processing: 0, queued: 0, sent: 1, suppressed: 0, total: 1 },
+      failures: [],
+      hasMoreFailures: false,
+      lastActivity: "2026-11-11T21:52:00.000Z",
+      messageId: MESSAGE_ID,
+      provider: {
+        accepted: 0,
+        bounced: 1,
+        complained: 0,
+        deferred: 0,
+        delivered: 0,
+        failed: 0,
+        rejected: 0,
+        total: 1,
+      },
+      recipients: [],
+      sms: { failed: 0, processing: 0, queued: 0, sent: 0, suppressed: 0, total: 0 },
+      state: "sent",
+      total: { failed: 0, processing: 0, queued: 0, sent: 1, suppressed: 0, total: 1 },
+    };
+
+    expect(communicationDeliverySummarySchema.safeParse(baseSummary).success).toBe(true);
+
+    const issue = communicationDeliveryIssueSchema.parse({
+      attempts: 1,
+      canEditEmail: true,
+      category: "invalid-destination",
+      channel: "email",
+      deliveryId: DELIVERY_ID,
+      destination: "typo@example.test",
+      failureDetail: "",
+      issueKind: "bounced",
+      lastSeen: "2026-11-11T21:53:00.000Z",
+      providerReason: "550 5.1.1 User unknown",
+      providerStatus: "bounced",
+      recipientId: PROFILE_ID,
+      recipientKind: "profile",
+      recipientName: "Alex Singer",
+      status: "sent",
+    });
+
+    const parsed = communicationDeliverySummarySchema.parse({
+      ...baseSummary,
+      hasMoreIssues: false,
+      issues: [issue],
+      issuesReviewedAt: null,
+      unresolvedIssueCount: 1,
+    });
+    expect(parsed.issues).toHaveLength(1);
+    expect(parsed.unresolvedIssueCount).toBe(1);
+    expect(parsed.issuesReviewedAt).toBeNull();
+  });
+
+  it("validates resolve-email and review-issues payloads and overview issueCount", () => {
+    expect(
+      communicationResolveDeliveryEmailRequestSchema.parse({ email: "  fixed@example.test  " }),
+    ).toEqual({
+      email: "fixed@example.test",
+      resend: true,
+    });
+    expect(
+      communicationResolveDeliveryEmailRequestSchema.safeParse({ email: "not-an-email" }).success,
+    ).toBe(false);
+    expect(
+      communicationResolveDeliveryEmailResponseSchema.safeParse({
+        clearedBounceSuppression: true,
+        deliveryId: DELIVERY_ID,
+        email: "fixed@example.test",
+        messageId: MESSAGE_ID,
+        requestId: REQUEST_ID,
+        resent: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      communicationReviewIssuesResponseSchema.safeParse({
+        issuesReviewedAt: "2026-11-12T12:00:00.000Z",
+        messageId: MESSAGE_ID,
+        requestId: REQUEST_ID,
+      }).success,
+    ).toBe(true);
+    expect(
+      communicationOverviewItemSchema.safeParse({
+        automatic: false,
+        channel: "Email",
+        href: `/admin/communications?tab=messages&messageId=${MESSAGE_ID}`,
+        id: MESSAGE_ID,
+        issueCount: 3,
+        message: null,
+        projected: false,
+        recipientCount: 356,
+        source: "message",
+        status: "Sent with issues",
+        subject: "Christmas concert",
+        timestamp: "2026-11-11T21:52:00.000Z",
+      }).success,
+    ).toBe(true);
   });
 });

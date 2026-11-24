@@ -421,6 +421,13 @@ export function useCommunicationCenterController({
     reachState: composer.reachState,
     recipientsExpanded: composer.recipientsExpanded,
     removeConflictingPlaceholder: composer.removeConflictingPlaceholder,
+    resolveDeliveryEmail: async (messageId, deliveryId, input) => {
+      const result = await history.resolveDeliveryEmailAction(messageId, deliveryId, input);
+      if (activeSection === "overview" || activeSection === "automations") {
+        void overview.refresh();
+      }
+      return result;
+    },
     resumeDraft: (draft) => {
       void requestGlobalLeave({
         reason: "navigate",
@@ -430,7 +437,18 @@ export function useCommunicationCenterController({
         },
       });
     },
-    retryDeliveries: history.retryDeliveriesAction,
+    retryDeliveries: async (messageId) => {
+      await history.retryDeliveriesAction(messageId);
+      if (activeSection === "overview" || activeSection === "automations") {
+        void overview.refresh();
+      }
+    },
+    reviewIssues: async (messageId) => {
+      await history.reviewIssuesAction(messageId);
+      if (activeSection === "overview" || activeSection === "automations") {
+        void overview.refresh();
+      }
+    },
     rosterConfiguration,
     saveDraft: composer.saveDraftAction,
     saveTemplate: templates.saveTemplateAction,

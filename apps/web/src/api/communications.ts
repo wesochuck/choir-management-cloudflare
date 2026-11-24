@@ -11,7 +11,9 @@ import {
   communicationMessageResponseSchema,
   communicationMessagesResponseSchema,
   communicationReachResponseSchema,
+  communicationResolveDeliveryEmailResponseSchema,
   communicationRetryResponseSchema,
+  communicationReviewIssuesResponseSchema,
   communicationScheduledMessagesResponseSchema,
   communicationDeleteResponseSchema,
   communicationTemplateResponseSchema,
@@ -28,6 +30,9 @@ import {
   type CommunicationHistoryPageResponse,
   type CommunicationMessage,
   type CommunicationReach,
+  type CommunicationResolveDeliveryEmailRequest,
+  type CommunicationResolveDeliveryEmailResponse,
+  type CommunicationReviewIssuesResponse,
   type CommunicationScheduledMessage,
   type CommunicationSendRequest,
   type CommunicationTemplate,
@@ -207,6 +212,28 @@ export async function retryOrganizationCommunicationDeliveries(messageId: string
     { method: "POST" },
   );
   return communicationRetryResponseSchema.parse(await response.json()).retried;
+}
+
+export async function reviewOrganizationCommunicationIssues(
+  messageId: string,
+): Promise<CommunicationReviewIssuesResponse> {
+  const response = await request(
+    `/api/organization/communications/${encodeURIComponent(messageId)}/review-issues`,
+    { method: "POST" },
+  );
+  return communicationReviewIssuesResponseSchema.parse(await response.json());
+}
+
+export async function resolveOrganizationCommunicationDeliveryEmail(
+  messageId: string,
+  deliveryId: string,
+  input: CommunicationResolveDeliveryEmailRequest,
+): Promise<CommunicationResolveDeliveryEmailResponse> {
+  const response = await request(
+    `/api/organization/communications/${encodeURIComponent(messageId)}/deliveries/${encodeURIComponent(deliveryId)}/resolve-email`,
+    { body: JSON.stringify(input), method: "POST" },
+  );
+  return communicationResolveDeliveryEmailResponseSchema.parse(await response.json());
 }
 
 export async function deleteOrganizationCommunicationDraft(messageId: string): Promise<void> {

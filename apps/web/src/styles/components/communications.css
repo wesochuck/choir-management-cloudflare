@@ -275,6 +275,87 @@
     margin: 0;
   }
 
+  .communication-delivery-issues {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .communication-delivery-issues__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+  }
+
+  .communication-delivery-issues__header .field-help {
+    margin: var(--spacing-3xs) 0 0;
+  }
+
+  .communication-delivery-issues__list {
+    display: grid;
+    gap: var(--spacing-xs);
+    max-height: 20rem;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+  }
+
+  .communication-delivery-issues__item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .communication-delivery-issues__copy {
+    display: grid;
+    gap: var(--spacing-3xs);
+    min-width: 0;
+  }
+
+  .communication-delivery-issues__title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
+  .communication-delivery-issues__destination {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+  }
+
+  .communication-delivery-issues__copy .field-help {
+    margin: 0;
+  }
+
+  .communication-delivery-issues__detail {
+    font-size: var(--font-size-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .communication-delivery-issues__actions {
+    flex: 0 0 auto;
+  }
+
+  .communication-delivery-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+  }
+
   .communication-delivery-preview {
     display: grid;
     gap: var(--spacing-sm);
@@ -356,6 +437,10 @@
   }
 
   @media (max-width: 40rem) {
+    .communication-delivery-issues__item {
+      flex-direction: column;
+    }
+
     .communication-history-entry__header {
       align-items: flex-start;
       flex-direction: column;

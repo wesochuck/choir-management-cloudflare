@@ -412,6 +412,32 @@ const communicationChannelCountsSchema = z.object({
   total: z.number().int().nonnegative(),
 });
 
+export const communicationDeliveryIssueKindSchema = z.enum([
+  "bounced",
+  "complained",
+  "failed",
+  "provider_failed",
+  "rejected",
+]);
+
+export const communicationDeliveryIssueSchema = z.object({
+  attempts: z.number().int().nonnegative(),
+  canEditEmail: z.boolean(),
+  category: communicationFailureCategorySchema,
+  channel: z.enum(["email", "sms"]),
+  deliveryId: z.uuid(),
+  destination: z.string().min(1).max(320),
+  failureDetail: z.string().max(500),
+  issueKind: communicationDeliveryIssueKindSchema,
+  lastSeen: z.iso.datetime(),
+  providerReason: z.string().max(500),
+  providerStatus: communicationProviderStatusSchema.nullable(),
+  recipientId: z.string().min(1).max(128),
+  recipientKind: z.enum(["profile", "contact", "ticket_purchase", "donation"]),
+  recipientName: z.string().min(1).max(200),
+  status: z.enum(["failed", "processing", "queued", "sent", "suppressed"]),
+});
+
 export const communicationDeliveryFailureSchema = z.object({
   attempts: z.number().int().nonnegative(),
   category: communicationFailureCategorySchema,
@@ -431,6 +457,9 @@ export const communicationDeliverySummarySchema = z.object({
   email: communicationChannelCountsSchema,
   failures: z.array(communicationDeliveryFailureSchema).max(20),
   hasMoreFailures: z.boolean(),
+  hasMoreIssues: z.boolean().optional(),
+  issues: z.array(communicationDeliveryIssueSchema).max(100).optional(),
+  issuesReviewedAt: z.iso.datetime().nullable().optional(),
   lastActivity: z.iso.datetime().nullable(),
   messageId: z.uuid(),
   provider: communicationProviderStatusCountsSchema,
@@ -438,6 +467,7 @@ export const communicationDeliverySummarySchema = z.object({
   sms: communicationChannelCountsSchema,
   state: z.enum(["failed", "partial", "queued", "sending", "sent", "tracking-unavailable"]),
   total: communicationChannelCountsSchema,
+  unresolvedIssueCount: z.number().int().nonnegative().optional(),
 });
 
 export const communicationScheduledMessageSchema = z.object({
@@ -505,6 +535,23 @@ export const communicationRetryResponseSchema = z.object({
   messageId: z.uuid(),
   requestId: requestIdSchema,
   retried: z.number().int().nonnegative(),
+});
+export const communicationReviewIssuesResponseSchema = z.object({
+  issuesReviewedAt: z.iso.datetime(),
+  messageId: z.uuid(),
+  requestId: requestIdSchema,
+});
+export const communicationResolveDeliveryEmailRequestSchema = z.object({
+  email: z.string().trim().max(320).pipe(z.email()),
+  resend: z.boolean().default(true),
+});
+export const communicationResolveDeliveryEmailResponseSchema = z.object({
+  clearedBounceSuppression: z.boolean(),
+  deliveryId: z.uuid(),
+  email: z.email().max(320),
+  messageId: z.uuid(),
+  requestId: requestIdSchema,
+  resent: z.boolean(),
 });
 export const communicationTemplateResponseSchema = communicationTemplateSchema.and(
   z.object({ requestId: requestIdSchema }),
@@ -582,11 +629,22 @@ export type CommunicationAudienceChannelRequest = z.infer<
   typeof communicationAudienceChannelRequestSchema
 >;
 export type CommunicationChannel = z.infer<typeof communicationChannelSchema>;
+export type CommunicationDeliveryIssue = z.infer<typeof communicationDeliveryIssueSchema>;
+export type CommunicationDeliveryIssueKind = z.infer<typeof communicationDeliveryIssueKindSchema>;
 export type CommunicationDeliveryRecipient = z.infer<typeof communicationDeliveryRecipientSchema>;
 export type CommunicationDeliveryRecipientsPageResponse = z.infer<
   typeof communicationDeliveryRecipientsPageResponseSchema
 >;
 export type CommunicationDeliverySummary = z.infer<typeof communicationDeliverySummarySchema>;
+export type CommunicationResolveDeliveryEmailRequest = z.infer<
+  typeof communicationResolveDeliveryEmailRequestSchema
+>;
+export type CommunicationResolveDeliveryEmailResponse = z.infer<
+  typeof communicationResolveDeliveryEmailResponseSchema
+>;
+export type CommunicationReviewIssuesResponse = z.infer<
+  typeof communicationReviewIssuesResponseSchema
+>;
 export type CommunicationDraftRequest = z.infer<typeof communicationDraftRequestSchema>;
 export type CommunicationHistoryItem = z.infer<typeof communicationHistoryItemSchema>;
 export type CommunicationHistoryOriginFilter = z.infer<

@@ -3,6 +3,8 @@ import { MessageFilters } from "./MessageFilters";
 import type {
   CommunicationDeliverySummary,
   CommunicationMessage,
+  CommunicationResolveDeliveryEmailRequest,
+  CommunicationResolveDeliveryEmailResponse,
   OrganizationBranding,
   OrganizationEvent,
   OrganizationVenue,
@@ -40,8 +42,16 @@ interface MessagesPanelProps {
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
   readonly onOriginFilterChange: (origin: MessageOriginFilter) => void;
   readonly onPreviousPage?: () => void;
+  readonly onResolveDeliveryEmail?:
+    | ((
+        messageId: string,
+        deliveryId: string,
+        input: CommunicationResolveDeliveryEmailRequest,
+      ) => Promise<CommunicationResolveDeliveryEmailResponse>)
+    | undefined;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
   readonly onRetryDeliveries: (messageId: string) => Promise<void>;
+  readonly onReviewIssues?: ((messageId: string) => Promise<void>) | undefined;
   readonly onStatusFilterChange: (status: MessageStatusFilter) => void;
   readonly pageNumber?: number;
   readonly timezone?: string | null | undefined;
@@ -143,8 +153,10 @@ export function MessagesPanel({
   onOpenDeliveryDetails,
   onOriginFilterChange,
   onPreviousPage,
+  onResolveDeliveryEmail,
   onResumeDraft,
   onRetryDeliveries,
+  onReviewIssues,
   onStatusFilterChange,
   pageNumber,
   timezone,
@@ -223,8 +235,10 @@ export function MessagesPanel({
           onCancelQueued={onCancelQueued}
           onDeleteDraft={onDeleteDraft}
           onOpenDeliveryDetails={onOpenDeliveryDetails}
+          onResolveDeliveryEmail={onResolveDeliveryEmail}
           onResumeDraft={onResumeDraft}
           onRetryDeliveries={onRetryDeliveries}
+          onReviewIssues={onReviewIssues}
           timezone={timezone}
           unifiedMessages={unifiedMessages}
           venues={venues}

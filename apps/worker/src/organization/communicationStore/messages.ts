@@ -495,7 +495,7 @@ export function recordDeliveryResults(
         ? "Sent"
         : "Failed";
     storage.sql.exec(
-      `UPDATE communication_messages SET status = ?, sent_at = CASE WHEN ? = 'Sent' THEN ? ELSE sent_at END,
+      `UPDATE communication_messages SET status = ?, sent_at = CASE WHEN ? = 'Sent' THEN COALESCE(sent_at, ?) ELSE sent_at END,
         updated_at = ? WHERE id = ? AND canceled_at IS NULL`,
       status,
       status,

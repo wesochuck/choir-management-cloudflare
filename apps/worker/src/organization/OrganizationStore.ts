@@ -2,6 +2,10 @@ import { claimTicketWalletPass, finishTicketWalletPass } from "./ticketWalletSto
 import { queryCommunicationHistoryFromStore } from "./communicationStore/historyQueries";
 import { readCommunicationOverview } from "./communicationOverview";
 import {
+  resolveCommunicationDeliveryEmailInStore,
+  reviewCommunicationIssuesInStore,
+} from "./communicationStore/issueResolution";
+import {
   readTicketNotificationDetails,
   cancelTicketNotification,
 } from "./ticketNotificationManagement";
@@ -266,6 +270,16 @@ export class OrganizationStore extends DurableObject {
 
   readCommunicationOverview(input: Parameters<typeof readCommunicationOverview>[1]) {
     return readCommunicationOverview(this.ctx.storage, input);
+  }
+
+  reviewCommunicationIssues(input: Parameters<typeof reviewCommunicationIssuesInStore>[1]) {
+    return reviewCommunicationIssuesInStore(this.ctx.storage, input);
+  }
+
+  resolveCommunicationDeliveryEmail(
+    input: Parameters<typeof resolveCommunicationDeliveryEmailInStore>[1],
+  ) {
+    return resolveCommunicationDeliveryEmailInStore(this.ctx.storage, input);
   }
 
   readTicketNotificationDetails(input: Parameters<typeof readTicketNotificationDetails>[1]) {

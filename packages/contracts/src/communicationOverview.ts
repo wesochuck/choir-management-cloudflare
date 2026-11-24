@@ -11,6 +11,7 @@ export const communicationOverviewItemSchema = z.object({
   status: z.enum(["Draft", "Sent", "Sent with issues", "Failed", "Delayed", "Scheduled", "Queued"]),
   projected: z.boolean(),
   recipientCount: z.number().int().nonnegative().nullable(),
+  issueCount: z.number().int().nonnegative().optional(),
   href: z.string().startsWith("/admin/").max(1000),
   message: communicationMessageSchema.nullable(),
 });

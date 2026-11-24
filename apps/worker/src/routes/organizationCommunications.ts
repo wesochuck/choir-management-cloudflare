@@ -8,6 +8,9 @@ import {
 import {
   communicationAudienceChannelRequestSchema,
   communicationDraftRequestSchema,
+  communicationResolveDeliveryEmailRequestSchema,
+  communicationResolveDeliveryEmailResponseSchema,
+  communicationReviewIssuesResponseSchema,
   communicationSendRequestSchema,
   communicationTestEmailRequestSchema,
   communicationTemplateRequestSchema,
@@ -941,6 +944,144 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       return context.json(result.problem, result.status);
     }
   });
+
+  router.post("/api/organization/communications/:messageId/review-issues", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok)
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    const messageId = z.uuid().safeParse(context.req.param("messageId"));
+    if (!messageId.success)
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid communication is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    try {
+      const result = await organizationStoreStub(
+        context.env,
+        authorization.organizationId,
+      ).reviewCommunicationIssues({
+        actorUserId: authorization.userId,
+        messageId: messageId.data,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      });
+      if (result.status === "not_found")
+        return context.json(
+          {
+            code: "communication_message_not_found",
+            message: "Communication message not found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      return context.json(
+        communicationReviewIssuesResponseSchema.parse({
+          issuesReviewedAt: result.issuesReviewedAt,
+          messageId: result.messageId,
+          requestId: context.get("requestId"),
+        }),
+      );
+    } catch (error: unknown) {
+      const result = communicationProblem(
+        error,
+        context.get("requestId"),
+        "Delivery issues could not be marked as reviewed.",
+      );
+      return context.json(result.problem, result.status);
+    }
+  });
+
+  router.post(
+    "/api/organization/communications/:messageId/deliveries/:deliveryId/resolve-email",
+    async (context) => {
+      const authorization = await authorizeCalendarRoute(context, true);
+      if (!authorization.ok)
+        return context.json(
+          { ...authorization, requestId: context.get("requestId") },
+          authorization.status,
+        );
+      const messageId = z.uuid().safeParse(context.req.param("messageId"));
+      const deliveryId = z.uuid().safeParse(context.req.param("deliveryId"));
+      if (!messageId.success || !deliveryId.success)
+        return context.json(
+          {
+            code: "validation_failed",
+            message: "A valid communication and delivery are required.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          400,
+        );
+      const body = communicationResolveDeliveryEmailRequestSchema.safeParse(
+        await context.req.json<unknown>().catch(() => null),
+      );
+      if (!body.success)
+        return context.json(
+          {
+            code: "validation_failed",
+            message: "Enter a valid email address.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          400,
+        );
+      try {
+        const result = await organizationStoreStub(
+          context.env,
+          authorization.organizationId,
+        ).resolveCommunicationDeliveryEmail({
+          actorUserId: authorization.userId,
+          deliveryId: deliveryId.data,
+          email: body.data.email,
+          jobId: crypto.randomUUID(),
+          messageId: messageId.data,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+          resend: body.data.resend,
+        });
+        if (result.status === "not_found")
+          return context.json(
+            {
+              code: result.code,
+              message: result.message,
+              requestId: context.get("requestId"),
+            } satisfies ProblemDetails,
+            404,
+          );
+        if (result.status === "conflict")
+          return context.json(
+            {
+              code: result.code,
+              message: result.message,
+              requestId: context.get("requestId"),
+            } satisfies ProblemDetails,
+            409,
+          );
+        return context.json(
+          communicationResolveDeliveryEmailResponseSchema.parse({
+            clearedBounceSuppression: result.clearedBounceSuppression,
+            deliveryId: result.deliveryId,
+            email: result.email,
+            messageId: result.messageId,
+            requestId: context.get("requestId"),
+            resent: result.resent,
+          }),
+        );
+      } catch (error: unknown) {
+        const result = communicationProblem(
+          error,
+          context.get("requestId"),
+          "The recipient email could not be updated.",
+        );
+        return context.json(result.problem, result.status);
+      }
+    },
+  );
 
   router.post("/api/organization/communications/:messageId/cancel", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);

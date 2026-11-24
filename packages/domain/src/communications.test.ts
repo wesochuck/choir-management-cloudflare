@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  communicationDeliveryIssueGuidance,
+  communicationDeliveryIssueKind,
+  communicationDeliveryIssueLabel,
   communicationFailureCategory,
   communicationReach,
   maskCommunicationDestination,
@@ -120,5 +123,35 @@ describe("Organization communications", () => {
     });
     expect(JSON.stringify(summary)).not.toContain("secret payload");
     expect(JSON.stringify(summary)).not.toContain("person@example.test");
+  });
+
+  it("classifies delivery issue kinds, labels, and plain-English guidance", () => {
+    expect(communicationDeliveryIssueKind("sent", "bounced")).toBe("bounced");
+    expect(communicationDeliveryIssueKind("sent", "complained")).toBe("complained");
+    expect(communicationDeliveryIssueKind("sent", "rejected")).toBe("rejected");
+    expect(communicationDeliveryIssueKind("sent", "failed")).toBe("provider_failed");
+    expect(communicationDeliveryIssueKind("failed", null)).toBe("failed");
+    expect(communicationDeliveryIssueKind("sent", "delivered")).toBeNull();
+    expect(communicationDeliveryIssueKind("sent", "deferred")).toBeNull();
+    expect(communicationDeliveryIssueKind("suppressed", null)).toBeNull();
+
+    expect(communicationDeliveryIssueLabel("bounced")).toBe("Bounced");
+    expect(communicationDeliveryIssueLabel("complained")).toBe("Complained");
+    expect(communicationDeliveryIssueLabel("rejected")).toBe("Rejected");
+    expect(communicationDeliveryIssueLabel("provider_failed")).toBe("Provider failed");
+    expect(communicationDeliveryIssueLabel("failed")).toBe("Failed");
+
+    expect(
+      communicationDeliveryIssueGuidance({ category: "invalid-destination", issueKind: "bounced" }),
+    ).toContain("bounced");
+    expect(
+      communicationDeliveryIssueGuidance({
+        category: "provider-rejected",
+        issueKind: "complained",
+      }),
+    ).toContain("automatically suppressed");
+    expect(
+      communicationDeliveryIssueGuidance({ category: "rate-limit", issueKind: "failed" }),
+    ).toContain("retry");
   });
 });

@@ -5,26 +5,33 @@ import type {
 } from "@choir/contracts";
 import { organizationEventSchema } from "@choir/contracts";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi } from "vitest";
+import { AuthApiError } from "../../../api/client";
+import type * as AuthApi from "../../../auth/api";
 import { CommunicationDeliveryDetails } from "./CommunicationDeliveryDetails";
 import { defaultAudience } from "./utils";
 
-vi.mock("../../../auth/api", () => ({
-  getOrganizationCommunicationRecipients: vi.fn().mockResolvedValue({
-    nextCursor: null,
-    recipients: [
-      {
-        channel: "email",
-        destination: "ada@example.test",
-        recipientName: "Ada Lovelace",
-        status: "sent",
-        providerStatus: "delivered",
-      },
-    ],
-    requestId: "00000000-0000-0000-0000-000000000001",
-  }),
-}));
+vi.mock("../../../auth/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof AuthApi>();
+  return {
+    ...actual,
+    getOrganizationCommunicationRecipients: vi.fn().mockResolvedValue({
+      nextCursor: null,
+      recipients: [
+        {
+          channel: "email",
+          destination: "ada@example.test",
+          recipientName: "Ada Lovelace",
+          status: "sent",
+          providerStatus: "delivered",
+        },
+      ],
+      requestId: "00000000-0000-0000-0000-000000000001",
+    }),
+  };
+});
 
 const sampleSummary: CommunicationDeliverySummary = {
   email: { failed: 0, processing: 0, queued: 0, sent: 1, suppressed: 0, total: 1 },
@@ -215,6 +222,186 @@ describe("CommunicationDeliveryDetails", () => {
     ).toBeVisible();
     await waitFor(() => {
       expect(screen.getByText("Ada Lovelace", { selector: "strong" })).toBeVisible();
+    });
+  });
+
+  it("surfaces bounced and complained issues, marks them reviewed, and fixes emails inline", async () => {
+    const user = userEvent.setup();
+    const deliveryId = "20000000-0000-4000-8000-000000000001";
+    const complaintDeliveryId = "20000000-0000-4000-8000-000000000002";
+    const onReviewIssues = vi.fn().mockResolvedValue(undefined);
+    const onResolveDeliveryEmail = vi.fn().mockResolvedValue({
+      clearedBounceSuppression: true,
+      deliveryId,
+      email: "fixed@example.test",
+      messageId: sampleMessage.id,
+      requestId: "00000000-0000-4000-8000-000000000099",
+      resent: true,
+    });
+
+    const summaryWithIssues: CommunicationDeliverySummary = {
+      ...sampleSummary,
+      hasMoreIssues: false,
+      issues: [
+        {
+          attempts: 1,
+          canEditEmail: true,
+          category: "invalid-destination",
+          channel: "email",
+          deliveryId,
+          destination: "typo@example.test",
+          failureDetail: "",
+          issueKind: "bounced",
+          lastSeen: "2026-08-14T18:15:00.000Z",
+          providerReason: "550 5.1.1 User unknown",
+          providerStatus: "bounced",
+          recipientId: "30000000-0000-4000-8000-000000000001",
+          recipientKind: "profile",
+          recipientName: "Sam Typo",
+          status: "sent",
+        },
+        {
+          attempts: 1,
+          canEditEmail: false,
+          category: "provider-rejected",
+          channel: "email",
+          deliveryId: complaintDeliveryId,
+          destination: "complained@example.test",
+          failureDetail: "",
+          issueKind: "complained",
+          lastSeen: "2026-08-14T18:16:00.000Z",
+          providerReason: "Spam complaint",
+          providerStatus: "complained",
+          recipientId: "30000000-0000-4000-8000-000000000002",
+          recipientKind: "contact",
+          recipientName: "Pat Complainer",
+          status: "sent",
+        },
+      ],
+      issuesReviewedAt: null,
+      provider: {
+        ...sampleSummary.provider,
+        bounced: 1,
+        complained: 1,
+        total: 3,
+      },
+      unresolvedIssueCount: 2,
+    };
+
+    render(
+      <CommunicationDeliveryDetails
+        busy={false}
+        message={sampleMessage}
+        onResolveDeliveryEmail={onResolveDeliveryEmail}
+        onRetry={vi.fn()}
+        onReviewIssues={onReviewIssues}
+        summary={summaryWithIssues}
+        timezone="America/New_York"
+      />,
+    );
+
+    expect(screen.getByText("Delivery issues (2)")).toBeVisible();
+    expect(screen.getByText("Sam Typo")).toBeVisible();
+    expect(screen.getByText("typo@example.test")).toBeVisible();
+    expect(screen.getByText("Bounced")).toBeVisible();
+    expect(screen.getByText(/550 5\.1\.1 User unknown/)).toBeVisible();
+    expect(screen.getByText("Pat Complainer")).toBeVisible();
+    expect(screen.getByText("Complained")).toBeVisible();
+
+    // Snapshot & Recipients collapse by default when unresolved issues exist
+    const snapshotDetails = screen.getByText("Message snapshot").closest("details");
+    expect(snapshotDetails).not.toHaveAttribute("open");
+
+    // Only the bounced recipient has a Fix email button (not the spam complaint)
+    const fixButtons = screen.getAllByRole("button", { name: "Fix email" });
+    expect(fixButtons).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "Mark issues reviewed" }));
+    expect(onReviewIssues).toHaveBeenCalledTimes(1);
+
+    // Open Fix email modal and submit updated address + resend
+    const [firstFixButton] = fixButtons;
+    expect(firstFixButton).toBeDefined();
+    if (!firstFixButton) return;
+    await user.click(firstFixButton);
+    const emailInput = screen.getByLabelText("Updated email address");
+    expect(emailInput).toHaveValue("typo@example.test");
+    const resendCheckbox = screen.getByLabelText("Also resend this message to the updated email");
+    expect(resendCheckbox).toBeChecked();
+
+    await user.clear(emailInput);
+    await user.type(emailInput, "fixed@example.test");
+    await user.click(screen.getByRole("button", { name: "Save & resend" }));
+
+    await waitFor(() => {
+      expect(onResolveDeliveryEmail).toHaveBeenCalledWith(deliveryId, {
+        email: "fixed@example.test",
+        resend: true,
+      });
+    });
+  });
+
+  it("displays inline error in Fix email dialog when server rejects duplicate email", async () => {
+    const user = userEvent.setup();
+    const deliveryId = "20000000-0000-4000-8000-000000000003";
+    const onResolveDeliveryEmail = vi
+      .fn()
+      .mockRejectedValue(
+        new AuthApiError(
+          "Another contact already uses this email address.",
+          409,
+          "contact_duplicate_email",
+        ),
+      );
+
+    const summaryWithBounce: CommunicationDeliverySummary = {
+      ...sampleSummary,
+      hasMoreIssues: false,
+      issues: [
+        {
+          attempts: 1,
+          canEditEmail: true,
+          category: "invalid-destination",
+          channel: "email",
+          deliveryId,
+          destination: "typo@example.test",
+          failureDetail: "",
+          issueKind: "bounced",
+          lastSeen: "2026-08-14T18:15:00.000Z",
+          providerReason: "Bounce",
+          providerStatus: "bounced",
+          recipientId: "30000000-0000-4000-8000-000000000003",
+          recipientKind: "contact",
+          recipientName: "Jordan Bounce",
+          status: "sent",
+        },
+      ],
+      issuesReviewedAt: null,
+      unresolvedIssueCount: 1,
+    };
+
+    render(
+      <CommunicationDeliveryDetails
+        busy={false}
+        message={sampleMessage}
+        onResolveDeliveryEmail={onResolveDeliveryEmail}
+        onRetry={vi.fn()}
+        summary={summaryWithBounce}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Fix email" }));
+    await user.click(screen.getByLabelText("Also resend this message to the updated email"));
+    await user.click(screen.getByRole("button", { name: "Save email" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Another contact already uses this email address.",
+      );
+    });
+    expect(onResolveDeliveryEmail).toHaveBeenCalledWith(deliveryId, {
+      email: "typo@example.test",
+      resend: false,
     });
   });
 });

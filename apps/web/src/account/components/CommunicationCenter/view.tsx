@@ -144,8 +144,10 @@ export function CommunicationCenterView({
     reachState,
     recipientsExpanded,
     removeConflictingPlaceholder,
+    resolveDeliveryEmail,
     resumeDraft,
     retryDeliveries,
+    reviewIssues,
     rosterConfiguration,
     saveDraft,
     saveTemplate,
@@ -286,8 +288,10 @@ export function CommunicationCenterView({
                 onOpenDeliveryDetails={openDeliveryDetails}
                 onOriginFilterChange={setOriginFilter}
                 onPreviousPage={() => void previousPage()}
+                onResolveDeliveryEmail={resolveDeliveryEmail}
                 onResumeDraft={resumeDraft}
                 onRetryDeliveries={retryDeliveries}
+                onReviewIssues={reviewIssues}
                 onStatusFilterChange={setStatusFilter}
                 pageNumber={pageNumber}
                 timezone={timezone}

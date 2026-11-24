@@ -250,6 +250,7 @@ export interface MessageRow {
   readonly draftRevision?: number;
   readonly eventPromotionJson?: string | null;
   readonly id: string;
+  readonly issuesReviewedAt?: string | null;
   readonly reachJson: string;
   readonly queuedByUserId?: string | null;
   readonly queuedByName?: string | null;
@@ -295,7 +296,8 @@ export const messageColumns = `id, channel, status, subject, content_markdown AS
   audience_json AS audienceJson, reach_json AS reachJson, created_at AS createdAt,
   updated_at AS updatedAt, sent_at AS sentAt, canceled_at AS canceledAt,
   event_promotion_json AS eventPromotionJson, draft_revision AS draftRevision,
-  queued_by_user_id AS queuedByUserId, queued_by_name AS queuedByName`;
+  queued_by_user_id AS queuedByUserId, queued_by_name AS queuedByName,
+  issues_reviewed_at AS issuesReviewedAt`;
 
 export const deliveryJobResponseSchema = z.object({
   automation: communicationAutomationSchema.nullable().default(null),

@@ -2,6 +2,8 @@ import type {
   CommunicationDeliverySummary,
   CommunicationHistoryItem,
   CommunicationMessage,
+  CommunicationResolveDeliveryEmailRequest,
+  CommunicationResolveDeliveryEmailResponse,
 } from "@choir/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
@@ -11,7 +13,9 @@ import {
   getOrganizationCommunicationDeliverySummary,
   getOrganizationCommunicationHistory,
   listOrganizationCommunications,
+  resolveOrganizationCommunicationDeliveryEmail,
   retryOrganizationCommunicationDeliveries,
+  reviewOrganizationCommunicationIssues,
 } from "../../../auth/api";
 import type { MessageOriginFilter, MessageStatusFilter, UnifiedCommunicationItem } from "./types";
 import { failureMessage, unifiedItemSortTimestamp } from "./utils";
@@ -397,6 +401,71 @@ export function useCommunicationHistory({
     ],
   );
 
+  const reviewIssuesAction = useCallback(
+    async (messageId: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await reviewOrganizationCommunicationIssues(messageId);
+        const summary = await getOrganizationCommunicationDeliverySummary(messageId);
+        setDeliverySummary(summary);
+        void loadHistoryPage(statusFilter, originFilter, currentCursor);
+        setSuccessNotice("Delivery issues marked as reviewed.");
+      } catch (err: unknown) {
+        setError(failureMessage(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [
+      currentCursor,
+      loadHistoryPage,
+      originFilter,
+      setBusy,
+      setError,
+      setSuccessNotice,
+      statusFilter,
+    ],
+  );
+
+  const resolveDeliveryEmailAction = useCallback(
+    async (
+      messageId: string,
+      deliveryId: string,
+      input: CommunicationResolveDeliveryEmailRequest,
+    ): Promise<CommunicationResolveDeliveryEmailResponse> => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await resolveOrganizationCommunicationDeliveryEmail(
+          messageId,
+          deliveryId,
+          input,
+        );
+        const summary = await getOrganizationCommunicationDeliverySummary(messageId);
+        setDeliverySummary(summary);
+        setMessages(await listOrganizationCommunications());
+        void loadHistoryPage(statusFilter, originFilter, currentCursor);
+        const parts = [`Updated email to ${result.email}`];
+        if (result.clearedBounceSuppression) parts.push("cleared bounce suppression");
+        if (result.resent) parts.push("queued resend");
+        setSuccessNotice(`${parts.join(", ")}.`);
+        return result;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [
+      currentCursor,
+      loadHistoryPage,
+      originFilter,
+      setBusy,
+      setError,
+      setSuccessNotice,
+      statusFilter,
+    ],
+  );
+
   const clearDeliveryDetails = useCallback(() => {
     setDeliverySummary(null);
     setDeliveryDetailsMessage(null);
@@ -430,7 +499,9 @@ export function useCommunicationHistory({
     pageNumber,
     previousPage,
     refreshDraftCount,
+    resolveDeliveryEmailAction,
     retryDeliveriesAction,
+    reviewIssuesAction,
     setDraftCount,
     setHistoryItems,
     setMessages,

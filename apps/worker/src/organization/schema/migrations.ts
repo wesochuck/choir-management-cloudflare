@@ -2591,6 +2591,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       ) STRICT`,
     ],
   },
+  {
+    version: 145,
+    statements: [
+      "ALTER TABLE communication_messages ADD COLUMN issues_reviewed_at TEXT",
+      "ALTER TABLE communication_messages ADD COLUMN issues_reviewed_by TEXT",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

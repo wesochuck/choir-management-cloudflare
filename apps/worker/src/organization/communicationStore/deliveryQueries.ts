@@ -4,9 +4,13 @@ import {
   communicationDeliveryRecipientSchema,
   communicationDeliverySummarySchema,
   communicationRecipientSubjectFromLegacy,
+  communicationRecipientSubjectId,
   communicationRecipientSubjectSchema,
+  type CommunicationDeliveryIssue,
 } from "@choir/contracts";
 import {
+  communicationDeliveryIssueKind,
+  communicationFailureCategory,
   shouldIncludeUnpublishedUpcomingPerformances,
   summarizeCommunicationDeliveries,
   usesUpcomingPerformancesPlaceholder,
@@ -86,6 +90,60 @@ export function listProfileDeliveriesFromStore(
   return Response.json({ deliveries: rows });
 }
 
+function buildDeliveryIssue(
+  record: DeliveryRow,
+  issueKind: NonNullable<ReturnType<typeof communicationDeliveryIssueKind>>,
+): CommunicationDeliveryIssue {
+  const subject = parseDeliverySubject(record.recipientSubjectJson, record.profileId);
+  const recipientId = communicationRecipientSubjectId(subject);
+  const canEditEmail =
+    record.channel === "email" &&
+    issueKind !== "complained" &&
+    (subject.kind === "profile" || subject.kind === "contact") &&
+    z.uuid().safeParse(recipientId).success &&
+    z.uuid().safeParse(record.id).success;
+  const detail = record.providerReason || record.failureDetail;
+  return {
+    attempts: record.attempts,
+    canEditEmail,
+    category: communicationFailureCategory(detail),
+    channel: record.channel,
+    deliveryId: record.id,
+    destination: record.destination.slice(0, 320),
+    failureDetail: record.failureDetail.slice(0, 500),
+    issueKind,
+    lastSeen: record.updatedAt,
+    providerReason: record.providerReason.slice(0, 500),
+    providerStatus: record.providerStatus,
+    recipientId: recipientId.slice(0, 128),
+    recipientKind: subject.kind,
+    recipientName: record.recipientName,
+    status: record.status,
+  };
+}
+
+function collectCommunicationDeliveryIssues(
+  records: readonly DeliveryRow[],
+  issuesReviewedAt: string | null,
+) {
+  const issues: CommunicationDeliveryIssue[] = [];
+  let hasMoreIssues = false;
+  let unresolvedIssueCount = 0;
+  for (const record of records) {
+    const issueKind = communicationDeliveryIssueKind(record.status, record.providerStatus);
+    if (!issueKind) continue;
+    if (!issuesReviewedAt || record.updatedAt > issuesReviewedAt) {
+      unresolvedIssueCount += 1;
+    }
+    if (issues.length < 100) {
+      issues.push(buildDeliveryIssue(record, issueKind));
+    } else {
+      hasMoreIssues = true;
+    }
+  }
+  return { hasMoreIssues, issues, unresolvedIssueCount };
+}
+
 export function readCommunicationSummaryFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
@@ -96,25 +154,42 @@ export function readCommunicationSummaryFromStore(
   const parsedMessageId = z.uuid().safeParse(messageId);
   if (!parsedMessageId.success || !readMessage(storage, parsedMessageId.data))
     return Response.json({ code: "communication_message_not_found" }, { status: 404 });
+  const messageMeta = storage.sql
+    .exec<{ readonly issuesReviewedAt: string | null }>(
+      "SELECT issues_reviewed_at AS issuesReviewedAt FROM communication_messages WHERE id = ? LIMIT 1",
+      parsedMessageId.data,
+    )
+    .toArray()
+    .at(0);
+  const issuesReviewedAt = messageMeta?.issuesReviewedAt ?? null;
   const records = storage.sql
     .exec<DeliveryRow>(
-      `SELECT id, message_id AS messageId, recipient_name AS recipientName, channel, destination,
-        status, attempts, failure_detail AS failureDetail, provider_status AS providerStatus,
-        updated_at AS updatedAt
+      `SELECT id, message_id AS messageId, profile_id AS profileId, recipient_name AS recipientName,
+        channel, destination, status, attempts, failure_detail AS failureDetail,
+        provider_status AS providerStatus, provider_reason AS providerReason,
+        recipient_subject_json AS recipientSubjectJson, updated_at AS updatedAt
        FROM communication_deliveries WHERE message_id = ? ORDER BY id LIMIT ${String(MAX_COMMUNICATION_DELIVERIES)}`,
       parsedMessageId.data,
     )
     .toArray();
   const summary = summarizeCommunicationDeliveries(parsedMessageId.data, records);
+  const { hasMoreIssues, issues, unresolvedIssueCount } = collectCommunicationDeliveryIssues(
+    records,
+    issuesReviewedAt,
+  );
   return Response.json(
     communicationDeliverySummarySchema.parse({
       ...summary,
+      hasMoreIssues,
+      issues,
+      issuesReviewedAt,
       recipients: records.slice(0, 1_000).map((record) => ({
         channel: record.channel,
         providerStatus: record.providerStatus,
         recipientName: record.recipientName,
         status: record.status,
       })),
+      unresolvedIssueCount,
     }),
   );
 }

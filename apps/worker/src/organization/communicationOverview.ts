@@ -70,13 +70,21 @@ function messageItem(
   timestamp: string,
 ): CommunicationOverviewItem {
   const message = parseMessage(row);
-  const failed =
+  const reviewedAt = row.issuesReviewedAt ?? null;
+  const issueCount =
     storage.sql
-      .exec<{ id: string }>(
-        "SELECT id FROM communication_deliveries WHERE message_id=? AND (status='failed' OR provider_status IN ('bounced','failed','rejected','complained')) LIMIT 1",
+      .exec<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM communication_deliveries INDEXED BY communication_overview_failed_deliveries
+         WHERE message_id=?
+           AND (status='failed' OR provider_status IN ('bounced','failed','rejected','complained'))
+           AND (? IS NULL OR updated_at > ?)`,
         row.id,
+        reviewedAt,
+        reviewedAt,
       )
-      .toArray().length > 0;
+      .toArray()
+      .at(0)?.count ?? 0;
+  const hasIssues = issueCount > 0;
   return {
     id: row.id,
     source: "message",
@@ -85,13 +93,14 @@ function messageItem(
     automatic: row.automatic === 1,
     channel: message.channel,
     status:
-      message.status === "Sent" && failed
+      message.status === "Sent" && hasIssues
         ? "Sent with issues"
         : message.status === "Canceled"
           ? "Failed"
           : message.status,
     projected: false,
     recipientCount: message.reach.total,
+    ...(hasIssues ? { issueCount } : {}),
     href: `/admin/communications?tab=messages&messageId=${row.id}`,
     message,
   };
@@ -333,11 +342,11 @@ export function readCommunicationOverview(
     ...messages(storage, "Failed", 4),
     ...messages(storage, "Queued", 4, stale),
   ];
-  // Only the currently failed delivery partition is examined; canceled messages are excluded.
+  // Only the currently failed delivery partition is examined; canceled and reviewed messages are excluded.
   const partial = storage.sql
     .exec<{ messageId: string; issueTimestamp: string }>(
       `SELECT d.message_id AS messageId, MAX(d.updated_at) AS issueTimestamp FROM communication_deliveries d INDEXED BY communication_overview_failed_deliveries
-    JOIN communication_messages m ON m.id=d.message_id WHERE (d.status='failed' OR d.provider_status IN ('bounced','failed','rejected','complained')) AND m.status='Sent' AND m.canceled_at IS NULL
+    JOIN communication_messages m ON m.id=d.message_id WHERE (d.status='failed' OR d.provider_status IN ('bounced','failed','rejected','complained')) AND m.status='Sent' AND m.canceled_at IS NULL AND (m.issues_reviewed_at IS NULL OR d.updated_at > m.issues_reviewed_at)
     GROUP BY d.message_id ORDER BY MAX(d.updated_at) DESC,d.message_id LIMIT 4`,
     )
     .toArray();

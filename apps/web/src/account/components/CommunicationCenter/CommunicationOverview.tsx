@@ -150,6 +150,10 @@ function OverviewRow({
     item.recipientCount === null || drafts
       ? ""
       : ` · ${String(item.recipientCount)} ${item.recipientCount === 1 ? "recipient" : "recipients"}`;
+  const issues =
+    !drafts && item.issueCount && item.issueCount > 0
+      ? ` · ${String(item.issueCount)} ${item.issueCount === 1 ? "issue" : "issues"}`
+      : "";
   return (
     <li className="communication-overview__row">
       <div className="communication-overview__row-copy">
@@ -158,6 +162,7 @@ function OverviewRow({
           {date(item.timestamp, model.overview.data?.timezone ?? "UTC")} · {item.channel}
           {item.automatic ? " · Automatic" : ""}
           {recipients}
+          {issues}
         </p>
         {!drafts ? (
           <span
@@ -343,9 +348,19 @@ function DeliveryDialog({ model }: { readonly model: Model }) {
           busy={model.busy}
           events={model.events}
           message={model.deliveryDetailsMessage}
+          onResolveDeliveryEmail={async (deliveryId, input) => {
+            if (!model.deliveryDetailsMessage) {
+              throw new Error("Communication message is unavailable.");
+            }
+            return model.resolveDeliveryEmail(model.deliveryDetailsMessage.id, deliveryId, input);
+          }}
           onRetry={async () => {
             if (model.deliveryDetailsMessage)
               await model.retryDeliveries(model.deliveryDetailsMessage.id);
+          }}
+          onReviewIssues={async () => {
+            if (model.deliveryDetailsMessage)
+              await model.reviewIssues(model.deliveryDetailsMessage.id);
           }}
           summary={model.deliverySummary}
           timezone={model.timezone}
