@@ -9,6 +9,7 @@ import {
   communicationRecipientNamePlaceholderKeys,
   filterUpcomingPerformances,
   formatClockTime12Hour,
+  formatCommunicationEventLocation,
   formatCommunicationSetList,
   formatUpcomingPerformancesList,
   renderOrganizationLogoPlaceholder,
@@ -135,9 +136,26 @@ function resolvePreviewEventLocation(
   event: OrganizationEvent | null,
   venues: readonly OrganizationVenue[] | undefined,
 ): string {
-  const venueName =
-    event?.venueId && venues ? venues.find((venue) => venue.id === event.venueId)?.name : undefined;
-  return previewText(venueName?.trim() ? venueName : event?.location, "Main Hall");
+  if (!event) {
+    return formatCommunicationEventLocation({
+      venueAddress: "12 Main Street",
+      venueName: "Main Hall",
+    });
+  }
+  const venue =
+    event.venueId && venues ? venues.find((item) => item.id === event.venueId) : undefined;
+  const formatted = formatCommunicationEventLocation({
+    location: event.location,
+    venueAddress: venue?.address,
+    venueName: venue?.name,
+  });
+  return (
+    formatted ||
+    formatCommunicationEventLocation({
+      venueAddress: "12 Main Street",
+      venueName: "Main Hall",
+    })
+  );
 }
 
 export const SAMPLE_COMMUNICATION_RECIPIENT_NAME = "Johann Sebastian Bach";

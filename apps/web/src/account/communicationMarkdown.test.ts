@@ -394,6 +394,14 @@ describe("renderCommunicationMarkdownPreview", () => {
     });
 
     expect(values["{eventCallTime}"]).toBe("5:30 PM");
-    expect(values["{eventLocation}"]).toBe("First United Methodist Church - Sanctuary Main Floor");
+    expect(values["{eventLocation}"]).toBe(
+      "First United Methodist Church - Sanctuary Main Floor, 100 Main St ([Google Maps](https://www.google.com/maps/search/?api=1&query=First%20United%20Methodist%20Church%20-%20Sanctuary%20Main%20Floor%2C%20100%20Main%20St))",
+    );
+
+    const html = renderCommunicationMarkdownPreview("- **Location:** {eventLocation}", values);
+    expect(html).toContain("First United Methodist Church - Sanctuary Main Floor, 100 Main St");
+    expect(html).toContain(
+      '<a href="https://www.google.com/maps/search/?api=1&amp;query=First%20United%20Methodist%20Church%20-%20Sanctuary%20Main%20Floor%2C%20100%20Main%20St" target="_blank" rel="noopener noreferrer">Google Maps</a>',
+    );
   });
 });

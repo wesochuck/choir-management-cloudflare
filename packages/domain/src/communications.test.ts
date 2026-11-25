@@ -7,6 +7,7 @@ import {
   communicationDeliveryIssueLabel,
   communicationFailureCategory,
   communicationReach,
+  formatCommunicationEventLocation,
   formatCommunicationSetList,
   maskCommunicationDestination,
   renderCommunicationTemplate,
@@ -238,5 +239,31 @@ describe("Organization communications", () => {
     expect(() =>
       replaceUpcomingPerformancesPlaceholder("Shows:\n{{UPCOMING_PERFORMANCES}}!", "- Gala", 13),
     ).toThrow(CommunicationRenderLimitError);
+  });
+
+  it("formats {eventLocation} with venue name, address, and markdown-safe Google Maps link", () => {
+    expect(
+      formatCommunicationEventLocation({
+        venueAddress: "163 E Wheeling St\nLancaster, OH 43130",
+        venueName: "First United Methodist Church - Choir Room (Upstairs)",
+      }),
+    ).toBe(
+      "First United Methodist Church - Choir Room (Upstairs), 163 E Wheeling St Lancaster, OH 43130 ([Google Maps](https://www.google.com/maps/search/?api=1&query=First%20United%20Methodist%20Church%20-%20Choir%20Room%20%28Upstairs%29%2C%20163%20E%20Wheeling%20St%20Lancaster%2C%20OH%2043130))",
+    );
+
+    expect(
+      formatCommunicationEventLocation(
+        {
+          venueAddress: "163 E Wheeling St, Lancaster, OH 43130",
+          venueName: "First United Methodist Church - Sanctuary Main Floor",
+        },
+        { includeMapLink: false },
+      ),
+    ).toBe(
+      "First United Methodist Church - Sanctuary Main Floor, 163 E Wheeling St, Lancaster, OH 43130",
+    );
+
+    expect(formatCommunicationEventLocation({ location: "TBD" })).toBe("TBD");
+    expect(formatCommunicationEventLocation({})).toBe("");
   });
 });

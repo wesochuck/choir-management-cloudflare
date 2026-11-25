@@ -174,6 +174,74 @@ export function replaceBoundedPattern(
   return parts.join("");
 }
 
+export interface CommunicationEventLocationInput {
+  readonly location?: string | null | undefined;
+  readonly venueAddress?: string | null | undefined;
+  readonly venueName?: string | null | undefined;
+}
+
+export interface FormatCommunicationEventLocationOptions {
+  readonly includeMapLink?: boolean | undefined;
+}
+
+function normalizeLocationSegment(value: string | null | undefined): string {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function isPlaceholderLocation(value: string): boolean {
+  return /^(tbd|tba|to be announced|location to be announced|to be determined)$/i.test(
+    value.trim(),
+  );
+}
+
+function resolveLocationParts(
+  venueName: string,
+  venueAddress: string,
+  location: string,
+): { readonly displayName: string; readonly resolvedAddress: string } {
+  if (!venueName) {
+    if (!venueAddress) {
+      return { displayName: location, resolvedAddress: "" };
+    }
+    return {
+      displayName: location !== venueAddress ? location : "",
+      resolvedAddress: venueAddress,
+    };
+  }
+  return {
+    displayName: venueName,
+    resolvedAddress: venueAddress || (location && location !== venueName ? location : ""),
+  };
+}
+
+export function formatCommunicationEventLocation(
+  input: CommunicationEventLocationInput,
+  options: FormatCommunicationEventLocationOptions = {},
+): string {
+  const venueName = normalizeLocationSegment(input.venueName);
+  const venueAddress = normalizeLocationSegment(input.venueAddress);
+  const location = normalizeLocationSegment(input.location);
+  const { displayName, resolvedAddress } = resolveLocationParts(venueName, venueAddress, location);
+
+  const locationText = [displayName, resolvedAddress].filter(Boolean).join(", ");
+  if (!locationText) return "";
+
+  const includeMapLink = options.includeMapLink ?? true;
+  if (!includeMapLink) return locationText;
+
+  const validDisplayName = isPlaceholderLocation(displayName) ? "" : displayName;
+  const validVenueAddress = isPlaceholderLocation(resolvedAddress) ? "" : resolvedAddress;
+  const mapQuery = [validDisplayName, validVenueAddress].filter(Boolean).join(", ");
+  if (!mapQuery) return locationText;
+
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    mapQuery,
+  )
+    .replaceAll("(", "%28")
+    .replaceAll(")", "%29")}`;
+  return `${locationText} ([Google Maps](${googleMapsUrl}))`;
+}
+
 export function renderCommunicationTemplate(
   template: string,
   recipientName: string,

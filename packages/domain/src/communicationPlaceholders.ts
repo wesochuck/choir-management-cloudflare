@@ -147,7 +147,7 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
     audience: ["Members", "Contacts"],
     category: "Event",
     contexts: ["standard", "attendance"],
-    description: "The venue or location entered for the event.",
+    description: "The event's venue, address, and Google Maps link.",
     label: "Event location",
     requiresEvent: true,
     tag: "{eventLocation}",

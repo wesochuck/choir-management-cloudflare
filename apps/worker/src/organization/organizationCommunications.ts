@@ -32,6 +32,7 @@ import {
   dedupeCommunicationCandidates,
   extractCommunicationPlaceholders,
   formatClockTime12Hour,
+  formatCommunicationEventLocation,
   formatCommunicationSetList,
   formatUpcomingPerformancesList,
   normalizeEmail,
@@ -898,6 +899,7 @@ interface TestEmailTemplateOptions {
   readonly renderLimits?: CommunicationRenderLimits | undefined;
   readonly subject: string;
   readonly timezone: string;
+  readonly venueAddress?: string | null | undefined;
   readonly venueName?: string | null | undefined;
 }
 
@@ -905,11 +907,18 @@ function resolveTestEmailEventContext(
   event: OrganizationEvent | null,
   timezone: string,
   venueName: string | null | undefined,
-): Record<string, string> {
-  if (!event) return {};
-  const trimmedVenue = venueName?.trim() ?? "";
-  const resolvedLocation = trimmedVenue.length > 0 ? trimmedVenue : event.location.trim();
-  return {
+  venueAddress: string | null | undefined,
+): {
+  readonly bodyContext: Record<string, string>;
+  readonly subjectContext: Record<string, string>;
+} {
+  if (!event) return { bodyContext: {}, subjectContext: {} };
+  const locationInput = {
+    location: event.location,
+    venueAddress,
+    venueName,
+  };
+  const shared = {
     eventCallTime: formatClockTime12Hour(event.callTime),
     eventDate: new Intl.DateTimeFormat("en-US", {
       dateStyle: "long",
@@ -918,10 +927,19 @@ function resolveTestEmailEventContext(
     }).format(new Date(event.startsAt)),
     eventDetails: event.details,
     eventId: event.id,
-    eventLocation: resolvedLocation,
     eventTitle: event.title,
     eventType: event.type,
     setlist: formatCommunicationSetList(event.setList),
+  };
+  return {
+    bodyContext: {
+      ...shared,
+      eventLocation: formatCommunicationEventLocation(locationInput),
+    },
+    subjectContext: {
+      ...shared,
+      eventLocation: formatCommunicationEventLocation(locationInput, { includeMapLink: false }),
+    },
   };
 }
 
@@ -944,10 +962,11 @@ export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
     logoUrl,
     organizationName: orgName,
   });
-  const eventContext = resolveTestEmailEventContext(
+  const { bodyContext, subjectContext } = resolveTestEmailEventContext(
     options.event,
     options.timezone,
     options.venueName,
+    options.venueAddress,
   );
 
   const testRsvpLink = `[Open RSVP page](https://${options.baseDomain || "localhost"}/rsvp?sample=1)\n\n(No login required.)`;
@@ -961,7 +980,7 @@ export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
       RSVP_LINKS: testRsvpLink,
       organizationLogo: logoPlaceholder,
       organizationName: orgName,
-      ...eventContext,
+      ...bodyContext,
     },
     { field: "body", maxLength: bodyLimit },
   );
@@ -971,7 +990,7 @@ export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
     testRecipientName,
     {
       organizationName: orgName,
-      ...eventContext,
+      ...subjectContext,
     },
     { field: "subject", maxLength: subjectLimit },
   );
@@ -1051,6 +1070,7 @@ export async function handleTestEmailDelivery(
         : Promise.resolve(null),
     ]);
 
+  const { address: venueAddress, name: venueName } = resolveTestEmailVenue(selectedEvent, venues);
   const { fromName, templatedContent, templatedSubject } = renderTestEmailPayload({
     baseDomain: env.PRODUCT_BASE_DOMAIN || "localhost",
     branding,
@@ -1060,7 +1080,8 @@ export async function handleTestEmailDelivery(
     renderLimits,
     subject: data.subject,
     timezone,
-    venueName: resolveTestEmailVenueName(selectedEvent, venues),
+    venueAddress,
+    venueName,
   });
   const contentWithUpcomingPerformances = finalizeTestEmailContent({
     bodyLimit,
@@ -1105,12 +1126,13 @@ async function loadTestEmailVenues(env: Env, organizationId: string, eventId: st
   return listOrganizationVenues(env, organizationId).catch(() => []);
 }
 
-function resolveTestEmailVenueName(
+function resolveTestEmailVenue(
   event: OrganizationEvent | null,
-  venues: readonly { readonly id: string; readonly name: string }[],
-): string | null {
-  if (!event?.venueId) return null;
-  return venues.find((venue) => venue.id === event.venueId)?.name ?? null;
+  venues: readonly { readonly address: string; readonly id: string; readonly name: string }[],
+): { readonly address: string | null; readonly name: string | null } {
+  if (!event?.venueId) return { address: null, name: null };
+  const venue = venues.find((item) => item.id === event.venueId);
+  return { address: venue?.address ?? null, name: venue?.name ?? null };
 }
 
 async function loadTestEmailTimezone(env: Env, organizationId: string): Promise<string> {

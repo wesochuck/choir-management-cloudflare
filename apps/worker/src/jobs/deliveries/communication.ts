@@ -231,12 +231,18 @@ async function renderDeliverySubjectAndBody(
       canonicalOrigin,
       bodyLimit,
     );
+    const subjectContext = deliveryJob.context
+      ? {
+          ...deliveryJob.context,
+          eventLocation: deliveryJob.context.eventLocationText || deliveryJob.context.eventLocation,
+        }
+      : {};
     const renderedSubject = renderCommunicationTemplate(
       deliveryJob.subject,
       delivery.recipientName,
       {
         organizationName: orgName,
-        ...(deliveryJob.context ?? {}),
+        ...subjectContext,
       },
       { field: "subject", maxLength: subjectLimit },
     );

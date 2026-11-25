@@ -1,5 +1,6 @@
 import {
   formatClockTime12Hour,
+  formatCommunicationEventLocation,
   hasAttendanceWarning,
   renderCommunicationTemplate,
 } from "@choir/domain";
@@ -103,20 +104,24 @@ export async function deliverScheduledEventCommunication(
     timeZone: scheduled.event.timezone,
   }).format(new Date(scheduled.event.startsAt));
 
+  const locationInput = {
+    location: scheduled.event.location,
+    venueAddress: scheduled.event.venueAddress,
+    venueName: scheduled.event.venueName,
+  };
   const eventValues: Record<string, string> = {
     eventCallTime: formatClockTime12Hour(scheduled.event.callTime),
     eventDate: eventDateFormatted,
     eventDetails: scheduled.event.details,
-    eventLocation: scheduled.event.venueName.trim() || scheduled.event.location.trim(),
+    eventLocation: formatCommunicationEventLocation(locationInput),
     eventTitle: scheduled.event.title,
     eventType: scheduled.event.type,
   };
 
-  const renderedSubject = renderCommunicationTemplate(
-    template.subject,
-    "{recipientName}",
-    eventValues,
-  );
+  const renderedSubject = renderCommunicationTemplate(template.subject, "{recipientName}", {
+    ...eventValues,
+    eventLocation: formatCommunicationEventLocation(locationInput, { includeMapLink: false }),
+  });
   const renderedContent = renderCommunicationTemplate(
     template.contentMarkdown,
     "{recipientName}",
@@ -298,7 +303,11 @@ export async function deliverAttendanceReportJob(
           timeStyle: "short",
           timeZone: parsed.data.event.timezone,
         }).format(new Date(parsed.data.event.startsAt)),
-        eventLocation: parsed.data.event.venueName.trim() || parsed.data.event.location.trim(),
+        eventLocation: formatCommunicationEventLocation({
+          location: parsed.data.event.location,
+          venueAddress: parsed.data.event.venueAddress,
+          venueName: parsed.data.event.venueName,
+        }),
       }),
       eventId: parsed.data.eventId,
       recipients,

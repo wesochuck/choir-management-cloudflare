@@ -310,6 +310,7 @@ export const deliveryJobResponseSchema = z.object({
       eventDate: z.string(),
       eventDetails: z.string(),
       eventLocation: z.string(),
+      eventLocationText: z.string().default(""),
       eventTitle: z.string(),
       eventType: z.string(),
       eventTicketPath: z.string().max(320).default(""),

@@ -94,7 +94,16 @@ function renderBulletinSubject(
   context: Record<string, string> | null,
 ): string {
   try {
-    return renderCommunicationTemplate(raw.subject, raw.recipientName, context ?? undefined, {
+    const subjectContext = context
+      ? {
+          ...context,
+          eventLocation:
+            context.eventLocationText && context.eventLocationText.length > 0
+              ? context.eventLocationText
+              : (context.eventLocation ?? ""),
+        }
+      : undefined;
+    return renderCommunicationTemplate(raw.subject, raw.recipientName, subjectContext, {
       field: "subject",
     });
   } catch (error: unknown) {

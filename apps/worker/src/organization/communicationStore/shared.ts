@@ -13,6 +13,7 @@ import {
 import {
   filterUpcomingPerformances,
   formatClockTime12Hour,
+  formatCommunicationEventLocation,
   formatCommunicationSetList,
   ticketSalesPath,
   type UpcomingPerformanceListItem,
@@ -164,7 +165,9 @@ export function eventCommunicationContext(
       readonly callTime: string;
       readonly details: string;
       readonly eventDate: string;
-      readonly eventLocation: string;
+      readonly location: string;
+      readonly venueAddress: string;
+      readonly venueName: string;
       readonly eventTitle: string;
       readonly eventType: string;
       readonly ticketSlug: string | null;
@@ -172,7 +175,9 @@ export function eventCommunicationContext(
     }>(
       `SELECT e.title AS eventTitle, e.type AS eventType, e.starts_at AS eventDate,
         e.call_time AS callTime, e.details,
-        COALESCE(NULLIF(TRIM(v.name), ''), NULLIF(TRIM(e.location), ''), '') AS eventLocation,
+        COALESCE(e.location, '') AS location,
+        COALESCE(v.name, '') AS venueName,
+        COALESCE(v.address, '') AS venueAddress,
         e.set_list_json AS setListJson,
         (SELECT slug FROM ticket_url_names WHERE kind = 'performance' AND resource_id = e.id) AS ticketSlug
        FROM events e LEFT JOIN venues v ON v.id = e.venue_id
@@ -185,6 +190,11 @@ export function eventCommunicationContext(
   const timezone = storage.sql
     .exec<{ readonly timezone: string }>("SELECT timezone FROM organization_metadata LIMIT 1")
     .one().timezone;
+  const locationInput = {
+    location: event.location,
+    venueAddress: event.venueAddress,
+    venueName: event.venueName,
+  };
   return {
     eventId,
     eventCallTime: formatClockTime12Hour(event.callTime),
@@ -194,7 +204,8 @@ export function eventCommunicationContext(
       timeZone: timezone,
     }).format(new Date(event.eventDate)),
     eventDetails: event.details,
-    eventLocation: event.eventLocation,
+    eventLocation: formatCommunicationEventLocation(locationInput),
+    eventLocationText: formatCommunicationEventLocation(locationInput, { includeMapLink: false }),
     eventTitle: event.eventTitle,
     eventType: event.eventType,
     eventTicketPath: ticketSalesPath({ id: eventId, ticketSlug: event.ticketSlug }),

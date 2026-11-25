@@ -156,7 +156,7 @@ describe("renderTestEmailPayload", () => {
     expect(rendered.templatedContent).toContain("{setlist}");
   });
 
-  it("formats {eventCallTime} as 12-hour AM/PM and resolves {eventLocation} from venueName when event.location is blank", () => {
+  it("formats {eventCallTime} as 12-hour AM/PM and resolves {eventLocation} with venue address and Google Maps link", () => {
     const rendered = renderTestEmailPayload({
       baseDomain: "alpha.localhost",
       branding: { logoFileId: null, organizationName: "Alpha Choir" },
@@ -167,14 +167,18 @@ describe("renderTestEmailPayload", () => {
         venueId: "22222222-2222-4222-8222-222222222222",
       }),
       fromName: "Alpha Choir",
-      subject: "Performance details for: {eventTitle}",
+      subject: "Performance details for: {eventTitle} at {eventLocation}",
       timezone: "America/New_York",
+      venueAddress: "163 E Wheeling St, Lancaster, OH 43130",
       venueName: "First United Methodist Church - Sanctuary Main Floor",
     });
 
     expect(rendered.templatedContent).toContain("- **Call time:** 5:30 PM");
     expect(rendered.templatedContent).toContain(
-      "- **Location:** First United Methodist Church - Sanctuary Main Floor",
+      "- **Location:** First United Methodist Church - Sanctuary Main Floor, 163 E Wheeling St, Lancaster, OH 43130 ([Google Maps](https://www.google.com/maps/search/?api=1&query=First%20United%20Methodist%20Church%20-%20Sanctuary%20Main%20Floor%2C%20163%20E%20Wheeling%20St%2C%20Lancaster%2C%20OH%2043130))",
+    );
+    expect(rendered.templatedSubject).toBe(
+      "Performance details for: Downtown Christmas Stroll at First United Methodist Church - Sanctuary Main Floor, 163 E Wheeling St, Lancaster, OH 43130",
     );
   });
 
@@ -503,7 +507,16 @@ describe("handleTestEmailDelivery render budget enforcement (SEC-01)", () => {
     );
     expect(sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        html: expect.stringContaining("First United Methodist Church - Sanctuary Main Floor"),
+        html: expect.stringContaining(
+          "First United Methodist Church - Sanctuary Main Floor, 100 Main St",
+        ),
+      }),
+    );
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining(
+          'href="https://www.google.com/maps/search/?api=1&amp;query=First%20United%20Methodist%20Church%20-%20Sanctuary%20Main%20Floor%2C%20100%20Main%20St"',
+        ),
       }),
     );
     expect(sendEmailMock).not.toHaveBeenCalledWith(
