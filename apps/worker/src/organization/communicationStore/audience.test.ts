@@ -286,6 +286,7 @@ async function resolveAudience(
   storage: CommunicationAudienceStorage,
   audience: CommunicationAudienceRequest,
   organizationId: string = ORG_ID,
+  options?: { readonly includeEmailCopies?: boolean },
 ): Promise<{
   readonly contactsOverLimit: boolean;
   readonly recipients: AudienceRecipient[];
@@ -294,7 +295,13 @@ async function resolveAudience(
   readonly undeliverableTicketBuyerPurchases: number;
 }> {
   const request = new Request("https://organization.internal/internal/communications/audience", {
-    body: JSON.stringify({ audience, organizationId }),
+    body: JSON.stringify({
+      audience,
+      ...(options?.includeEmailCopies !== undefined
+        ? { includeEmailCopies: options.includeEmailCopies }
+        : {}),
+      organizationId,
+    }),
     method: "POST",
   });
   const response = await resolveCommunicationAudienceFromStore(storage, request);
@@ -1502,5 +1509,89 @@ describe("communication delivery suppression query plan and correctness", () => 
     expect(getStatus(dSuppressed)).toBe("suppressed");
     expect(getStatus(dLinkedSupp)).toBe("suppressed");
     expect(getStatus(dUnsub)).toBe("suppressed");
+  });
+
+  it("auto-copies active receive_all_communications profiles on email communications without voice part or RSVP", async () => {
+    const { db, storage } = seedDatabase();
+    const now = new Date().toISOString();
+    const eventId = uuidFor("event-cc");
+    db.prepare(
+      `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+       VALUES (?, 'Christmas Concert', 'Performance', '2026-12-12T18:00:00.000Z', ?, ?)`,
+    ).run(eventId, now, now);
+
+    const rsvpSingerId = seedProfile(db, { displayName: "RSVP Singer", voicePart: "S1" });
+    const directorId = seedProfile(db, { displayName: "Mark Director", voicePart: "" });
+    const blockedAccompanistId = seedProfile(db, {
+      displayName: "Blocked Accompanist",
+      voicePart: "",
+    });
+    const inactiveStaffId = seedProfile(db, { displayName: "Inactive Staff", voicePart: "" });
+
+    db.prepare(
+      `INSERT INTO event_rosters (event_id, profile_id, rsvp, created_at, updated_at) VALUES (?, ?, 'Yes', ?, ?)`,
+    ).run(eventId, rsvpSingerId, now, now);
+    db.prepare("UPDATE profiles SET receive_all_communications = 1 WHERE id IN (?, ?, ?)").run(
+      directorId,
+      blockedAccompanistId,
+      inactiveStaffId,
+    );
+    db.prepare("UPDATE profiles SET do_not_email = 1 WHERE id = ?").run(blockedAccompanistId);
+    db.prepare("UPDATE profiles SET global_status = 'Inactive' WHERE id = ?").run(inactiveStaffId);
+
+    seedContact(db, {
+      displayName: "Mark Director",
+      email: "director@example.test",
+      phone: "+15550001111",
+      profileId: directorId,
+      source: "roster",
+    });
+
+    // 1. Members filtered to RSVP=Yes includes director (no voice part, no RSVP), excludes blocked & inactive
+    const rsvpResult = await resolveAudience(
+      storage,
+      audienceFor(["Members"], { eventId, rsvp: "Yes" }),
+    );
+    expect(rsvpResult.recipients.map((r) => r.profileId)).toEqual([rsvpSingerId, directorId]);
+    const directorRecipient = rsvpResult.recipients.find((r) => r.profileId === directorId);
+    expect(directorRecipient?.email).toBe("director@example.test");
+    expect(directorRecipient?.phone).toBe("");
+
+    // 2. Filtered Contacts-only email also copies director when at least one contact matches
+    seedContact(db, {
+      displayName: "Supporter",
+      email: "supporter@example.test",
+      emailStatus: "subscribed",
+      source: "newsletter",
+    });
+    const contactsResult = await resolveAudience(
+      storage,
+      audienceFor(["Contacts"], { contactSource: "newsletter" }),
+    );
+    expect(contactsResult.recipients.map((r) => r.email)).toEqual([
+      "supporter@example.test",
+      "director@example.test",
+    ]);
+
+    // 3. SMS-only request (includeEmailCopies: false) does not copy director
+    const smsResult = await resolveAudience(
+      storage,
+      audienceFor(["Members"], { eventId, rsvp: "Yes" }),
+      ORG_ID,
+      { includeEmailCopies: false },
+    );
+    expect(smsResult.recipients.map((r) => r.profileId)).toEqual([rsvpSingerId]);
+
+    // 4. Empty primary audience does not emit CC-only recipients
+    const emptyEventId = uuidFor("event-empty");
+    db.prepare(
+      `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+       VALUES (?, 'Empty Event', 'Performance', '2026-12-20T18:00:00.000Z', ?, ?)`,
+    ).run(emptyEventId, now, now);
+    const emptyResult = await resolveAudience(
+      storage,
+      audienceFor(["Members"], { eventId: emptyEventId, rsvp: "Yes" }),
+    );
+    expect(emptyResult.recipients).toEqual([]);
   });
 });

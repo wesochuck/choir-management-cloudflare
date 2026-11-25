@@ -36,6 +36,7 @@ const PROFILE_SELECT_COLUMNS = `p.id, (SELECT c.email FROM contacts c WHERE c.id
           do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
           receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
           receive_admin_notifications AS receiveAdminNotifications,
+          receive_all_communications AS receiveAllCommunications,
           receive_audition_notifications AS receiveAuditionNotifications,
           receive_financial_alerts AS receiveFinancialAlerts,
           receive_rehearsal_reminders AS receiveRehearsalReminders,
@@ -247,11 +248,11 @@ function insertProfileRow(
     `INSERT INTO profiles
       (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
        do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
-       receive_admin_notifications, receive_audition_notifications, receive_financial_alerts, is_section_leader,
+       receive_admin_notifications, receive_all_communications, receive_audition_notifications, receive_financial_alerts, is_section_leader,
        receive_rehearsal_reminders, receive_performance_reminders,
        receive_other_event_reminders,
        status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     profileId,
     profile.displayName,
     profile.phone,
@@ -263,6 +264,7 @@ function insertProfileRow(
     profile.receiveAttendanceReports ? 1 : 0,
     profile.receiveRsvpDeclineNotices ? 1 : 0,
     profile.receiveAdminNotifications ? 1 : 0,
+    toSqlBit(profile.receiveAllCommunications ?? false),
     toSqlBit(profile.receiveAuditionNotifications ?? false),
     profile.receiveFinancialAlerts ? 1 : 0,
     profile.isSectionLeader ? 1 : 0,
@@ -473,6 +475,10 @@ export async function updateProfile(
     // saved values.
     const preferenceUpdates: string[] = [];
     const preferenceBindings: number[] = [];
+    if (profile.receiveAllCommunications !== undefined) {
+      preferenceUpdates.push("receive_all_communications = ?");
+      preferenceBindings.push(toSqlBit(profile.receiveAllCommunications));
+    }
     if (profile.receiveAuditionNotifications !== undefined) {
       preferenceUpdates.push("receive_audition_notifications = ?");
       preferenceBindings.push(toSqlBit(profile.receiveAuditionNotifications));

@@ -667,6 +667,12 @@
     border-color: color-mix(in srgb, var(--color-success, #16a34a) 40%, var(--color-border));
   }
 
+  .dialog--profile-editor .status-pill--info {
+    background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
+    color: var(--color-text);
+    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+  }
+
   .dialog--profile-editor .status-pill--warning {
     background: color-mix(in srgb, var(--color-accent) 15%, var(--color-surface));
     color: var(--color-text);

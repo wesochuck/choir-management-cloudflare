@@ -23,6 +23,16 @@ export function RosterDeliveryStatus({ profile }: { readonly profile: Organizati
       </span>
     );
   }
+  if (profile.receiveAllCommunications) {
+    return (
+      <span
+        className="status-pill status-pill--info"
+        title="Always copied on organization emails and automatic event reminders (even without a singing part or RSVP)."
+      >
+        Always copied
+      </span>
+    );
+  }
   return <span className="status-pill status-pill--success">Allowed</span>;
 }
 

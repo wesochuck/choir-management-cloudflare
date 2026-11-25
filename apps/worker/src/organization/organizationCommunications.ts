@@ -11,6 +11,7 @@ import {
   communicationTemplateSchema,
   communicationTemplatesResponseSchema,
   type CommunicationAudienceRequest,
+  type CommunicationChannel,
   type CommunicationDeliveryRecipient,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
@@ -184,6 +185,7 @@ async function resolveRecipients(
   database: D1Database,
   organizationId: string,
   audience: CommunicationAudienceRequest,
+  channel: CommunicationChannel,
   unsubscribeOrigin: string | null,
 ): Promise<{
   readonly audienceOverLimit: boolean;
@@ -194,6 +196,7 @@ async function resolveRecipients(
   const [response, emails] = await Promise.all([
     post(env, organizationId, "/internal/communications/audience", {
       audience,
+      includeEmailCopies: channel !== "SMS",
       organizationId,
     }),
     listOrganizationProfileEmails(database, organizationId),
@@ -328,7 +331,14 @@ export async function previewCommunicationReach(
     readonly subject?: string | undefined;
   },
 ): Promise<CommunicationReach & { readonly reviewSnapshot?: string }> {
-  const resolution = await resolveRecipients(env, database, organizationId, request.audience, null);
+  const resolution = await resolveRecipients(
+    env,
+    database,
+    organizationId,
+    request.audience,
+    request.channel,
+    null,
+  );
   const reach = communicationReach(
     resolution.recipients,
     request.channel,
@@ -377,6 +387,7 @@ export async function saveCommunicationDraft(
     database,
     context.organizationId,
     message.audience,
+    message.channel,
     null,
   );
   const reach = communicationReach(
@@ -450,6 +461,7 @@ export async function sendOrganizationCommunication(
     database,
     context.organizationId,
     message.audience,
+    message.channel,
     context.organizationOrigin,
   );
   if (resolution.ticketBuyerPurchasesOverLimit > 0) {

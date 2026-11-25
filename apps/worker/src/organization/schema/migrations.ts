@@ -2627,6 +2627,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON poll_responses(profile_id, responded_at DESC, poll_id)`,
     ],
   },
+  {
+    version: 149,
+    statements: [
+      "ALTER TABLE profiles ADD COLUMN receive_all_communications INTEGER NOT NULL DEFAULT 0 CHECK (receive_all_communications IN (0, 1))",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

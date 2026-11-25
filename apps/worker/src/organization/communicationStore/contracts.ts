@@ -43,6 +43,7 @@ const contextSchema = z.object({
 });
 export const audienceOperationSchema = contextSchema.pick({ organizationId: true }).extend({
   audience: communicationAudienceRequestSchema,
+  includeEmailCopies: z.boolean().default(true),
 });
 export const recipientSchema = z.object({
   email: z.string().max(320),

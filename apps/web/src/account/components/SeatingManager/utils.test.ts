@@ -103,6 +103,7 @@ describe("resolveDraggingProfile", () => {
     photoFileId: null,
     providerEmailSuppressed: false,
     receiveAdminNotifications: false,
+    receiveAllCommunications: false,
     receiveAttendanceReports: false,
     receiveAuditionNotifications: false,
     receiveFinancialAlerts: false,

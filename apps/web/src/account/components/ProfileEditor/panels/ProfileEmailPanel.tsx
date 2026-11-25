@@ -16,6 +16,7 @@ export function ProfileEmailPanel({
 }: ProfileEmailPanelProps) {
   const isSuppressed = Boolean(editingProfileRecord?.providerEmailSuppressed);
   const isDoNotEmail = profile.doNotEmail;
+  const isAlwaysCopied = Boolean(profile.receiveAllCommunications);
 
   return (
     <div className="profile-editor-panel profile-editor-panel--email">
@@ -26,6 +27,13 @@ export function ProfileEmailPanel({
             <span className="status-pill status-pill--warning">Email blocked</span>
           ) : isSuppressed ? (
             <span className="status-pill status-pill--suppressed">Suppressed</span>
+          ) : isAlwaysCopied ? (
+            <span
+              className="status-pill status-pill--info"
+              title="Always copied on group emails and automatic event reminders (even without a singing part or RSVP)."
+            >
+              Always copied
+            </span>
           ) : (
             <span
               className="status-pill status-pill--success"
@@ -136,6 +144,20 @@ export function ProfileEmailPanel({
                 }));
               }}
               title="Financial alerts"
+            />
+            <ProfileSettingSwitch
+              accessibleLabel="Copy on all organization emails — Include on group emails and automatic event reminders even without a singing part or RSVP. Separate alert settings above still apply independently."
+              checked={profile.receiveAllCommunications ?? false}
+              description="Include on group emails and automatic event reminders even without a singing part or RSVP. Separate alert settings above still apply independently."
+              disabled={busy}
+              id="roster-profile-all-communications"
+              onChange={(checked) => {
+                setProfile((current) => ({
+                  ...current,
+                  receiveAllCommunications: checked,
+                }));
+              }}
+              title="Copy on all organization emails"
             />
           </div>
         </div>

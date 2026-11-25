@@ -279,6 +279,7 @@ export function buildOrganizationProfile(
     photoFileId: null,
     providerEmailSuppressed: false,
     receiveAdminNotifications: true,
+    receiveAllCommunications: false,
     receiveAttendanceReports: true,
     receiveAuditionNotifications: false,
     receiveFinancialAlerts: false,

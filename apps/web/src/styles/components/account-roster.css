@@ -83,6 +83,11 @@
       background: color-mix(in srgb, var(--color-accent) 20%, var(--color-surface));
     }
 
+    .roster-directory-panel .data-table-card .status-pill--info {
+      border-color: var(--color-primary);
+      background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
+    }
+
     .roster-directory-panel .data-table-card .status-pill--suppressed {
       background: var(--color-danger-surface);
     }
@@ -581,6 +586,12 @@
   }
 
   .roster-directory-panel .roster-table__status .status-pill {
+    color: var(--color-text);
+  }
+
+  .roster-directory-panel .status-pill.status-pill--info {
+    border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-border));
+    background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
     color: var(--color-text);
   }
 

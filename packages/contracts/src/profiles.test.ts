@@ -63,6 +63,20 @@ describe("organizationProfileRequestSchema", () => {
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
     expect(parsed.receiveAuditionNotifications).toBe(false);
+    expect(parsed.receiveAllCommunications).toBe(false);
+  });
+
+  it("accepts receiveAllCommunications in profile requests and defaults to false in profile schema", () => {
+    const omitted = organizationProfileRequestSchema.parse({
+      displayName: "Director",
+    });
+    expect(omitted.receiveAllCommunications).toBeUndefined();
+
+    const enabled = organizationProfileRequestSchema.parse({
+      displayName: "Director",
+      receiveAllCommunications: true,
+    });
+    expect(enabled.receiveAllCommunications).toBe(true);
   });
 });
 

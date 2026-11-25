@@ -596,6 +596,16 @@ export function RosterPageView({
                           </span>
                         );
                       }
+                      if (candidate.receiveAllCommunications) {
+                        return (
+                          <span
+                            className="status-pill status-pill--info"
+                            title="Always copied on organization emails and automatic event reminders (even without a singing part or RSVP)."
+                          >
+                            Always copied
+                          </span>
+                        );
+                      }
                       return <span className="status-pill status-pill--success">Allowed</span>;
                     },
                     sortValue: (candidate) =>
@@ -603,7 +613,9 @@ export function RosterPageView({
                         ? "Suppressed"
                         : candidate.doNotEmail
                           ? "Blocked"
-                          : "Allowed",
+                          : candidate.receiveAllCommunications
+                            ? "Always copied"
+                            : "Allowed",
                   },
                   {
                     header: "Directory listing",

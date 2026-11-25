@@ -154,6 +154,7 @@ export interface OrganizationProfileRow {
   readonly bounceReason: string;
   readonly providerEmailSuppressed: number;
   readonly receiveAdminNotifications: number;
+  readonly receiveAllCommunications: number;
   readonly receiveAttendanceReports: number;
   readonly receiveAuditionNotifications: number;
   readonly receiveFinancialAlerts: number;
@@ -189,6 +190,7 @@ export function profileResult(row: OrganizationProfileRow, onBreakInactiveAt: st
     bounceReason: row.bounceReason,
     providerEmailSuppressed: row.providerEmailSuppressed === 1,
     receiveAdminNotifications: row.receiveAdminNotifications === 1,
+    receiveAllCommunications: row.receiveAllCommunications === 1,
     receiveAttendanceReports: row.receiveAttendanceReports === 1,
     receiveAuditionNotifications: row.receiveAuditionNotifications === 1,
     receiveFinancialAlerts: row.receiveFinancialAlerts === 1,

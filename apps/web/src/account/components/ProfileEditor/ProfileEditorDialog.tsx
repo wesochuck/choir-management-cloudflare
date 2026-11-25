@@ -33,22 +33,28 @@ function hasProfileInfoChanged(
   );
 }
 
+function emailSettingValues(profile: OrganizationProfileRequest): readonly boolean[] {
+  return [
+    profile.doNotEmail,
+    profile.receiveAdminNotifications,
+    Boolean(profile.receiveAllCommunications),
+    Boolean(profile.receiveAuditionNotifications),
+    profile.receiveRsvpDeclineNotices,
+    profile.receiveFinancialAlerts,
+    profile.receiveAttendanceReports,
+    profile.receiveRehearsalReminders ?? true,
+    profile.receivePerformanceReminders ?? true,
+    profile.receiveOtherEventReminders ?? true,
+  ];
+}
+
 function hasEmailSettingsChanged(
   current: OrganizationProfileRequest,
   baseline: OrganizationProfileRequest,
 ): boolean {
-  return (
-    current.doNotEmail !== baseline.doNotEmail ||
-    current.receiveAdminNotifications !== baseline.receiveAdminNotifications ||
-    current.receiveAuditionNotifications !== baseline.receiveAuditionNotifications ||
-    current.receiveRsvpDeclineNotices !== baseline.receiveRsvpDeclineNotices ||
-    current.receiveFinancialAlerts !== baseline.receiveFinancialAlerts ||
-    current.receiveAttendanceReports !== baseline.receiveAttendanceReports ||
-    (current.receiveRehearsalReminders ?? true) !== (baseline.receiveRehearsalReminders ?? true) ||
-    (current.receivePerformanceReminders ?? true) !==
-      (baseline.receivePerformanceReminders ?? true) ||
-    (current.receiveOtherEventReminders ?? true) !== (baseline.receiveOtherEventReminders ?? true)
-  );
+  const nextValues = emailSettingValues(current);
+  const baselineValues = emailSettingValues(baseline);
+  return nextValues.some((value, index) => value !== baselineValues[index]);
 }
 
 export function ProfileEditorDialog({

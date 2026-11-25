@@ -30,6 +30,7 @@ function profileRequestFrom(profile: OrganizationProfile) {
     notes: profile.notes,
     phone: profile.phone,
     receiveAdminNotifications: profile.receiveAdminNotifications,
+    receiveAllCommunications: profile.receiveAllCommunications,
     receiveAttendanceReports: profile.receiveAttendanceReports,
     receiveAuditionNotifications: profile.receiveAuditionNotifications,
     receiveFinancialAlerts: profile.receiveFinancialAlerts,

@@ -295,6 +295,11 @@
     background: color-mix(in srgb, var(--color-success, #16a34a) 12%, var(--color-surface));
     color: var(--color-text);
   }
+  .status-pill.status-pill--info {
+    border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-border));
+    background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
+    color: var(--color-text);
+  }
   .status-pill--neutral {
     border-color: var(--color-border);
     background: var(--color-surface-muted, var(--color-surface));

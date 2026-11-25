@@ -341,4 +341,63 @@ describe("automated event-reminder preferences", () => {
     // Re-preparing finds nothing queued, so nothing duplicates.
     expect((await prepare("60000000-0000-4000-8000-000000000001")).ids).toEqual([]);
   });
+
+  it("includes unassigned receive_all_communications profiles in automatic event reminders but not RSVP follow-ups", async () => {
+    const stub = await provisionReminders();
+    const directorId = "10000000-0000-4000-8000-000000000099";
+    const blockedDirectorId = "10000000-0000-4000-8000-000000000098";
+    const otherEventId = "20000000-0000-4000-8000-000000000099";
+    const otherReminderJobId = "30000000-0000-4000-8000-000000000099";
+    const nowIso = new Date().toISOString();
+    const soonIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles
+          (id, display_name, phone, voice_part, global_status, do_not_email,
+           receive_all_communications, receive_rehearsal_reminders, receive_performance_reminders,
+           receive_other_event_reminders, created_at, updated_at)
+         VALUES
+          (?, 'Mark Director', '', '', 'Active', 0, 1, 1, 1, 1, ?, ?),
+          (?, 'Blocked Staff', '', '', 'Active', 1, 1, 1, 1, 1, ?, ?)`,
+        directorId,
+        nowIso,
+        nowIso,
+        blockedDirectorId,
+        nowIso,
+        nowIso,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+         VALUES (?, 'Board Meeting', 'Other', ?, ?, ?)`,
+        otherEventId,
+        soonIso,
+        nowIso,
+        nowIso,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+         VALUES (?, 'event_reminder', ?, ?, ?)`,
+        otherReminderJobId,
+        `event-reminder:${ORG_ID}:${otherEventId}`,
+        nowIso,
+        nowIso,
+      );
+      return undefined;
+    });
+
+    const recipientIds = async (jobId: string, followUp = false) =>
+      runInDurableObject<OrganizationStore, string[]>(stub, async (_instance, state) => {
+        const response = followUp
+          ? readRsvpFollowUpJobFromStore(state.storage, ORG_ID, jobId)
+          : readEventReminderJobFromStore(state.storage, ORG_ID, jobId);
+        const parsed = scheduledEventJobResponseSchema.parse(await response.json());
+        return parsed.recipients.map(({ profileId }) => profileId);
+      });
+
+    expect(await recipientIds(JOB_REHEARSAL_REMINDER)).toContain(directorId);
+    expect(await recipientIds(JOB_REHEARSAL_REMINDER)).not.toContain(blockedDirectorId);
+    expect(await recipientIds(JOB_PERFORMANCE_REMINDER)).toContain(directorId);
+    expect(await recipientIds(otherReminderJobId)).toContain(directorId);
+    expect(await recipientIds(JOB_FOLLOW_UP, true)).not.toContain(directorId);
+  });
 });

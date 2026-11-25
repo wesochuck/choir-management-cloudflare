@@ -74,6 +74,17 @@ const mockProfiles: OrganizationProfile[] = [
     updatedAt: "2026-08-01T00:00:00Z",
     voicePart: "Bass 1",
   }),
+  organizationProfileSchema.parse({
+    createdAt: "2026-08-01T00:00:00Z",
+    displayName: "Mark Director",
+    doNotEmail: false,
+    globalStatus: "Active",
+    id: "00000000-0000-4000-8000-000000000004",
+    providerEmailSuppressed: false,
+    receiveAllCommunications: true,
+    updatedAt: "2026-08-01T00:00:00Z",
+    voicePart: "",
+  }),
 ];
 
 const mockMemberships: OrganizationMembershipSummary[] = [
@@ -112,11 +123,14 @@ describe("RosterPage Email & Delivery Status table headers (#175)", () => {
     expect(screen.queryByRole("button", { name: "Sort by Email" })).not.toBeInTheDocument();
   });
 
-  it("renders accessible status pill text for Allowed, Blocked, and Suppressed", async () => {
+  it("renders accessible status pill text for Allowed, Always copied, Blocked, and Suppressed", async () => {
     render(<RosterPage enabled />);
 
     const allowedElements = await screen.findAllByText("Allowed");
     expect(allowedElements.length).toBeGreaterThan(0);
+
+    const alwaysCopiedElements = screen.getAllByText("Always copied");
+    expect(alwaysCopiedElements.length).toBeGreaterThan(0);
 
     const blockedElements = screen.getAllByText("Blocked");
     expect(blockedElements.length).toBeGreaterThan(0);

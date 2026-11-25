@@ -749,6 +749,63 @@ function memberRecipients(storage: AudienceStorage, audience: Audience): Audienc
     );
 }
 
+function alwaysIncludedEmailRecipients(
+  storage: AudienceStorage,
+  existingMembers: readonly AudienceCandidate[],
+): AudienceCandidate[] {
+  const existingIds = new Set(existingMembers.map(({ profileId }) => profileId));
+  const rows = storage.sql
+    .exec<MemberCandidateRow>(
+      `SELECT p.id, p.display_name AS displayName, c.email, c.id AS contactId,
+          email_pref.status AS emailStatus, sms_pref.status AS smsStatus, '' AS phone,
+          p.voice_part AS voicePart, p.global_status AS globalStatus, p.do_not_email AS doNotEmail,
+          p.provider_email_suppressed AS providerSuppressed, p.last_bounce_at AS lastBounceAt,
+          EXISTS (
+            SELECT 1 FROM communication_suppressions s
+            WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+          ) AS emailSuppressed,
+          0 AS smsSuppressed,
+          'Pending' AS rsvp
+         FROM profiles p
+         LEFT JOIN contacts c ON c.id = ${primaryRosterContactSql}
+         LEFT JOIN contact_communication_preferences email_pref ON email_pref.contact_id = c.id AND email_pref.channel = 'email'
+         LEFT JOIN contact_communication_preferences sms_pref ON sms_pref.contact_id = c.id AND sms_pref.channel = 'sms'
+         WHERE p.receive_all_communications = 1
+           AND p.global_status = 'Active'
+           AND p.do_not_email = 0
+         ORDER BY p.display_name COLLATE NOCASE, p.id LIMIT ${String(AUDIENCE_MEMBER_LIMIT)}`,
+    )
+    .toArray();
+  return rows
+    .filter(({ id }) => !existingIds.has(id))
+    .map(
+      ({
+        displayName,
+        doNotEmail,
+        email,
+        emailSuppressed,
+        emailStatus,
+        id,
+        voicePart,
+        lastBounceAt,
+        providerSuppressed,
+      }) => ({
+        displayName,
+        doNotEmail: doNotEmail === 1,
+        email,
+        emailSuppressed: emailSuppressed === 1,
+        emailUnsubscribed: emailStatus === "unsubscribed",
+        phone: "",
+        profileId: id,
+        providerBounced: providerSuppressed === 1 || lastBounceAt !== "",
+        smsSuppressed: false,
+        smsUnsubscribed: true,
+        subject: { kind: "profile", profileId: id } as const,
+        voicePart,
+      }),
+    );
+}
+
 export async function resolveCommunicationAudienceFromStore(
   storage: AudienceStorage,
   request: Request,
@@ -756,7 +813,7 @@ export async function resolveCommunicationAudienceFromStore(
   const parsed = audienceOperationSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success)
     return Response.json({ code: "invalid_communication_audience" }, { status: 400 });
-  const { audience, organizationId } = parsed.data;
+  const { audience, includeEmailCopies, organizationId } = parsed.data;
   if (!identityMatches(storage, organizationId))
     return Response.json({ code: "organization_not_found" }, { status: 404 });
   // Each selected audience is built independently; destination dedupe with
@@ -765,10 +822,14 @@ export async function resolveCommunicationAudienceFromStore(
   const commerce = commerceRecipients(storage, audience);
   const contacts = contactRecipients(storage, audience);
   const members = memberRecipients(storage, audience);
+  const primaryCount = members.length + contacts.recipients.length + commerce.recipients.length;
+  const emailCopies =
+    includeEmailCopies && primaryCount > 0 ? alwaysIncludedEmailRecipients(storage, members) : [];
   const recipients: AudienceCandidate[] = [
     ...members,
     ...contacts.recipients,
     ...commerce.recipients,
+    ...emailCopies,
   ];
   return Response.json({
     recipients,

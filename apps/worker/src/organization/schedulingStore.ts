@@ -60,6 +60,26 @@ function readRsvpYesRecipients(
   // RSVP follow-ups never filter on these preferences.
   const preferenceClause =
     reminderPreference === null ? "" : `AND ${reminderPreferenceColumn(reminderPreference)} = 1`;
+  if (rsvp === "Yes") {
+    return storage.sql
+      .exec<RecipientRow>(
+        `SELECT p.id AS profileId, p.display_name AS recipientName,
+           p.phone AS phone
+         FROM profiles p
+         LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
+         WHERE p.global_status = 'Active'
+           AND p.do_not_email = 0 ${preferenceClause}
+           AND ((r.rsvp = 'Yes' AND p.voice_part <> '') OR p.receive_all_communications = 1)
+           AND NOT EXISTS (
+             SELECT 1 FROM communication_suppressions s
+             WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+           )
+         ORDER BY p.display_name COLLATE NOCASE ASC, p.id ASC
+         LIMIT 500`,
+        targetEventId,
+      )
+      .toArray();
+  }
   return storage.sql
     .exec<RecipientRow>(
       `SELECT p.id AS profileId, p.display_name AS recipientName,
@@ -90,12 +110,12 @@ function readOtherEventRecipients(
       .exec<RecipientRow>(
         `SELECT p.id AS profileId, p.display_name AS recipientName,
            p.phone AS phone
-         FROM event_rosters r
-         JOIN profiles p ON p.id = r.profile_id
-         WHERE r.event_id = ? AND r.rsvp = 'Yes'
-           AND p.global_status = 'Active'
+         FROM profiles p
+         LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
+         WHERE p.global_status = 'Active'
            AND p.do_not_email = 0
            AND p.receive_other_event_reminders = 1
+           AND (r.rsvp = 'Yes' OR p.receive_all_communications = 1)
            AND NOT EXISTS (
              SELECT 1 FROM communication_suppressions s
              WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
