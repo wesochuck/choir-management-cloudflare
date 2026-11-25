@@ -7,6 +7,7 @@ import {
   getQueueResult,
   runInDurableObject,
 } from "cloudflare:test";
+import { formatCommunicationCalendarDate } from "@choir/domain";
 import { provisionOrganization, seedAuthUser, pastDateString, relativeDate } from "@choir/testkit";
 import { afterEach, beforeEach, expect, inject, it, vi } from "vitest";
 import { processEmailProviderQueue } from "../src/communications/emailFeedback";
@@ -94,8 +95,14 @@ it("sends to each administrator once per occurrence, with replay and tenant isol
     "admin@example.test",
     "owner@example.test",
   ]);
+  const expectedFormattedDueDate = formatCommunicationCalendarDate(dueDate);
+  expect(expectedFormattedDueDate).toMatch(
+    /^(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), /,
+  );
   for (const [message] of send.mock.calls) {
     if (!("html" in message)) throw new Error("Expected an HTML email builder");
+    expect(message.html).toContain(expectedFormattedDueDate);
+    expect(message.text).toContain(expectedFormattedDueDate);
     expect(message.html).toContain("Review task and mark completed");
     const destination = `/admin/settings?tab=compliance&task=${taskId}`;
     expect(message.html).toContain(`/login?returnTo=${encodeURIComponent(destination)}`);

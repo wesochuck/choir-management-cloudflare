@@ -1,3 +1,4 @@
+import { formatCommunicationEventDate } from "@choir/domain";
 import { z } from "zod";
 
 import {
@@ -41,13 +42,7 @@ function escapeMarkdown(value: string): string {
 }
 
 export function formatEventDate(value: string, timezone: string): string {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: timezone,
-  }).format(date);
+  return formatCommunicationEventDate(value, timezone);
 }
 
 export function formatEventShortDate(value: string, timezone: string): string | null {
@@ -57,6 +52,7 @@ export function formatEventShortDate(value: string, timezone: string): string | 
     day: "numeric",
     month: "short",
     timeZone: timezone,
+    weekday: "short",
   }).format(date);
 }
 

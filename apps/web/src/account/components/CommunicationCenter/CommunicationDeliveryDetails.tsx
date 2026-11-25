@@ -113,12 +113,14 @@ function MessageSnapshotPreview({
   readonly venues?: readonly OrganizationVenue[] | undefined;
 }) {
   const [nowMs] = useState(() => Date.now());
-  const selectedEvent =
-    events?.find(
-      (e) =>
-        e.id === message.eventPromotion?.eventId ||
-        e.id === message.audience.excludeTicketBuyersForEventId,
-    ) ?? null;
+  const linkedEventId =
+    message.eventPromotion?.eventId ??
+    message.audience.eventId ??
+    message.audience.excludeTicketBuyersForEventId ??
+    null;
+  const selectedEvent = linkedEventId
+    ? (events?.find((e) => e.id === linkedEventId) ?? null)
+    : null;
 
   const previewValues = communicationPreviewValues(
     selectedEvent,

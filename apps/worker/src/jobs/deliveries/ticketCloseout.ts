@@ -1,4 +1,4 @@
-import { renderCommunicationTemplate } from "@choir/domain";
+import { formatCommunicationEventDate, renderCommunicationTemplate } from "@choir/domain";
 import { z } from "zod";
 
 import {
@@ -101,11 +101,10 @@ export async function deliverTicketCloseoutJob(
     job.organizationId,
     scheduledEventTemplateIds.ticketCloseout,
   );
-  const eventDate = new Intl.DateTimeFormat("en-US", {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: parsed.data.event.timezone,
-  }).format(new Date(parsed.data.event.eventStartsAt));
+  const eventDate = formatCommunicationEventDate(
+    parsed.data.event.eventStartsAt,
+    parsed.data.event.timezone,
+  );
   const values: Readonly<Record<string, string>> = {
     checkInsSection: checkInsSection(parsed.data),
     complimentaryAdmissions: String(parsed.data.admissions.complimentaryAdmissions),

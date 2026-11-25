@@ -1,3 +1,4 @@
+import { formatCommunicationEventDate } from "@choir/domain";
 import { seedAuthUser } from "@choir/testkit";
 import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
@@ -401,10 +402,16 @@ describe("ticket closeout reports", () => {
           .at(0) ?? null,
     );
     if (!queuedMessage) throw new Error("The ticket closeout email was not queued.");
+    const firstStartsAt = new Date(Date.parse(now) - 13 * 60 * 60 * 1_000).toISOString();
+    const expectedCloseoutDate = formatCommunicationEventDate(firstStartsAt, "UTC");
+    expect(expectedCloseoutDate).toMatch(
+      /^(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), /,
+    );
     expect(queuedMessage).toMatchObject({
       destination: "finance@example.test",
       subject: "Ticket closeout: First Concert",
     });
+    expect(queuedMessage.content).toContain(`- **Date and time:** ${expectedCloseoutDate}`);
     expect(queuedMessage.content).toContain("Single-event ticket payments: $70.00");
     expect(queuedMessage.content).toContain("Season-pass proceeds credited here: $70.00");
     expect(queuedMessage.content).toContain("Refunds: $25.00");

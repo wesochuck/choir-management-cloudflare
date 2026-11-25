@@ -48,12 +48,12 @@ describe("rsvpDeclineNotifications helpers", () => {
     );
   });
 
-  it("formats short event dates respecting the organization timezone", () => {
-    // 2026-11-03T01:30:00Z is Nov 2 in New York and Nov 3 in London
+  it("formats short event dates with weekday respecting the organization timezone", () => {
+    // 2026-11-03T01:30:00Z is Mon Nov 2 in New York and Tue Nov 3 in London
     const isoString = "2026-11-03T01:30:00.000Z";
 
-    expect(formatEventShortDate(isoString, "America/New_York")).toBe("Nov 2");
-    expect(formatEventShortDate(isoString, "Europe/London")).toBe("Nov 3");
+    expect(formatEventShortDate(isoString, "America/New_York")).toBe("Mon, Nov 2");
+    expect(formatEventShortDate(isoString, "Europe/London")).toBe("Tue, Nov 3");
   });
 
   it("returns null for invalid dates in formatEventShortDate", () => {

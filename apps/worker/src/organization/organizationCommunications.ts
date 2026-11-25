@@ -33,6 +33,7 @@ import {
   dedupeCommunicationCandidates,
   extractCommunicationPlaceholders,
   formatClockTime12Hour,
+  formatCommunicationEventDate,
   formatCommunicationEventLocation,
   formatCommunicationSetList,
   formatUpcomingPerformancesList,
@@ -932,11 +933,7 @@ function resolveTestEmailEventContext(
   };
   const shared = {
     eventCallTime: formatClockTime12Hour(event.callTime),
-    eventDate: new Intl.DateTimeFormat("en-US", {
-      dateStyle: "long",
-      timeStyle: "short",
-      timeZone: timezone,
-    }).format(new Date(event.startsAt)),
+    eventDate: formatCommunicationEventDate(event.startsAt, timezone),
     eventDetails: event.details,
     eventId: event.id,
     eventTitle: event.title,

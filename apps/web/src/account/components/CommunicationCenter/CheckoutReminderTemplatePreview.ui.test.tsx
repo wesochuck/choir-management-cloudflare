@@ -15,11 +15,14 @@ describe("complete checkout reminder template preview", () => {
       render(
         <CheckoutReminderTemplatePreview
           templateId={template.id}
-          subject="Hello {recipientName}"
-          content="Thank you for considering {organizationName}."
+          subject="Reminder for {eventDate}"
+          content="Hello {recipientName}, {eventTitle} on {eventDate}."
         />,
       );
-      expect(screen.getByText("Hello Alex")).toBeInTheDocument();
+      expect(screen.getByText("Reminder for Friday, May 15, 2026 at 7:00 PM")).toBeInTheDocument();
+      expect(
+        screen.getByText("Hello Alex, Spring Concert on Friday, May 15, 2026 at 7:00 PM."),
+      ).toBeInTheDocument();
       const review = screen.getByRole("link", { name: "Review and continue" });
       expect(review).toHaveAttribute("href", "https://example.invalid/checkout/return");
       expect(screen.getByRole("link", { name: "Stop these reminders" })).toHaveAttribute(

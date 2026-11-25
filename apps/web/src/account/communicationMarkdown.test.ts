@@ -166,9 +166,52 @@ describe("renderCommunicationMarkdownPreview", () => {
     );
 
     expect(rendered).toContain("$25.00");
-    expect(rendered).toContain("August 20, 2026 at 7:00 PM");
+    expect(rendered).toContain("Thursday, August 20, 2026 at 7:00 PM");
     expect(rendered).toContain("View order details");
     expect(rendered).not.toContain("{{TICKET_ORDER_LINK}}");
+  });
+
+  it("includes the day of the week in {eventDate} previews for selected and sample events", () => {
+    const sampleValues = communicationPreviewValues(null, "UTC");
+    expect(sampleValues["{eventDate}"]).toBe("Thursday, August 20, 2026 at 7:00 PM");
+    expect(sampleValues["{auditionDate}"]).toBe("Saturday, August 15, 2026");
+    expect(sampleValues["{auditionDateTime}"]).toBe("Saturday, August 15, 2026 at 6:30 PM");
+
+    const selectedEvent: OrganizationEvent = {
+      advancePriceCents: 0,
+      callTime: "18:00",
+      createdAt: pastIsoDate({ days: 20 }),
+      dayOfPriceCents: 0,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 90,
+      id: "88888888-8888-4888-8888-888888888888",
+      isCanceled: false,
+      isTicketingEnabled: false,
+      location: "Main Hall",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: false,
+      rsvpDeadlineAt: null,
+      rsvpDeadlineDate: null,
+      rsvpDeadlinePassed: false,
+      rsvpFollowUpLeadHours: null,
+      rsvpFollowUpMode: "inherit",
+      rsvpSelfServiceOpen: true,
+      setList: [],
+      setListApproved: false,
+      setListDefaultTransitionSeconds: 0,
+      startsAt: "2026-12-14T00:30:00.000Z", // historic-fixture: Sunday Dec 13 7:30 PM EST
+      ticketCapacity: null,
+      ticketSlug: null,
+      title: "Evening Concert",
+      type: "Performance",
+      updatedAt: pastIsoDate({ days: 5 }),
+      venueId: null,
+    };
+    const eventValues = communicationPreviewValues(selectedEvent, "America/New_York");
+    expect(eventValues["{eventDate}"]).toBe("Sunday, December 13, 2026 at 7:30 PM");
   });
 
   it("uses custom sample recipient name when provided", () => {

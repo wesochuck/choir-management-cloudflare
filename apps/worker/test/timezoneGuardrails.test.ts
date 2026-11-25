@@ -90,7 +90,7 @@ describe("Cross-worker timezone formatting guardrails", () => {
     });
 
     expect(rendered.templatedSubject).toBe("Reminder for 2026 Christmas Concert");
-    expect(rendered.templatedContent).toContain("December 13, 2026 at 3:00 PM");
+    expect(rendered.templatedContent).toContain("Sunday, December 13, 2026 at 3:00 PM");
     expect(rendered.templatedContent).not.toContain("8:00 PM");
   });
 
@@ -120,7 +120,7 @@ describe("Cross-worker timezone formatting guardrails", () => {
     expect(full).not.toContain("December 14");
 
     const short = formatRsvpDeclineShortDate(EVENING_CONCERT_STARTS_AT_UTC, ORG_TIMEZONE);
-    expect(short).toBe("Dec 13");
-    expect(short).not.toBe("Dec 14");
+    expect(short).toBe("Sun, Dec 13");
+    expect(short).not.toBe("Mon, Dec 14");
   });
 });

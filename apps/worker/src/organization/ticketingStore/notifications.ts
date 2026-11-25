@@ -1,4 +1,4 @@
-import { renderCommunicationTemplate } from "@choir/domain";
+import { formatCommunicationEventDate, renderCommunicationTemplate } from "@choir/domain";
 import type { z } from "zod";
 import { z as zod } from "zod";
 
@@ -104,11 +104,7 @@ export function queueTicketRefundNotification(
       currency: purchase.currency.toUpperCase(),
       style: "currency",
     }).format(purchase.amountPaidCents / 100),
-    refundDate: new Intl.DateTimeFormat("en-US", {
-      dateStyle: "full",
-      timeStyle: "short",
-      timeZone: purchase.timezone,
-    }).format(new Date(occurredAt)),
+    refundDate: formatCommunicationEventDate(occurredAt, purchase.timezone),
   };
   const renderRefundContent = (value: string) => {
     const hasOrderDetailsLink = /\{\{TICKET_ORDER_LINK\}\}|\{ticketOrderLink\}/i.test(value);

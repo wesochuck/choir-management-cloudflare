@@ -12,6 +12,7 @@ import {
   communicationDeliveryIssueKind,
   communicationFailureCategory,
   hasAcceptableContactIdentity,
+  lastNameSortKey,
   shouldIncludeUnpublishedUpcomingPerformances,
   summarizeCommunicationDeliveries,
   usesUpcomingPerformancesPlaceholder,
@@ -358,6 +359,24 @@ function collectCommunicationDeliveryIssues(
   return { hasMoreIssues, issues, unresolvedIssueCount };
 }
 
+function sortRecipientsByLastName<
+  T extends { readonly id: string; readonly recipientName: string },
+>(rows: readonly T[]): T[] {
+  return rows
+    .map((row) => ({
+      lastNameKey: lastNameSortKey(row.recipientName),
+      nameKey: row.recipientName.trim().toLowerCase(),
+      row,
+    }))
+    .sort(
+      (left, right) =>
+        left.lastNameKey.localeCompare(right.lastNameKey) ||
+        left.nameKey.localeCompare(right.nameKey) ||
+        left.row.id.localeCompare(right.row.id),
+    )
+    .map((entry) => entry.row);
+}
+
 export function readCommunicationSummaryFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
@@ -386,10 +405,11 @@ export function readCommunicationSummaryFromStore(
       parsedMessageId.data,
     )
     .toArray();
-  const summary = summarizeCommunicationDeliveries(parsedMessageId.data, records);
+  const sortedRecords = sortRecipientsByLastName(records);
+  const summary = summarizeCommunicationDeliveries(parsedMessageId.data, sortedRecords);
   const { hasMoreIssues, issues, unresolvedIssueCount } = collectCommunicationDeliveryIssues(
     storage,
-    records,
+    sortedRecords,
     issuesReviewedAt,
   );
   return Response.json(
@@ -398,7 +418,7 @@ export function readCommunicationSummaryFromStore(
       hasMoreIssues,
       issues,
       issuesReviewedAt,
-      recipients: records.slice(0, 1_000).map((record) => ({
+      recipients: sortedRecords.slice(0, 1_000).map((record) => ({
         channel: record.channel,
         providerStatus: record.providerStatus,
         recipientName: record.recipientName,
@@ -440,33 +460,27 @@ export function listCommunicationRecipientsFromStore(
   const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 100;
   const cursor = input.cursor && input.cursor.length <= 128 ? input.cursor : null;
 
-  const rows = cursor
-    ? storage.sql
-        .exec<RecipientRow>(
-          `SELECT id, recipient_name AS recipientName, channel, status, provider_status AS providerStatus
-           FROM communication_deliveries
-           WHERE message_id = ? AND id > ?
-           ORDER BY id ASC
-           LIMIT ?`,
-          parsedMessageId.data,
-          cursor,
-          limit + 1,
-        )
-        .toArray()
-    : storage.sql
-        .exec<RecipientRow>(
-          `SELECT id, recipient_name AS recipientName, channel, status, provider_status AS providerStatus
-           FROM communication_deliveries
-           WHERE message_id = ?
-           ORDER BY id ASC
-           LIMIT ?`,
-          parsedMessageId.data,
-          limit + 1,
-        )
-        .toArray();
+  const allRows = storage.sql
+    .exec<RecipientRow>(
+      `SELECT id, recipient_name AS recipientName, channel, status, provider_status AS providerStatus
+       FROM communication_deliveries
+       WHERE message_id = ?
+       ORDER BY id ASC
+       LIMIT ${String(MAX_COMMUNICATION_DELIVERIES)}`,
+      parsedMessageId.data,
+    )
+    .toArray();
+  const sortedRows = sortRecipientsByLastName(allRows);
 
-  const hasMore = rows.length > limit;
-  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  let startIndex = 0;
+  if (cursor) {
+    const cursorIndex = sortedRows.findIndex((row) => row.id === cursor);
+    startIndex = cursorIndex === -1 ? sortedRows.length : cursorIndex + 1;
+  }
+
+  const windowRows = sortedRows.slice(startIndex, startIndex + limit + 1);
+  const hasMore = windowRows.length > limit;
+  const pageRows = hasMore ? windowRows.slice(0, limit) : windowRows;
 
   const recipients = pageRows.map((r) =>
     communicationDeliveryRecipientSchema.parse({

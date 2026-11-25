@@ -1,3 +1,4 @@
+import { formatCommunicationCalendarDate } from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
 import { organizationStoreStub } from "../../organization/rpc/client";
 import type { DeliveryJob } from "../contracts";
@@ -162,8 +163,8 @@ function buildComplianceReminderMarkdown(
     `**${organizationName}** has a compliance reminder that still needs to be completed.`,
     ``,
     `- **Requirement:** ${task.title}`,
-    `- **Due date:** ${task.nextDueDate}`,
-    `- **Last completed:** ${task.lastCompletedDate ?? "Not recorded"}`,
+    `- **Due date:** ${formatCommunicationCalendarDate(task.nextDueDate)}`,
+    `- **Last completed:** ${task.lastCompletedDate ? formatCommunicationCalendarDate(task.lastCompletedDate) : "Not recorded"}`,
     `- **Responsible:** ${responsibleLine}`,
     `- **Reminder cadence:** Weekly until marked complete`,
     ``,

@@ -207,6 +207,8 @@ export {
   communicationDeliveryIssueLabel,
   communicationFailureCategory,
   communicationReach,
+  formatCommunicationCalendarDate,
+  formatCommunicationEventDate,
   formatCommunicationEventLocation,
   formatCommunicationSetList,
   maskCommunicationDestination,

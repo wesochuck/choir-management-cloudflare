@@ -13,6 +13,7 @@ import {
 import {
   filterUpcomingPerformances,
   formatClockTime12Hour,
+  formatCommunicationEventDate,
   formatCommunicationEventLocation,
   formatCommunicationSetList,
   ticketSalesPath,
@@ -198,11 +199,7 @@ export function eventCommunicationContext(
   return {
     eventId,
     eventCallTime: formatClockTime12Hour(event.callTime),
-    eventDate: new Intl.DateTimeFormat("en-US", {
-      dateStyle: "long",
-      timeStyle: "short",
-      timeZone: timezone,
-    }).format(new Date(event.eventDate)),
+    eventDate: formatCommunicationEventDate(event.eventDate, timezone),
     eventDetails: event.details,
     eventLocation: formatCommunicationEventLocation(locationInput),
     eventLocationText: formatCommunicationEventLocation(locationInput, { includeMapLink: false }),

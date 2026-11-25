@@ -779,7 +779,7 @@ test.describe("Organization timezone previews", () => {
     await expect(preview).toContainText("Browser Performance");
     await expect(preview).toContainText("Performance");
     await expect(preview).toContainText("Main Hall");
-    await expect(preview).toContainText("August 20, 2026 at 7:00 PM");
+    await expect(preview).toContainText("Thursday, August 20, 2026 at 7:00 PM");
     await expect(preview).not.toContainText("{singerName}");
     await expect(preview).not.toContainText("{eventTitle}");
     await expect(preview).not.toContainText("{eventDate}");
@@ -801,7 +801,9 @@ test.describe("Organization timezone previews", () => {
     await expect(finalPreview).toContainText("Johann Sebastian Bach");
     await expect(finalPreview.getByRole("img", { name: "Preview Choir" })).toBeVisible();
     await expect(finalPreview).not.toContainText("{organization");
-    await expect(finalPreview).toContainText("Rehearsal update on August 20, 2026 at 7:00 PM");
+    await expect(finalPreview).toContainText(
+      "Rehearsal update on Thursday, August 20, 2026 at 7:00 PM",
+    );
     await expect(finalPreview).toContainText("Browser Performance");
     await expect(finalPreview).not.toContainText("{singerName}");
     await expect(finalPreview).not.toContainText("{eventTitle}");

@@ -1,7 +1,7 @@
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PublicRsvpView, RsvpForm, type RsvpDetails } from "./PublicRsvpView";
+import { PublicRsvpView, RsvpEventBody, RsvpForm, type RsvpDetails } from "./PublicRsvpView";
 
 const mockEvent = {
   callTime: "6:30 PM",
@@ -136,5 +136,65 @@ describe("RsvpForm", () => {
       if (match[1] !== undefined) tabIndices.push(match[1]);
     }
     expect(tabIndices).toEqual(["-1", "0"]);
+  });
+});
+
+describe("RsvpEventBody", () => {
+  it("converts 24-hour call times to 12-hour AM/PM format and preserves already-formatted values", () => {
+    for (const [input, expected] of [
+      ["17:30", "5:30 PM"],
+      ["09:05", "9:05 AM"],
+      ["00:00", "12:00 AM"],
+      ["12:00", "12:00 PM"],
+      ["17:30:00", "5:30 PM"],
+      ["6:30 PM", "6:30 PM"],
+    ] as const) {
+      const html = renderToString(
+        <RsvpEventBody
+          details={{
+            ...mockRsvpPending,
+            event: { ...mockEvent, callTime: input },
+          }}
+        />,
+      );
+      expect(html).toContain(`>${expected}</dd>`);
+    }
+  });
+
+  it("formats 24-hour call time as AM/PM and links location to Google Maps", () => {
+    const detailsWith24hCallTime: RsvpDetails = {
+      ...mockRsvpPending,
+      event: {
+        ...mockEvent,
+        callTime: "17:30",
+        venueAddress: "163 E Wheeling St Lancaster, Ohio 43130",
+        venueName: "First United Methodist Church - Sanctuary Main Floor",
+      },
+    };
+    const html = renderToString(<RsvpEventBody details={detailsWith24hCallTime} />);
+
+    expect(html).toContain("5:30 PM");
+    expect(html).not.toContain("17:30");
+    expect(html).toContain(
+      'href="https://www.google.com/maps/search/?api=1&amp;query=First%20United%20Methodist%20Church%20-%20Sanctuary%20Main%20Floor%2C%20163%20E%20Wheeling%20St%20Lancaster%2C%20Ohio%2043130"',
+    );
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
+  });
+
+  it("does not link placeholder locations to Google Maps", () => {
+    const detailsWithPlaceholderLocation: RsvpDetails = {
+      ...mockRsvpPending,
+      event: {
+        ...mockEvent,
+        location: "TBD",
+        venueAddress: "",
+        venueName: "",
+      },
+    };
+    const html = renderToString(<RsvpEventBody details={detailsWithPlaceholderLocation} />);
+
+    expect(html).toContain("TBD");
+    expect(html).not.toContain("google.com/maps");
   });
 });

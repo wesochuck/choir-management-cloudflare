@@ -1,5 +1,6 @@
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 import { getPublicRsvpDetails, submitPublicQuickRsvp } from "../api";
+import { getEventVenueDetails } from "../shared/venueDetails";
 
 interface EventDetails {
   readonly callTime: string;
@@ -54,6 +55,76 @@ function formatTime(iso: string, timezone: string): string {
   });
 }
 
+function formatRsvpCallTime(callTime: string | null | undefined): string {
+  if (!callTime) return "";
+  const trimmed = callTime.trim();
+  if (!trimmed) return "";
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(trimmed);
+  if (!match) return trimmed;
+  const rawHours = match[1];
+  const rawMinutes = match[2];
+  if (!rawHours || !rawMinutes) return trimmed;
+  const hours = parseInt(rawHours, 10);
+  const minutes = parseInt(rawMinutes, 10);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return trimmed;
+  const hour12 = hours % 12 || 12;
+  const amPm = hours >= 12 ? "PM" : "AM";
+  return `${String(hour12)}:${String(minutes).padStart(2, "0")} ${amPm}`;
+}
+
+function MapPinIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="mt-0.5 h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+    >
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2.5}
+      viewBox="0 0 24 24"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function DeclineIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2.5}
+      viewBox="0 0 24 24"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
 async function fetchRsvpDetails(token: string): Promise<RsvpDetails> {
   try {
     return await getPublicRsvpDetails(token);
@@ -76,7 +147,7 @@ async function submitRsvp(
 
 function RsvpClosedNotice({ details }: { readonly details: RsvpDetails }) {
   return (
-    <div className="notice notice--warning" role="status">
+    <div className="notice notice--warning mt-5 mb-0" role="status">
       <p>
         RSVP responses are closed for this event.
         {details.rsvp !== "Pending" && (
@@ -105,15 +176,15 @@ function RsvpDeclineNoteField({
   readonly onChange: (note: string) => void;
 }) {
   return (
-    <div className="space-y-1">
-      <label htmlFor="public-rsvp-note">
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-semibold text-text" htmlFor="public-rsvp-note">
         Decline note{noteRequired ? " (required for rehearsals)" : " (optional)"}
       </label>
       <textarea
         aria-describedby={hasError ? "decline-note-error" : undefined}
         aria-invalid={hasError}
         aria-required={noteRequired}
-        className="w-full rounded border p-3 text-sm"
+        className="w-full rounded-control border border-border bg-surface px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         id="public-rsvp-note"
         maxLength={2000}
         onChange={(e) => {
@@ -129,7 +200,7 @@ function RsvpDeclineNoteField({
         value={rsvpNote}
       />
       {hasError ? (
-        <p className="field-help field-help--error" id="decline-note-error" role="alert">
+        <p className="field-help field-help--error m-0" id="decline-note-error" role="alert">
           A note explaining your absence is required when declining a rehearsal.
         </p>
       ) : null}
@@ -173,19 +244,24 @@ function AttendanceButtons({
     }
   };
 
+  const baseChoiceClass =
+    "inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-control border-2 px-4 py-3 text-center text-base font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
   return (
-    <fieldset className="space-y-3 border-0 p-0 m-0">
+    <fieldset className="m-0 border-0 p-0">
       <legend className="sr-only">Attendance response</legend>
       <div
         aria-label="Attendance response"
-        className="flex gap-2"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2"
         onKeyDown={handleKeyDown}
         role="radiogroup"
       >
         <button
           aria-checked={isAttending}
-          className={`flex-1 rounded border px-4 py-3 text-center font-medium transition-colors ${
-            isAttending ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
+          className={`${baseChoiceClass} ${
+            isAttending
+              ? "border-primary bg-info-surface text-text"
+              : "border-border bg-surface text-text hover:border-primary/60"
           }`}
           onClick={() => {
             onSelect("Yes");
@@ -195,14 +271,15 @@ function AttendanceButtons({
           tabIndex={isDeclining ? -1 : 0}
           type="button"
         >
-          I'll be there
+          {isAttending ? <CheckIcon /> : null}
+          <span>I'll be there</span>
         </button>
         <button
           aria-checked={isDeclining}
-          className={`flex-1 rounded border px-4 py-3 text-center font-medium transition-colors ${
+          className={`${baseChoiceClass} ${
             isDeclining
-              ? "border-destructive bg-destructive text-destructive-foreground"
-              : "hover:bg-muted"
+              ? "border-danger bg-danger-surface text-text"
+              : "border-border bg-surface text-text hover:border-danger/60"
           }`}
           onClick={() => {
             onSelect("No");
@@ -212,7 +289,8 @@ function AttendanceButtons({
           tabIndex={isDeclining ? 0 : -1}
           type="button"
         >
-          Can't make it
+          {isDeclining ? <DeclineIcon /> : null}
+          <span>Can't make it</span>
         </button>
       </div>
     </fieldset>
@@ -239,7 +317,7 @@ export function RsvpForm({
   }
 
   return (
-    <div className="mt-4 space-y-3">
+    <div className="mt-5 flex flex-col gap-4">
       <AttendanceButtons onSelect={setRsvp} rsvp={rsvp} />
 
       {rsvp === "No" && (
@@ -252,7 +330,7 @@ export function RsvpForm({
       )}
 
       {rsvp === null ? (
-        <p className="field-help" id="rsvp-selection-hint">
+        <p className="field-help m-0" id="rsvp-selection-hint">
           Please select whether you will be attending before submitting.
         </p>
       ) : null}
@@ -274,40 +352,88 @@ export function RsvpForm({
   );
 }
 
-function RsvpEventBody({ details }: { readonly details: RsvpDetails }) {
+export function RsvpEventBody({ details }: { readonly details: RsvpDetails }) {
+  const formattedCallTime = formatRsvpCallTime(details.event.callTime);
+  const venueDetails = getEventVenueDetails(details.event);
+  const locationLabel = [venueDetails.displayName, venueDetails.venueAddress]
+    .filter(Boolean)
+    .join(", ");
+  const hasSecondaryMeta = Boolean(formattedCallTime || details.event.durationMinutes);
+
   return (
     <>
-      <h1 id="rsvp-title">{details.event.title}</h1>
-      <p className="text-sm text-muted-foreground">
-        {details.event.type} &middot; {formatDate(details.event.startsAt, details.event.timezone)}{" "}
-        at {formatTime(details.event.startsAt, details.event.timezone)}
-      </p>
-      {details.event.venueName && (
-        <p className="text-sm text-muted-foreground">
-          {details.event.venueName}
-          {details.event.venueAddress ? `, ${details.event.venueAddress}` : ""}
-        </p>
-      )}
-      {details.event.durationMinutes && (
-        <p className="text-sm text-muted-foreground">
-          Duration: {details.event.durationMinutes} minutes
-        </p>
-      )}
-      {details.event.callTime && (
-        <p className="text-sm text-muted-foreground">Call time: {details.event.callTime}</p>
-      )}
-      {details.event.details && (
-        <p className="whitespace-pre-wrap text-sm">{details.event.details}</p>
-      )}
+      <header className="flex flex-col gap-1.5">
+        <h1 className="m-0 text-[length:var(--font-size-hero)] leading-tight" id="rsvp-title">
+          {details.event.title}
+        </h1>
+        <p className="m-0 text-sm font-medium text-text-muted">{details.event.type}</p>
+      </header>
 
-      <hr className="my-4" />
+      <dl className="m-0 mt-5 grid gap-3.5 rounded-control border border-border bg-surface p-4">
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-xs font-semibold text-text-muted">Date &amp; time</dt>
+          <dd className="m-0 text-sm font-medium text-text">
+            {formatDate(details.event.startsAt, details.event.timezone)} at{" "}
+            {formatTime(details.event.startsAt, details.event.timezone)}
+          </dd>
+        </div>
 
-      <p>
+        {hasSecondaryMeta ? (
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            {formattedCallTime ? (
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs font-semibold text-text-muted">Call time</dt>
+                <dd className="m-0 text-sm font-medium text-text">{formattedCallTime}</dd>
+              </div>
+            ) : null}
+            {details.event.durationMinutes ? (
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs font-semibold text-text-muted">Duration</dt>
+                <dd className="m-0 text-sm font-medium text-text">
+                  {details.event.durationMinutes} minutes
+                </dd>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {locationLabel ? (
+          <div className="flex flex-col gap-0.5">
+            <dt className="text-xs font-semibold text-text-muted">Location</dt>
+            <dd className="m-0 text-sm text-text">
+              {venueDetails.googleMapsUrl ? (
+                <a
+                  aria-label={`${locationLabel} on Google Maps (opens in a new tab)`}
+                  className="inline-flex items-start gap-1.5 rounded-sm font-medium text-primary underline decoration-primary/40 underline-offset-2 transition-colors hover:text-primary-strong hover:decoration-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  href={venueDetails.googleMapsUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  <MapPinIcon />
+                  <span>{locationLabel}</span>
+                </a>
+              ) : (
+                <span className="font-medium">{locationLabel}</span>
+              )}
+            </dd>
+          </div>
+        ) : null}
+      </dl>
+
+      {details.event.details ? (
+        <p className="mt-4 mb-0 whitespace-pre-wrap text-sm leading-relaxed text-text-muted">
+          {details.event.details}
+        </p>
+      ) : null}
+
+      <hr className="my-6 border-0 border-t border-border" />
+
+      <p className="m-0 text-base text-text">
         Hello <strong>{details.profileName}</strong>, please let us know if you can attend.
       </p>
 
       {details.rsvp !== "Pending" && (
-        <div className="notice notice--info my-2">
+        <div className="notice notice--info mt-4 mb-0">
           <p>
             Your current response:{" "}
             <strong>{details.rsvp === "Yes" ? "Attending" : "Not attending"}</strong>
@@ -369,12 +495,14 @@ export function PublicRsvpView() {
   if (pageStatus.type === "no_token") {
     return (
       <main className="auth-layout">
-        <section aria-labelledby="rsvp-title" className="auth-card">
-          <h1 id="rsvp-title">RSVP Link Required</h1>
-          <p className="notice notice--info" role="status">
+        <section aria-labelledby="rsvp-title" className="auth-card flex flex-col gap-4">
+          <h1 className="m-0 text-[length:var(--font-size-hero)] leading-tight" id="rsvp-title">
+            RSVP Link Required
+          </h1>
+          <p className="notice notice--info m-0" role="status">
             Please use the link from your invitation email to access this page.
           </p>
-          <a className="button button--secondary" href="/">
+          <a className="button button--secondary w-full" href="/">
             Return to the Organization site
           </a>
         </section>
@@ -385,9 +513,11 @@ export function PublicRsvpView() {
   if (pageStatus.type === "loading") {
     return (
       <main className="auth-layout">
-        <section aria-labelledby="rsvp-title" className="auth-card">
-          <h1 id="rsvp-title">Loading RSVP...</h1>
-          <p className="notice notice--info" role="status">
+        <section aria-labelledby="rsvp-title" className="auth-card flex flex-col gap-4">
+          <h1 className="m-0 text-[length:var(--font-size-hero)] leading-tight" id="rsvp-title">
+            Loading RSVP...
+          </h1>
+          <p className="notice notice--info m-0" role="status">
             Loading RSVP details…
           </p>
         </section>
@@ -398,16 +528,18 @@ export function PublicRsvpView() {
   if (pageStatus.type === "not_found") {
     return (
       <main className="auth-layout">
-        <section aria-labelledby="rsvp-title" className="auth-card">
-          <h1 id="rsvp-title">Link Not Found</h1>
-          <p className="notice notice--error" role="alert">
+        <section aria-labelledby="rsvp-title" className="auth-card flex flex-col gap-4">
+          <h1 className="m-0 text-[length:var(--font-size-hero)] leading-tight" id="rsvp-title">
+            Link Not Found
+          </h1>
+          <p className="notice notice--error m-0" role="alert">
             This RSVP link is invalid or expired. Contact an Organization manager for a new link.
           </p>
-          <div className="mt-4 flex flex-col gap-2">
-            <button className="button button--primary" onClick={handleRetry} type="button">
+          <div className="flex flex-col gap-3">
+            <button className="button button--primary w-full" onClick={handleRetry} type="button">
               Retry
             </button>
-            <a className="button button--secondary" href="/">
+            <a className="button button--secondary w-full" href="/">
               Return to the Organization site
             </a>
           </div>
@@ -419,16 +551,18 @@ export function PublicRsvpView() {
   if (pageStatus.type === "submitted") {
     return (
       <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="rsvp-title">
-          <h1 id="rsvp-title">RSVP Submitted</h1>
-          <p className="notice notice--success" role="status">
+        <section aria-labelledby="rsvp-title" className="auth-card flex flex-col gap-4">
+          <h1 className="m-0 text-[length:var(--font-size-hero)] leading-tight" id="rsvp-title">
+            RSVP Submitted
+          </h1>
+          <p className="notice notice--success m-0" role="status">
             Thank you, {pageStatus.details.profileName}. Your response has been recorded as{" "}
             <strong>{pageStatus.details.rsvp === "Yes" ? "Attending" : "Not attending"}</strong>.
           </p>
-          <div className="flex flex-col gap-2 mt-4">
+          <div className="flex flex-col gap-3">
             {pageStatus.details.canSubmit && (
               <button
-                className="button button--primary"
+                className="button button--primary w-full"
                 onClick={() => {
                   setPageStatus({ type: "ready", details: pageStatus.details });
                 }}
@@ -437,7 +571,7 @@ export function PublicRsvpView() {
                 Change response
               </button>
             )}
-            <a className="button button--secondary" href="/">
+            <a className="button button--secondary w-full" href="/">
               Return to the Organization site
             </a>
           </div>
@@ -448,7 +582,7 @@ export function PublicRsvpView() {
 
   return (
     <main className="auth-layout">
-      <section className="auth-card" aria-labelledby="rsvp-title">
+      <section aria-labelledby="rsvp-title" className="auth-card">
         <RsvpEventBody details={pageStatus.details} />
         <RsvpForm
           busy={pageStatus.type === "submitting"}
@@ -456,7 +590,7 @@ export function PublicRsvpView() {
           onSubmit={handleSubmit}
         />
         {pageStatus.type === "submit_error" && (
-          <p className="notice notice--error" role="alert">
+          <p className="notice notice--error mt-4 mb-0" role="alert">
             Your RSVP could not be submitted. Please try again.
           </p>
         )}

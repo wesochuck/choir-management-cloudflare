@@ -218,7 +218,9 @@ describe("CommunicationDeliveryDetails", () => {
 
     expect(screen.getByText("Winter Wonderland Gala tickets on sale now!")).toBeVisible();
     expect(
-      screen.getByText(/Join Metropolitan Chorale at Winter Wonderland Gala on December 15, 2026/),
+      screen.getByText(
+        /Join Metropolitan Chorale at Winter Wonderland Gala on Tuesday, December 15, 2026/,
+      ),
     ).toBeVisible();
     await waitFor(() => {
       expect(screen.getByText("Ada Lovelace", { selector: "strong" })).toBeVisible();
@@ -565,6 +567,76 @@ describe("CommunicationDeliveryDetails", () => {
       expect(onResolveDeliveryEmail).toHaveBeenCalledWith(archiveDeliveryId, {
         action: "archive_profile",
       });
+    });
+  });
+
+  it("populates Message snapshot using audience.eventId when eventPromotion is not set", async () => {
+    const eventId = "22222222-2222-4222-8222-222222222222";
+    const eventMessage: CommunicationMessage = {
+      ...sampleMessage,
+      audience: {
+        ...sampleMessage.audience,
+        eventId,
+        excludeTicketBuyersForEventId: null,
+      },
+      contentMarkdown:
+        "Here are the {eventType} details for {eventTitle}\n\n- **Arrival time:** {eventCallTime}\n- **Performance:** {eventDate}\n- **Location:** {eventLocation}\n\n### Set list\n{setlist}",
+      eventPromotion: null,
+      subject: "Performance details for: {eventTitle}",
+    };
+
+    const mockEvent: OrganizationEvent = organizationEventSchema.parse({
+      callTime: "17:30",
+      createdAt: "2026-08-01T00:00:00.000Z",
+      details: "Downtown stroll performance",
+      durationMinutes: 20,
+      id: eventId,
+      isCanceled: false,
+      isTicketingEnabled: false,
+      location: "First United Methodist Church - Sanctuary Main Floor",
+      publishOnWebsite: false,
+      setList: [
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          notes: "",
+          pieceId: "44444444-4444-4444-8444-444444444444",
+          position: 1,
+          title: "Adeste Fideles",
+        },
+        {
+          id: "55555555-5555-4555-8555-555555555555",
+          notes: "",
+          pieceId: "66666666-6666-4666-8666-666666666666",
+          position: 2,
+          title: "Hark The Herald Angels Sing",
+        },
+      ],
+      startsAt: "2026-12-12T23:00:00.000Z",
+      title: "Downtown Christmas Stroll",
+      type: "Performance",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    });
+
+    render(
+      <CommunicationDeliveryDetails
+        busy={false}
+        events={[mockEvent]}
+        message={eventMessage}
+        onRetry={vi.fn()}
+        summary={sampleSummary}
+        timezone="America/New_York"
+      />,
+    );
+
+    expect(screen.getByText("Performance details for: Downtown Christmas Stroll")).toBeVisible();
+    expect(screen.getByText(/5:30 PM/)).toBeVisible();
+    expect(screen.getByText(/Adeste Fideles/)).toBeVisible();
+    expect(screen.getByText(/Hark The Herald Angels Sing/)).toBeVisible();
+    expect(screen.queryByText(/Example Performance/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Set list not published/)).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText("Ada Lovelace", { selector: "strong" })).toBeVisible();
     });
   });
 });

@@ -317,6 +317,7 @@ describe("linked-Profile self-service RSVP", () => {
       day: "numeric",
       month: "short",
       timeZone: "UTC",
+      weekday: "short",
     }).format(new Date(rehearsalEvent?.startsAt ?? 0));
     expect(notice).toMatchObject({
       destination: ADMIN_EMAIL,

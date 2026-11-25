@@ -3,6 +3,10 @@ import type {
   CommunicationOverview as OverviewData,
 } from "@choir/contracts";
 import { Dialog, DialogClose } from "@choir/ui";
+import {
+  communicationPreviewValues,
+  populateCommunicationPreview,
+} from "../../communicationMarkdown";
 import { CommunicationDeliveryDetails } from "./CommunicationDeliveryDetails";
 import { TicketNotificationDetails } from "./TicketNotificationDetails";
 import type { CommunicationCenterControllerModel } from "./types";
@@ -328,11 +332,31 @@ function OverviewContent({
     </>
   );
 }
+function resolveDeliveryDialogTitle(model: Model): string {
+  const deliveryMessage = model.deliveryDetailsMessage;
+  if (!deliveryMessage?.subject) return "Delivery details";
+  const linkedEventId =
+    deliveryMessage.eventPromotion?.eventId ??
+    deliveryMessage.audience.eventId ??
+    deliveryMessage.audience.excludeTicketBuyersForEventId ??
+    null;
+  const selectedEvent = linkedEventId
+    ? (model.events.find((event) => event.id === linkedEventId) ?? null)
+    : null;
+  if (!selectedEvent) return deliveryMessage.subject;
+  const previewValues = communicationPreviewValues(
+    selectedEvent,
+    model.timezone ?? null,
+    model.branding,
+  );
+  return populateCommunicationPreview(deliveryMessage.subject, previewValues);
+}
+
 function DeliveryDialog({ model }: { readonly model: Model }) {
   return (
     <Dialog
       open={model.deliveryDetailsMessage !== null}
-      title={model.deliveryDetailsMessage?.subject ?? "Delivery details"}
+      title={resolveDeliveryDialogTitle(model)}
       onClose={model.clearDeliveryDetails}
       footer={
         <DialogClose asChild>

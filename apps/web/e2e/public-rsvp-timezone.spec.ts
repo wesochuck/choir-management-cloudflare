@@ -65,3 +65,60 @@ for (const timezone of [undefined, null, "Invalid/Timezone"]) {
     expect(new URL(page.url()).searchParams.get("token")).toBe(token);
   });
 }
+
+test("public RSVP formats 24-hour call time, links location to Google Maps, and separates buttons", async ({
+  page,
+}) => {
+  await page.route("**/api/public/rsvp-details", async (route) => {
+    const body = publicRsvpDetailsResponseSchema.parse({
+      ...details,
+      event: {
+        ...details.event,
+        callTime: "17:30",
+        title: "Downtown Christmas Stroll",
+        type: "Performance",
+        venueAddress: "163 E Wheeling St Lancaster, Ohio 43130",
+        venueName: "First United Methodist Church - Sanctuary Main Floor",
+      },
+      rsvp: "Yes",
+    });
+    await route.fulfill({ json: body });
+  });
+
+  await page.goto(`/rsvp?token=${token}`);
+  await expect(page.getByRole("heading", { name: "Downtown Christmas Stroll" })).toBeVisible();
+  await expect(page.locator(".auth-card")).toContainText("5:30 PM");
+  await expect(page.locator(".auth-card")).not.toContainText("17:30");
+
+  const mapsLink = page.getByRole("link", {
+    name: /First United Methodist Church - Sanctuary Main Floor, 163 E Wheeling St Lancaster, Ohio 43130 on Google Maps/i,
+  });
+  await expect(mapsLink).toBeVisible();
+  await expect(mapsLink).toHaveAttribute(
+    "href",
+    "https://www.google.com/maps/search/?api=1&query=First%20United%20Methodist%20Church%20-%20Sanctuary%20Main%20Floor%2C%20163%20E%20Wheeling%20St%20Lancaster%2C%20Ohio%2043130",
+  );
+  await expect(mapsLink).toHaveAttribute("target", "_blank");
+
+  const attendingBox = await page.getByRole("radio", { name: "I'll be there" }).boundingBox();
+  const decliningBox = await page.getByRole("radio", { name: "Can't make it" }).boundingBox();
+  const submitBox = await page.getByRole("button", { name: "Update RSVP" }).boundingBox();
+
+  expect(attendingBox).not.toBeNull();
+  expect(decliningBox).not.toBeNull();
+  expect(submitBox).not.toBeNull();
+
+  if (attendingBox && decliningBox && submitBox) {
+    const horizontalOrVerticalGap =
+      Math.abs(attendingBox.y - decliningBox.y) < 4
+        ? decliningBox.x - (attendingBox.x + attendingBox.width)
+        : decliningBox.y - (attendingBox.y + attendingBox.height);
+    expect(horizontalOrVerticalGap).toBeGreaterThanOrEqual(8);
+
+    const lowestChoiceBottom = Math.max(
+      attendingBox.y + attendingBox.height,
+      decliningBox.y + decliningBox.height,
+    );
+    expect(submitBox.y - lowestChoiceBottom).toBeGreaterThanOrEqual(12);
+  }
+});

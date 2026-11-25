@@ -242,6 +242,39 @@ export function formatCommunicationEventLocation(
   return `${locationText} ([Google Maps](${googleMapsUrl}))`;
 }
 
+/** Formats an event or refund timestamp with the weekday, full date, and short time in the Organization timezone. */
+export function formatCommunicationEventDate(value: string, timezone: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: timezone,
+  }).format(date);
+}
+
+/** Formats an ISO calendar date (`YYYY-MM-DD`) with the weekday and full date without timezone drift. */
+export function formatCommunicationCalendarDate(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) return value;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  if (
+    !Number.isFinite(date.getTime()) ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
+    return value;
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "full",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 export function renderCommunicationTemplate(
   template: string,
   recipientName: string,

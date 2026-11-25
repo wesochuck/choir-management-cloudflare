@@ -138,7 +138,7 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
     audience: ["Members", "Ticket Buyers", "Contacts"],
     category: "Event",
     contexts: ["standard", "attendance", "ticket"],
-    description: "The selected event's date and time.",
+    description: "The selected event's day of the week, date, and time.",
     label: "Event date",
     requiresEvent: true,
     tag: "{eventDate}",

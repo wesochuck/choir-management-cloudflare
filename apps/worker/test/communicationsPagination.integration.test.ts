@@ -861,7 +861,9 @@ describe("Organization communications pagination and keyset cursors", () => {
         now,
         now,
       );
-      for (let i = 1; i <= 3; i++) {
+      const recipientNames = ["Bob Wilson", "Sarah Van Dyke", "Alice Adams", "John Smith Jr."];
+      for (const [index, recipientName] of recipientNames.entries()) {
+        const i = index + 1;
         state.storage.sql.exec(
           `INSERT INTO communication_deliveries
             (id, message_id, profile_id, recipient_name, channel, destination, status,
@@ -871,7 +873,7 @@ describe("Organization communications pagination and keyset cursors", () => {
           `deliv-${String(i).padStart(3, "0")}`,
           msgId,
           crypto.randomUUID(),
-          `Recipient ${String(i)}`,
+          recipientName,
           `recipient${String(i)}@example.test`,
           now,
           now,
@@ -889,7 +891,7 @@ describe("Organization communications pagination and keyset cursors", () => {
     );
     expect(rec1Res.status).toBe(200);
     const rec1 = communicationDeliveryRecipientsPageResponseSchema.parse(await rec1Res.json());
-    expect(rec1.recipients.length).toBe(2);
+    expect(rec1.recipients.map((r) => r.recipientName)).toEqual(["Alice Adams", "John Smith Jr."]);
     expect(rec1.nextCursor).toBeTruthy();
 
     const rec2Res = await exports.default.fetch(
@@ -901,7 +903,7 @@ describe("Organization communications pagination and keyset cursors", () => {
     );
     expect(rec2Res.status).toBe(200);
     const rec2 = communicationDeliveryRecipientsPageResponseSchema.parse(await rec2Res.json());
-    expect(rec2.recipients.length).toBe(1);
+    expect(rec2.recipients.map((r) => r.recipientName)).toEqual(["Sarah Van Dyke", "Bob Wilson"]);
     expect(rec2.nextCursor).toBeNull();
   });
 

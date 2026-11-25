@@ -24,7 +24,7 @@ const TICKET_TEMPLATE_IDS = new Set([
 const PLACEHOLDER_GUIDE = [
   { code: "{buyerName}", desc: "Customer name on the order" },
   { code: "{eventTitle}", desc: "Performance or concert title" },
-  { code: "{eventDate}", desc: "Formatted date and time of the event" },
+  { code: "{eventDate}", desc: "Formatted day of the week, date, and time of the event" },
   { code: "{venueName}", desc: "Performance venue name" },
   { code: "{venueAddress}", desc: "Venue street address and location" },
   { code: "{ticketQuantity}", desc: "Number of tickets ordered" },

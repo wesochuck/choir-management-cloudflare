@@ -3,7 +3,8 @@ import { processDeliveryBatch } from "../src/jobs/consumer";
 import { env, exports, api, signIn, jsonWrite } from "./ticketing.integration.fixture";
 import { issueSignedLink } from "../src/security/signedLinks";
 import { deliverCheckoutReminder } from "../src/jobs/deliveries/checkoutReminders";
-import { beforeEach, afterEach, describe, it, expect } from "vitest";
+import { formatCommunicationEventDate } from "@choir/domain";
+import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { runInDurableObject } from "cloudflare:test";
 import {
   stores,
@@ -149,6 +150,74 @@ describe("checkout reminders on real Organization storage", () => {
       expect(row.state).toBe("sent");
       expect(row.providerId).toBe(`fake:${id}`);
     });
+  });
+
+  it("renders {eventDate} with day of the week in ticket checkout reminder emails", async () => {
+    const sentEmails: { readonly html: string; readonly subject: string; readonly text: string }[] =
+      [];
+    const send = vi.fn<(message: EmailMessage | EmailMessageBuilder) => Promise<EmailSendResult>>(
+      (message) => {
+        if ("to" in message) {
+          sentEmails.push({
+            html: "html" in message && typeof message.html === "string" ? message.html : "",
+            subject:
+              "subject" in message && typeof message.subject === "string" ? message.subject : "",
+            text: "text" in message && typeof message.text === "string" ? message.text : "",
+          });
+        }
+        return Promise.resolve({ messageId: "checkout-msg-1" });
+      },
+    );
+    const { id, startsAt } = await runInDurableObject<
+      OrganizationStore,
+      { readonly id: string; readonly startsAt: string }
+    >(stub(), (_instance, state) => {
+      state.storage.sql.exec("UPDATE organization_metadata SET timezone = 'America/New_York'");
+      const reminder = seedTicketReminder(state.storage);
+      state.storage.sql.exec(
+        `UPDATE communication_templates
+         SET subject = 'Finish tickets for {eventTitle} ({eventDate})',
+             content_markdown = 'Hi {recipientName}, {eventTitle} is on {eventDate}.\n\n{checkoutSummary}'
+         WHERE id = '97fb0b60-4841-4dc1-a0c0-7e87cc984601'`,
+      );
+      scheduleCheckoutReminderJobs(state.storage, organizationId, new Date());
+      const eventStartsAt = state.storage.sql
+        .exec<{ startsAt: string }>(
+          "SELECT starts_at AS startsAt FROM events WHERE id = ?",
+          reminder.eventId,
+        )
+        .one().startsAt;
+      return { id: reminder.id, startsAt: eventStartsAt };
+    });
+
+    await deliverCheckoutReminder(
+      {
+        ...env,
+        EXTERNAL_EFFECTS_MODE: "sandbox",
+        PLATFORM_EMAIL: { send } satisfies SendEmail,
+        PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "",
+        PLATFORM_EMAIL_FROM: "notifications@example.test",
+        PLATFORM_EMAIL_MODE: "sandbox",
+      },
+      {
+        attempt: 1,
+        idempotencyKey: `checkout-reminder:${id}`,
+        jobId: id,
+        kind: "checkout_reminder",
+        organizationId,
+        version: 1,
+      },
+    );
+
+    const expectedEventDate = formatCommunicationEventDate(startsAt, "America/New_York");
+    expect(expectedEventDate).toMatch(
+      /^(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), /,
+    );
+    expect(sentEmails).toHaveLength(1);
+    expect(sentEmails[0]?.subject).toContain(expectedEventDate);
+    expect(sentEmails[0]?.html).toContain(expectedEventDate);
+    expect(sentEmails[0]?.text).toContain(expectedEventDate);
+    expect(sentEmails[0]?.text).not.toContain("{eventDate}");
   });
   it("binds recovery to purpose, Organization and current nonce", async () => {
     const delivery = await runInDurableObject(stub(), (_instance, state) => {

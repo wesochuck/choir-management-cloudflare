@@ -39,7 +39,7 @@ export function CheckoutReminderTemplatePreview({
     checkoutSummary:
       template.kind === "ticket" ? "2 tickets for Spring Concert" : "Donation: $50.00",
     eventTitle: "Spring Concert",
-    eventDate: "May 15 at 7:00 PM",
+    eventDate: "Friday, May 15, 2026 at 7:00 PM",
     donationAmount: "$50.00",
     donationLevel: "Supporter",
     returnUrl: "https://example.invalid/checkout/return",

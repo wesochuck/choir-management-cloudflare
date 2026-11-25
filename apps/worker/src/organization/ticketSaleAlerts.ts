@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { OrganizationProfile } from "@choir/contracts";
+import { formatCommunicationEventDate } from "@choir/domain";
 import { readOrganizationCalendarSettings } from "../calendar/organizationCalendar";
 import type { Env } from "../env";
 import {
@@ -72,13 +73,7 @@ export function formatMoney(cents: number, currency: string): string {
 }
 
 export function formatEventDate(value: string, timezone: string): string {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: timezone,
-  }).format(date);
+  return formatCommunicationEventDate(value, timezone);
 }
 
 export async function financialAlertRecipients(

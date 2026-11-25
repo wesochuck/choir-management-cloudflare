@@ -1,6 +1,6 @@
 import { walletApiKey } from "../../payments/ticketWallet";
 import { withDefaultTicketDoorsOpenTime } from "../../organization/ticketMessageTemplates";
-import { renderCommunicationTemplate } from "@choir/domain";
+import { formatCommunicationEventDate, renderCommunicationTemplate } from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
 import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import type { DeliveryJob } from "../contracts";
@@ -47,20 +47,15 @@ export async function deliverTicketNotificationJob(
   );
   const templateValues = {
     buyerName: notification.data.buyerName,
-    eventDate: new Intl.DateTimeFormat("en-US", {
-      dateStyle: "full",
-      timeStyle: "short",
-      timeZone: notification.data.timezone,
-    }).format(new Date(notification.data.eventStartsAt)),
+    eventDate: formatCommunicationEventDate(
+      notification.data.eventStartsAt,
+      notification.data.timezone,
+    ),
     eventLocation: notification.data.eventLocation,
     eventTitle: notification.data.eventTitle,
     refundAmount: money(notification.data.amountPaidCents, notification.data.currency),
     refundDate: notification.data.refundDate
-      ? new Intl.DateTimeFormat("en-US", {
-          dateStyle: "full",
-          timeStyle: "short",
-          timeZone: notification.data.timezone,
-        }).format(new Date(notification.data.refundDate))
+      ? formatCommunicationEventDate(notification.data.refundDate, notification.data.timezone)
       : "",
     ticketAmount: new Intl.NumberFormat("en-US", {
       currency: notification.data.currency.toUpperCase(),

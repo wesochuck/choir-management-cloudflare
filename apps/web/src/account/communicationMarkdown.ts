@@ -9,6 +9,7 @@ import {
   communicationRecipientNamePlaceholderKeys,
   filterUpcomingPerformances,
   formatClockTime12Hour,
+  formatCommunicationEventDate,
   formatCommunicationEventLocation,
   formatCommunicationSetList,
   formatUpcomingPerformancesList,
@@ -111,15 +112,13 @@ function renderInline(value: string): string {
   return rendered + renderMarkdownText(value.slice(cursor));
 }
 
+const SAMPLE_COMMUNICATION_EVENT_DATE = "Thursday, August 20, 2026 at 7:00 PM";
+
 function formatPreviewDate(value: string, timezone: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
-    ? "August 20, 2026 at 7:00 PM"
-    : new Intl.DateTimeFormat("en-US", {
-        dateStyle: "long",
-        timeStyle: "short",
-        timeZone: timezone,
-      }).format(date);
+    ? SAMPLE_COMMUNICATION_EVENT_DATE
+    : formatCommunicationEventDate(value, timezone);
 }
 
 function formatPreviewTime(value: string): string {
@@ -172,7 +171,7 @@ function previewUpcomingPerformancesValue(
   options?: CommunicationPreviewOptions,
 ): string {
   if (!options?.events) {
-    return "- **Example Performance**\n  - **Date and time:** August 20, 2026 at 7:00 PM\n  - **Location:** Main Hall, 12 Main Street\n  - **Tickets:** [Buy tickets](/tickets/example-performance)";
+    return `- **Example Performance**\n  - **Date and time:** ${SAMPLE_COMMUNICATION_EVENT_DATE}\n  - **Location:** Main Hall, 12 Main Street\n  - **Tickets:** [Buy tickets](/tickets/example-performance)`;
   }
   const venueById = new Map((options.venues ?? []).map((venue) => [venue.id, venue]));
   const items: UpcomingPerformanceListItem[] = options.events.map((eventItem) => {
@@ -219,7 +218,7 @@ export function communicationPreviewValues(
     ? timezone
       ? formatPreviewDate(event.startsAt, timezone)
       : "Loading Organization timezone…"
-    : "August 20, 2026 at 7:00 PM";
+    : SAMPLE_COMMUNICATION_EVENT_DATE;
   const eventLocation = resolvePreviewEventLocation(event, options?.venues);
   const eventDetails = previewText(event?.details, "Event details will appear here.");
   const setlist = formatCommunicationSetList(event?.setList);
@@ -250,14 +249,13 @@ export function communicationPreviewValues(
     "{ticketAmount}": "$25.00",
     "{ticketBundleName}": "Spring Concert Pass",
     "{refundAmount}": "$25.00",
-    "{refundDate}": "August 20, 2026 at 7:00 PM",
+    "{refundDate}": SAMPLE_COMMUNICATION_EVENT_DATE,
     "{{RSVP_LINKS}}": "View RSVP details",
     "{{PLAYER_LINK}}": "Open practice player",
     "{{TICKET_LINK}}": "View ticket order",
     "{{EVENT_TICKET_LINK}}": "View event details and buy tickets",
     "{{TICKET_ORDER_LINK}}": "View order details",
-    "{{TICKET_EVENT_LIST}}":
-      "- **Example Performance**\n  - **Date and time:** August 20, 2026 at 7:00 PM\n  - **Location:** Main Hall, 12 Main Street",
+    "{{TICKET_EVENT_LIST}}": `- **Example Performance**\n  - **Date and time:** ${SAMPLE_COMMUNICATION_EVENT_DATE}\n  - **Location:** Main Hall, 12 Main Street`,
     [UPCOMING_PERFORMANCES_PLACEHOLDER]: previewUpcomingPerformancesValue(timezone, options),
     "{attendanceRate}": "85%",
     "{presentCount}": "17",
@@ -265,9 +263,9 @@ export function communicationPreviewValues(
     "{absenteesList}": "- Jordan Lee\n- Taylor Kim",
     "{thresholdWarningsSection}":
       "### Rehearsal follow-up warnings\n- Jordan Lee (3 missed Rehearsals)",
-    "{auditionDate}": "August 15, 2026",
+    "{auditionDate}": "Saturday, August 15, 2026",
     "{auditionTime}": "6:30 PM",
-    "{auditionDateTime}": "August 15, 2026 at 6:30 PM",
+    "{auditionDateTime}": "Saturday, August 15, 2026 at 6:30 PM",
     "{auditionLocation}": "Main Hall",
     "{{AUDITION_LINK}}": "Review audition details",
   };

@@ -7,6 +7,8 @@ import {
   communicationDeliveryIssueLabel,
   communicationFailureCategory,
   communicationReach,
+  formatCommunicationCalendarDate,
+  formatCommunicationEventDate,
   formatCommunicationEventLocation,
   formatCommunicationSetList,
   maskCommunicationDestination,
@@ -265,5 +267,21 @@ describe("Organization communications", () => {
 
     expect(formatCommunicationEventLocation({ location: "TBD" })).toBe("TBD");
     expect(formatCommunicationEventLocation({})).toBe("");
+  });
+
+  it("formats communication event dates with day of the week in the target timezone", () => {
+    expect(formatCommunicationEventDate("2026-08-20T23:00:00.000Z", "America/New_York")).toBe(
+      "Thursday, August 20, 2026 at 7:00 PM",
+    );
+    expect(formatCommunicationEventDate("2026-12-14T00:30:00.000Z", "America/New_York")).toBe(
+      "Sunday, December 13, 2026 at 7:30 PM",
+    );
+    expect(formatCommunicationEventDate("not-a-date", "America/New_York")).toBe("not-a-date");
+  });
+
+  it("formats calendar dates with day of the week without timezone drift", () => {
+    expect(formatCommunicationCalendarDate("2026-05-15")).toBe("Friday, May 15, 2026");
+    expect(formatCommunicationCalendarDate("2026-02-30")).toBe("2026-02-30");
+    expect(formatCommunicationCalendarDate("Not recorded")).toBe("Not recorded");
   });
 });

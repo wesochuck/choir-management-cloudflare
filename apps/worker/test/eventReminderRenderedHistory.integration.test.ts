@@ -1,4 +1,5 @@
 import { communicationHistoryPageResponseSchema } from "@choir/contracts";
+import { formatCommunicationEventDate } from "@choir/domain";
 import {
   futureIsoDate,
   organizationRequest,
@@ -389,7 +390,9 @@ describe("Event reminder rendered Communications history (#172)", () => {
     const jobId = crypto.randomUUID();
     const memberProfileId = crypto.randomUUID();
 
+    const populatedStartsAt = futureIsoDate({ days: 10 });
     await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
+      state.storage.sql.exec("UPDATE organization_metadata SET timezone = 'America/New_York'");
       state.storage.sql.exec(
         `INSERT INTO profiles (id, display_name, phone, voice_part, global_status,
            show_in_directory, created_at, updated_at)
@@ -402,7 +405,7 @@ describe("Event reminder rendered Communications history (#172)", () => {
         `INSERT INTO events (id, title, type, starts_at, call_time, location, set_list_json, created_at, updated_at)
          VALUES (?, 'Downtown Christmas Stroll', 'Performance', ?, '17:30', 'Main Hall', ?, ?, ?)`,
         populatedEventId,
-        futureIsoDate({ days: 10 }),
+        populatedStartsAt,
         JSON.stringify([{ title: "Adeste Fideles" }, { title: "God Rest You Merry, Gentlemen" }]),
         now,
         now,
@@ -419,8 +422,8 @@ describe("Event reminder rendered Communications history (#172)", () => {
         `INSERT INTO communication_messages
           (id, channel, status, subject, content_markdown, audience_json, reach_json,
            created_by, created_at, updated_at, queued_at)
-         VALUES (?, 'Email', 'Queued', 'Performance details for: {eventTitle}',
-           '### Set list\n\n{setlist}', ?,
+         VALUES (?, 'Email', 'Queued', 'Performance details for: {eventTitle} on {eventDate}',
+           'When: {eventDate}\n\n### Set list\n\n{setlist}', ?,
            '{"total":1,"email":1,"sms":0,"both":0,"unreachable":0}',
            'communications-manager', ?, ?, ?)`,
         messageId,
@@ -523,7 +526,14 @@ describe("Event reminder rendered Communications history (#172)", () => {
     expect(await getQueueResult(batch, createExecutionContext())).toMatchObject({
       explicitAcks: [`delivery-${jobId}`],
     });
+    const expectedEventDate = formatCommunicationEventDate(populatedStartsAt, "America/New_York");
+    expect(expectedEventDate).toMatch(
+      /^(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), /,
+    );
     expect(sentEmails).toHaveLength(1);
+    expect(sentEmails[0]?.html).toContain(expectedEventDate);
+    expect(sentEmails[0]?.text).toContain(expectedEventDate);
+    expect(sentEmails[0]?.text).not.toContain("{eventDate}");
     expect(sentEmails[0]?.html).toContain("<li");
     expect(sentEmails[0]?.html).toContain("Adeste Fideles</li>");
     expect(sentEmails[0]?.html).toContain("God Rest You Merry, Gentlemen</li>");

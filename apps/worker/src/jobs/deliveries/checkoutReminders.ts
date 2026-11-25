@@ -1,5 +1,9 @@
 import type { CheckoutRecoveryChoices } from "@choir/contracts";
-import { composeCheckoutReminderActions, renderCommunicationTemplate } from "@choir/domain";
+import {
+  composeCheckoutReminderActions,
+  formatCommunicationEventDate,
+  renderCommunicationTemplate,
+} from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
 import { isEmailProviderSuppressed } from "../../communications/emailFeedback";
 import { organizationStoreStub } from "../../organization/rpc/client";
@@ -69,14 +73,8 @@ export async function deliverCheckoutReminder(env: JobConsumerEnv, job: Delivery
       donationLevel: delivery.donationLevel,
       eventTitle: delivery.eventTitles.join(", "),
       eventDate: delivery.eventStartsAt
-        .map((instant) =>
-          new Intl.DateTimeFormat("en-US", {
-            timeZone: delivery.timezone,
-            dateStyle: "medium",
-            timeStyle: "short",
-          }).format(new Date(instant)),
-        )
-        .join(", "),
+        .map((instant) => formatCommunicationEventDate(instant, delivery.timezone))
+        .join("; "),
     };
     const body = renderCommunicationTemplate(
       delivery.contentMarkdown,

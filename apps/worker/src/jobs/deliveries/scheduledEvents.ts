@@ -1,5 +1,6 @@
 import {
   formatClockTime12Hour,
+  formatCommunicationEventDate,
   formatCommunicationEventLocation,
   hasAttendanceWarning,
   renderCommunicationTemplate,
@@ -98,11 +99,10 @@ export async function deliverScheduledEventCommunication(
   const template = await readOrganizationCommunicationTemplate(env, job.organizationId, templateId);
   const recipients = await automatedRecipients(env, job.organizationId, scheduled.recipients);
   if (recipients.length === 0) return;
-  const eventDateFormatted = new Intl.DateTimeFormat("en-US", {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: scheduled.event.timezone,
-  }).format(new Date(scheduled.event.startsAt));
+  const eventDateFormatted = formatCommunicationEventDate(
+    scheduled.event.startsAt,
+    scheduled.event.timezone,
+  );
 
   const locationInput = {
     location: scheduled.event.location,
@@ -285,6 +285,10 @@ export async function deliverAttendanceReportJob(
     scheduledEventTemplateIds.attendanceReport,
   );
   const values = attendanceReportValues(parsed.data);
+  const eventDateFormatted = formatCommunicationEventDate(
+    parsed.data.event.startsAt,
+    parsed.data.event.timezone,
+  );
   await queueAutomatedOrganizationCommunication(
     env,
     {
@@ -298,11 +302,7 @@ export async function deliverAttendanceReportJob(
         ...values,
         eventTitle: parsed.data.event.title,
         eventType: parsed.data.event.type,
-        eventDate: new Intl.DateTimeFormat("en-US", {
-          dateStyle: "long",
-          timeStyle: "short",
-          timeZone: parsed.data.event.timezone,
-        }).format(new Date(parsed.data.event.startsAt)),
+        eventDate: eventDateFormatted,
         eventLocation: formatCommunicationEventLocation({
           location: parsed.data.event.location,
           venueAddress: parsed.data.event.venueAddress,
@@ -313,11 +313,7 @@ export async function deliverAttendanceReportJob(
       recipients,
       subject: renderCommunicationTemplate(template.subject, "{recipientName}", {
         eventTitle: parsed.data.event.title,
-        eventDate: new Intl.DateTimeFormat("en-US", {
-          dateStyle: "long",
-          timeStyle: "short",
-          timeZone: parsed.data.event.timezone,
-        }).format(new Date(parsed.data.event.startsAt)),
+        eventDate: eventDateFormatted,
       }),
     },
   );

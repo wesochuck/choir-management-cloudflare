@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
 import { organizationEventSchema, type OrganizationEvent } from "@choir/contracts";
-import { CommunicationRenderLimitError } from "@choir/domain";
+import { CommunicationRenderLimitError, formatCommunicationEventDate } from "@choir/domain";
 import { futureDateString, futureIsoDate, pastIsoDate } from "@choir/testkit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -491,15 +491,26 @@ describe("handleTestEmailDelivery render budget enforcement (SEC-01)", () => {
       env,
       "org-alpha",
       {
-        contentMarkdown: "- **Call time:** {eventCallTime}\n- **Location:** {eventLocation}",
+        contentMarkdown:
+          "- **Date:** {eventDate}\n- **Call time:** {eventCallTime}\n- **Location:** {eventLocation}",
         email: "director@example.test",
         eventId: event.id,
-        subject: "Performance details for: {eventTitle}",
+        subject: "Performance details for: {eventTitle} ({eventDate})",
       },
       "https://alpha.localhost",
     );
 
+    const expectedEventDate = formatCommunicationEventDate(event.startsAt, "America/New_York");
+    expect(expectedEventDate).toMatch(
+      /^(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), /,
+    );
     expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining(expectedEventDate),
+        subject: `[Test] Performance details for: ${event.title} (${expectedEventDate})`,
+      }),
+    );
     expect(sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({
         html: expect.stringContaining("5:30 PM"),
