@@ -1264,6 +1264,22 @@
     font-size: var(--font-size-xs);
   }
 
+  /* Composer Footer (docked inline test panel + action bar) */
+  .communication-composer-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: var(--color-background);
+  }
+
+  .communication-composer-footer:has(.communication-test-panel) {
+    padding-top: var(--spacing-xs);
+  }
+
+  :is(.dialog, [role="dialog"]) .communication-composer-footer {
+    background: var(--color-surface);
+  }
+
   /* Composer Action Bar */
   .communication-composer-action-bar {
     display: flex;
@@ -1273,14 +1289,6 @@
     gap: var(--spacing-md);
     padding: var(--spacing-md) 0;
     border-top: 1px solid var(--color-border);
-    position: sticky;
-    bottom: 0;
-    z-index: 5;
-    background: var(--color-background);
-  }
-
-  :is(.dialog, [role="dialog"]) .communication-composer-action-bar {
-    background: var(--color-surface);
   }
 
   .action-bar-secondary {
@@ -1296,13 +1304,13 @@
 
   /* Inline Composer Test Email Panel */
   .communication-test-panel {
-    margin-top: var(--spacing-md);
+    margin-top: 0;
     margin-bottom: var(--spacing-xs);
     padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md);
   }
 
   .communication-test-panel__header {
@@ -1347,7 +1355,7 @@
       flex-direction: column;
     }
 
-    .communication-composer-action-bar {
+    .communication-composer-footer {
       position: static;
     }
   }
@@ -1651,7 +1659,7 @@
     .communication-compose-container {
       padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
     }
-    .communication-compose-container .communication-composer-action-bar {
+    .communication-compose-container .communication-composer-footer {
       bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
     }
   }

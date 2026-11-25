@@ -17,7 +17,7 @@ import {
   type CommunicationPlaceholderDefinition,
 } from "@choir/domain";
 import { useConfirmation } from "@choir/ui";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   SAMPLE_COMMUNICATION_RECIPIENT_NAME,
   communicationPreviewValues,
@@ -377,6 +377,14 @@ function ComposerTestPanel({
 }) {
   const [email, setEmail] = useState(() => getStoredTestEmail());
   const [validationError, setValidationError] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (panel && typeof panel.scrollIntoView === "function") {
+      panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, []);
 
   async function handleSend(): Promise<void> {
     const trimmed = email.trim();
@@ -399,7 +407,12 @@ function ComposerTestPanel({
   }
 
   return (
-    <div aria-label="Send test email" className="communication-test-panel" role="region">
+    <div
+      aria-label="Send test email"
+      className="communication-test-panel"
+      ref={panelRef}
+      role="region"
+    >
       <div className="communication-test-panel__header">
         <h5 className="communication-test-panel__title">Send test email</h5>
         <p className="communication-test-panel__description">
@@ -442,7 +455,7 @@ function ComposerTestPanel({
               value={email}
             />
             <button
-              className="button button--primary"
+              className="button button--primary button--control-height"
               disabled={busy || !email.trim()}
               onClick={() => {
                 void handleSend();
@@ -452,7 +465,7 @@ function ComposerTestPanel({
               {busy ? "Sending…" : "Send test email"}
             </button>
             <button
-              className="button button--secondary"
+              className="button button--secondary button--control-height"
               disabled={busy}
               onClick={onClose}
               type="button"
@@ -889,38 +902,40 @@ export function MessageComposer({
         </div>
       </div>
 
-      {/* 6. Persistent Composer Action Bar */}
-      {isTestOpen && onSendTestEmail ? (
-        <ComposerTestPanel
+      {/* 6. Persistent Composer Footer (inline test panel + action bar) */}
+      <div className="communication-composer-footer">
+        {isTestOpen && onSendTestEmail ? (
+          <ComposerTestPanel
+            busy={busy}
+            error={testEmailError}
+            idPrefix={idPrefix}
+            onClose={() => {
+              setIsTestOpen(false);
+            }}
+            onSend={async (email) => {
+              await onSendTestEmail(email);
+            }}
+          />
+        ) : null}
+        <ComposerActionBar
           busy={busy}
-          error={testEmailError}
-          idPrefix={idPrefix}
-          onClose={() => {
-            setIsTestOpen(false);
-          }}
-          onSend={async (email) => {
-            await onSendTestEmail(email);
-          }}
+          channel={channel}
+          contentMarkdown={contentMarkdown}
+          isSendDisabled={isSendDisabled}
+          isTestOpen={isTestOpen}
+          onOpenReview={onOpenReview}
+          onOpenSaveTemplate={onOpenSaveTemplate}
+          onOpenTestEmail={onOpenTestEmail}
+          onSaveDraft={onSaveDraft}
+          onToggleTest={
+            onSendTestEmail
+              ? () => {
+                  setIsTestOpen((open) => !open);
+                }
+              : undefined
+          }
         />
-      ) : null}
-      <ComposerActionBar
-        busy={busy}
-        channel={channel}
-        contentMarkdown={contentMarkdown}
-        isSendDisabled={isSendDisabled}
-        isTestOpen={isTestOpen}
-        onOpenReview={onOpenReview}
-        onOpenSaveTemplate={onOpenSaveTemplate}
-        onOpenTestEmail={onOpenTestEmail}
-        onSaveDraft={onSaveDraft}
-        onToggleTest={
-          onSendTestEmail
-            ? () => {
-                setIsTestOpen((open) => !open);
-              }
-            : undefined
-        }
-      />
+      </div>
       {confirmationDialog}
     </div>
   );

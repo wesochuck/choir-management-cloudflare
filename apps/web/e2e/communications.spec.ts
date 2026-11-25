@@ -2311,3 +2311,72 @@ test("search and dropdown filters keep server pagination, reset the page, and re
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(page.getByText("No messages match this search.", { exact: true })).toBeVisible();
 });
+
+test("clicking Send test docks the test email input above the sticky action bar without scrolling", async ({
+  page,
+}, testInfo) => {
+  if (!testInfo.project.name.includes("mobile")) {
+    await page.setViewportSize({ width: 1280, height: 720 });
+  }
+  const previewBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+  await page.goto("/admin/communications?tab=compose");
+  await expect(page.getByRole("button", { name: "Edit recipients", exact: true })).toBeVisible();
+
+  await page.getByLabel("Subject", { exact: true }).fill("Concert logistics");
+  await page
+    .getByRole("textbox", { name: "Message body" })
+    .fill(
+      Array.from(
+        { length: 16 },
+        (_, index) => `- Rehearsal detail ${String(index + 1)} for Saturday evening`,
+      ).join("\n"),
+    );
+
+  if (!testInfo.project.name.includes("mobile")) {
+    await page.evaluate(() => {
+      window.scrollTo(0, 0);
+    });
+  }
+
+  await page.getByRole("button", { name: "Send test", exact: true }).click();
+
+  const testRegion = page.getByRole("region", { name: "Send test email" });
+  const emailInput = testRegion.getByLabel("Test recipient email", { exact: true });
+  const sendButton = testRegion.getByRole("button", { name: "Send test email", exact: true });
+  const cancelButton = testRegion.getByRole("button", { name: "Cancel", exact: true });
+
+  await expect(testRegion).toBeVisible();
+  await expect(emailInput).toBeVisible();
+  await expect(emailInput).toBeFocused();
+
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Viewport size unavailable");
+
+  const emailBox = await emailInput.boundingBox();
+  const sendBox = await sendButton.boundingBox();
+  const cancelBox = await cancelButton.boundingBox();
+  const actionBarBox = await page.locator(".communication-composer-action-bar").boundingBox();
+
+  expect(emailBox).not.toBeNull();
+  expect(sendBox).not.toBeNull();
+  expect(cancelBox).not.toBeNull();
+  expect(actionBarBox).not.toBeNull();
+  if (!emailBox || !sendBox || !cancelBox || !actionBarBox) {
+    throw new Error("Expected test panel controls and action bar bounding boxes");
+  }
+
+  expect(emailBox.y).toBeGreaterThanOrEqual(0);
+  expect(emailBox.y + emailBox.height).toBeLessThanOrEqual(viewport.height);
+  expect(emailBox.y + emailBox.height).toBeLessThanOrEqual(actionBarBox.y + 1);
+  expect(sendBox.y + sendBox.height).toBeLessThanOrEqual(actionBarBox.y + 1);
+  expect(cancelBox.y + cancelBox.height).toBeLessThanOrEqual(actionBarBox.y + 1);
+
+  if (!testInfo.project.name.includes("mobile")) {
+    expect(Math.abs(sendBox.height - emailBox.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(cancelBox.height - emailBox.height)).toBeLessThanOrEqual(1);
+  }
+
+  await emailInput.press("Escape");
+  await expect(testRegion).toHaveCount(0);
+});
