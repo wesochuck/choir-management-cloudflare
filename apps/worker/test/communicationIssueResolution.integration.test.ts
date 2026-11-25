@@ -567,4 +567,347 @@ describe("communication delivery issue visibility and resolution", () => {
       return undefined;
     });
   });
+
+  it("supports clearing bounced email addresses and removing standalone contacts", async () => {
+    const cookie = await signIn();
+    const stub = stores.getByName("organization-alpha");
+    const messageId = crypto.randomUUID();
+    const namedContactId = crypto.randomUUID();
+    const emailOnlyContactId = crypto.randomUUID();
+    const profileId = crypto.randomUUID();
+    const profileContactId = crypto.randomUUID();
+    const listId = crypto.randomUUID();
+    const namedDeliveryId = crypto.randomUUID();
+    const emailOnlyDeliveryId = crypto.randomUUID();
+    const profileDeliveryId = crypto.randomUUID();
+    const sentAt = new Date().toISOString();
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, provider_email_suppressed, last_bounce_at, bounce_reason, created_at, updated_at)
+         VALUES (?, 'Member Bounce', 1, ?, '550 5.1.1', ?, ?)`,
+        profileId,
+        sentAt,
+        sentAt,
+        sentAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO contacts (id, display_name, email, normalized_email, profile_id, source, created_at, updated_at)
+         VALUES (?, 'Carol Family', 'carol@example.test', 'carol@example.test', NULL, 'manual', ?, ?),
+                (?, NULL, 'onlyemail@example.test', 'onlyemail@example.test', NULL, 'manual', ?, ?),
+                (?, 'Member Bounce', 'member@example.test', 'member@example.test', ?, 'roster', ?, ?)`,
+        namedContactId,
+        sentAt,
+        sentAt,
+        emailOnlyContactId,
+        sentAt,
+        sentAt,
+        profileContactId,
+        profileId,
+        sentAt,
+        sentAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO contact_lists (id, name, created_at, updated_at)
+         VALUES (?, 'Patrons', ?, ?)`,
+        listId,
+        sentAt,
+        sentAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO contact_list_memberships (list_id, contact_id, created_at)
+         VALUES (?, ?, ?), (?, ?, ?)`,
+        listId,
+        namedContactId,
+        sentAt,
+        listId,
+        emailOnlyContactId,
+        sentAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO contact_communication_preferences (contact_id, channel, status, source, observed_at, updated_at)
+         VALUES (?, 'email', 'unsubscribed', 'provider_bounce', ?, ?),
+                (?, 'email', 'unsubscribed', 'provider_bounce', ?, ?)`,
+        namedContactId,
+        sentAt,
+        sentAt,
+        profileContactId,
+        sentAt,
+        sentAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO communication_messages
+          (id, channel, status, subject, content_markdown, audience_json, reach_json, created_by, created_at, updated_at, sent_at)
+         VALUES (?, 'Email', 'Sent', 'Spring Gala', 'Body', ?, ?, 'user-1', ?, ?, ?)`,
+        messageId,
+        JSON.stringify(audience),
+        reach,
+        sentAt,
+        sentAt,
+        sentAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO communication_deliveries
+          (id, message_id, profile_id, recipient_name, channel, destination, status, attempts,
+           provider_status, provider_reason, recipient_subject_json, created_at, updated_at)
+         VALUES (?, ?, ?, 'Carol Family', 'email', 'carol@example.test', 'sent', 1, 'bounced', '554 mailbox disabled', ?, ?, ?),
+                (?, ?, ?, 'onlyemail@example.test', 'email', 'onlyemail@example.test', 'sent', 1, 'bounced', '550 unknown', ?, ?, ?),
+                (?, ?, ?, 'Member Bounce', 'email', 'member@example.test', 'sent', 1, 'bounced', '550 unknown', ?, ?, ?)`,
+        namedDeliveryId,
+        messageId,
+        namedContactId,
+        JSON.stringify({ kind: "contact", contactId: namedContactId }),
+        sentAt,
+        sentAt,
+        emailOnlyDeliveryId,
+        messageId,
+        emailOnlyContactId,
+        JSON.stringify({ kind: "contact", contactId: emailOnlyContactId }),
+        sentAt,
+        sentAt,
+        profileDeliveryId,
+        messageId,
+        profileId,
+        JSON.stringify({ kind: "profile", profileId }),
+        sentAt,
+        sentAt,
+      );
+      return undefined;
+    });
+
+    // Summary advertises accurate capabilities for each recipient type
+    const summaryBefore = communicationDeliverySummaryResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api(
+            "alpha.localhost",
+            `/api/organization/communications/${messageId}/delivery-summary`,
+            cookie,
+          ),
+        )
+      ).json(),
+    );
+    expect(summaryBefore.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          canArchiveProfile: false,
+          canClearEmail: true,
+          canDeleteContact: true,
+          canEditEmail: true,
+          deliveryId: namedDeliveryId,
+          recipientStatus: "active",
+        }),
+        expect.objectContaining({
+          canArchiveProfile: false,
+          canClearEmail: false,
+          canDeleteContact: true,
+          canEditEmail: true,
+          deliveryId: emailOnlyDeliveryId,
+          recipientStatus: "active",
+        }),
+        expect.objectContaining({
+          canArchiveProfile: true,
+          canClearEmail: true,
+          canDeleteContact: false,
+          canEditEmail: true,
+          deliveryId: profileDeliveryId,
+          recipientStatus: "active",
+        }),
+      ]),
+    );
+
+    // Standalone contact rejects archive_profile
+    const archiveStandaloneRes = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/communications/${messageId}/deliveries/${namedDeliveryId}/resolve-email`,
+      "POST",
+      { action: "archive_profile" },
+      cookie,
+    );
+    expect(archiveStandaloneRes.status).toBe(409);
+    expect(await archiveStandaloneRes.json()).toMatchObject({
+      code: "recipient_profile_not_archivable",
+    });
+
+    // Email-only contact rejects clear_email (would leave contact without identity)
+    const missingIdentityRes = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/communications/${messageId}/deliveries/${emailOnlyDeliveryId}/resolve-email`,
+      "POST",
+      { action: "clear_email" },
+      cookie,
+    );
+    expect(missingIdentityRes.status).toBe(409);
+    expect(await missingIdentityRes.json()).toMatchObject({ code: "contact_missing_identity" });
+
+    // Profile rejects delete_contact
+    const deleteProfileRes = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/communications/${messageId}/deliveries/${profileDeliveryId}/resolve-email`,
+      "POST",
+      { action: "delete_contact" },
+      cookie,
+    );
+    expect(deleteProfileRes.status).toBe(409);
+    expect(await deleteProfileRes.json()).toMatchObject({
+      code: "recipient_contact_not_deletable",
+    });
+
+    // Clear email on named contact keeps contact, clears email & bounce suppression
+    const clearNamedRes = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/communications/${messageId}/deliveries/${namedDeliveryId}/resolve-email`,
+      "POST",
+      { action: "clear_email" },
+      cookie,
+    );
+    expect(clearNamedRes.status).toBe(200);
+    expect(
+      communicationResolveDeliveryEmailResponseSchema.parse(await clearNamedRes.json()),
+    ).toMatchObject({
+      action: "clear_email",
+      clearedBounceSuppression: true,
+      email: null,
+      resent: false,
+    });
+
+    // Clear email on profile keeps profile & primary contact, clears email & bounce suppression
+    const clearProfileRes = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/communications/${messageId}/deliveries/${profileDeliveryId}/resolve-email`,
+      "POST",
+      { action: "clear_email" },
+      cookie,
+    );
+    expect(clearProfileRes.status).toBe(200);
+    expect(
+      communicationResolveDeliveryEmailResponseSchema.parse(await clearProfileRes.json()),
+    ).toMatchObject({
+      action: "clear_email",
+      clearedBounceSuppression: true,
+      email: null,
+      resent: false,
+    });
+
+    // Delete standalone email-only contact removes contact, preferences, and list memberships
+    const deleteContactRes = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/communications/${messageId}/deliveries/${emailOnlyDeliveryId}/resolve-email`,
+      "POST",
+      { action: "delete_contact" },
+      cookie,
+    );
+    expect(deleteContactRes.status).toBe(200);
+    expect(
+      communicationResolveDeliveryEmailResponseSchema.parse(await deleteContactRes.json()),
+    ).toMatchObject({
+      action: "delete_contact",
+      clearedBounceSuppression: false,
+      email: null,
+      resent: false,
+    });
+
+    // Archive Organization Profile hides it from the active roster while preserving history
+    const archiveProfileRes = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/communications/${messageId}/deliveries/${profileDeliveryId}/resolve-email`,
+      "POST",
+      { action: "archive_profile" },
+      cookie,
+    );
+    expect(archiveProfileRes.status).toBe(200);
+    expect(
+      communicationResolveDeliveryEmailResponseSchema.parse(await archiveProfileRes.json()),
+    ).toMatchObject({
+      action: "archive_profile",
+      clearedBounceSuppression: false,
+      email: null,
+      resent: false,
+    });
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      const namedRow = state.storage.sql
+        .exec<{ readonly email: string | null }>(
+          "SELECT email FROM contacts WHERE id = ?",
+          namedContactId,
+        )
+        .one();
+      expect(namedRow.email).toBeNull();
+
+      const deletedRows = state.storage.sql
+        .exec<{ readonly id: string }>("SELECT id FROM contacts WHERE id = ?", emailOnlyContactId)
+        .toArray();
+      expect(deletedRows).toHaveLength(0);
+
+      const memberships = state.storage.sql
+        .exec<{ readonly contactId: string }>(
+          "SELECT contact_id AS contactId FROM contact_list_memberships WHERE contact_id = ?",
+          emailOnlyContactId,
+        )
+        .toArray();
+      expect(memberships).toHaveLength(0);
+
+      const profileRow = state.storage.sql
+        .exec<{
+          readonly globalStatus: string;
+          readonly hidden: number;
+          readonly providerSuppressed: number;
+          readonly statusIsManual: number;
+        }>(
+          `SELECT global_status AS globalStatus, hidden, status_is_manual AS statusIsManual,
+             provider_email_suppressed AS providerSuppressed
+           FROM profiles WHERE id = ?`,
+          profileId,
+        )
+        .one();
+      expect(profileRow).toEqual({
+        globalStatus: "Inactive",
+        hidden: 1,
+        providerSuppressed: 0,
+        statusIsManual: 1,
+      });
+      return undefined;
+    });
+
+    // Summary reflects email_removed, contact_removed, and profile_archived statuses
+    const summaryAfter = communicationDeliverySummaryResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api(
+            "alpha.localhost",
+            `/api/organization/communications/${messageId}/delivery-summary`,
+            cookie,
+          ),
+        )
+      ).json(),
+    );
+    expect(summaryAfter.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          canArchiveProfile: false,
+          canClearEmail: false,
+          canDeleteContact: true,
+          canEditEmail: true,
+          deliveryId: namedDeliveryId,
+          recipientStatus: "email_removed",
+        }),
+        expect.objectContaining({
+          canArchiveProfile: false,
+          canClearEmail: false,
+          canDeleteContact: false,
+          canEditEmail: false,
+          deliveryId: emailOnlyDeliveryId,
+          recipientStatus: "contact_removed",
+        }),
+        expect.objectContaining({
+          canArchiveProfile: false,
+          canClearEmail: false,
+          canDeleteContact: false,
+          canEditEmail: true,
+          deliveryId: profileDeliveryId,
+          recipientStatus: "profile_archived",
+        }),
+      ]),
+    );
+  });
 });

@@ -11,6 +11,7 @@ import {
 import {
   communicationDeliveryIssueKind,
   communicationFailureCategory,
+  hasAcceptableContactIdentity,
   shouldIncludeUnpublishedUpcomingPerformances,
   summarizeCommunicationDeliveries,
   usesUpcomingPerformancesPlaceholder,
@@ -90,22 +91,214 @@ export function listProfileDeliveriesFromStore(
   return Response.json({ deliveries: rows });
 }
 
+interface IssueContactRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly displayName: string | null;
+  readonly email: string | null;
+  readonly firstName: string | null;
+  readonly id: string;
+  readonly lastName: string | null;
+  readonly normalizedPhone: string | null;
+  readonly phone: string | null;
+  readonly profileId: string | null;
+}
+
+interface IssueProfileRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly globalStatus: "Active" | "Idle" | "Inactive";
+  readonly hidden: number;
+  readonly id: string;
+}
+
+interface IssueProfileContactRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly email: string | null;
+  readonly id: string;
+  readonly profileId: string;
+}
+
+interface IssueRecipientLookup {
+  readonly contactsById: ReadonlyMap<string, IssueContactRow>;
+  readonly primaryContactByProfileId: ReadonlyMap<string, IssueProfileContactRow>;
+  readonly profilesById: ReadonlyMap<string, IssueProfileRow>;
+}
+
+function loadIssueRecipientLookup(
+  storage: DurableObjectStorage,
+  contactIds: readonly string[],
+  profileIds: readonly string[],
+): IssueRecipientLookup {
+  const contactsById = new Map<string, IssueContactRow>();
+  const allProfileIds = new Set(profileIds);
+  if (contactIds.length > 0) {
+    const placeholders = contactIds.map(() => "?").join(", ");
+    const rows = storage.sql
+      .exec<IssueContactRow>(
+        `SELECT id, first_name AS firstName, last_name AS lastName, display_name AS displayName,
+           email, phone, normalized_phone AS normalizedPhone, profile_id AS profileId
+         FROM contacts
+         WHERE id IN (${placeholders})`,
+        ...contactIds,
+      )
+      .toArray();
+    for (const row of rows) {
+      contactsById.set(row.id, row);
+      if (row.profileId) allProfileIds.add(row.profileId);
+    }
+  }
+
+  const profilesById = new Map<string, IssueProfileRow>();
+  const primaryContactByProfileId = new Map<string, IssueProfileContactRow>();
+  const profileIdList = [...allProfileIds];
+  if (profileIdList.length > 0) {
+    const placeholders = profileIdList.map(() => "?").join(", ");
+    const profileRows = storage.sql
+      .exec<IssueProfileRow>(
+        `SELECT id, global_status AS globalStatus, hidden
+         FROM profiles WHERE id IN (${placeholders})`,
+        ...profileIdList,
+      )
+      .toArray();
+    for (const row of profileRows) profilesById.set(row.id, row);
+  }
+  if (profileIds.length > 0) {
+    const placeholders = profileIds.map(() => "?").join(", ");
+    const contactRows = storage.sql
+      .exec<IssueProfileContactRow>(
+        `SELECT id, profile_id AS profileId, email
+         FROM contacts
+         WHERE profile_id IN (${placeholders})
+         ORDER BY created_at, id`,
+        ...profileIds,
+      )
+      .toArray();
+    for (const row of contactRows) {
+      if (!primaryContactByProfileId.has(row.profileId)) {
+        primaryContactByProfileId.set(row.profileId, row);
+      }
+    }
+  }
+
+  return { contactsById, primaryContactByProfileId, profilesById };
+}
+
+function isProfileArchived(profile: IssueProfileRow | undefined): boolean {
+  return profile?.globalStatus === "Inactive" && profile.hidden === 1;
+}
+
+function resolveContactIssueCapabilities(
+  contact: IssueContactRow | undefined,
+  baseEditable: boolean,
+  profilesById: ReadonlyMap<string, IssueProfileRow>,
+) {
+  if (!contact) {
+    return {
+      canArchiveProfile: false,
+      canClearEmail: false,
+      canDeleteContact: false,
+      canEditEmail: false,
+      recipientStatus: "contact_removed" as const,
+    };
+  }
+  const linkedProfile = contact.profileId ? profilesById.get(contact.profileId) : undefined;
+  const archived = isProfileArchived(linkedProfile);
+  const canKeepWithoutEmail = hasAcceptableContactIdentity({
+    displayName: contact.displayName,
+    email: null,
+    firstName: contact.firstName,
+    lastName: contact.lastName,
+    normalizedEmail: null,
+    normalizedPhone: contact.normalizedPhone,
+    phone: contact.phone,
+    profileId: contact.profileId,
+  });
+  return {
+    canArchiveProfile: baseEditable && linkedProfile !== undefined && !archived,
+    canClearEmail: baseEditable && contact.email !== null && canKeepWithoutEmail,
+    canDeleteContact: baseEditable && contact.profileId === null,
+    canEditEmail: baseEditable,
+    recipientStatus: archived
+      ? ("profile_archived" as const)
+      : contact.email === null
+        ? ("email_removed" as const)
+        : ("active" as const),
+  };
+}
+
+function resolveIssueCapabilities(
+  subject: ReturnType<typeof parseDeliverySubject>,
+  recipientId: string,
+  baseEditable: boolean,
+  lookup: IssueRecipientLookup,
+): {
+  readonly canArchiveProfile: boolean;
+  readonly canClearEmail: boolean;
+  readonly canDeleteContact: boolean;
+  readonly canEditEmail: boolean;
+  readonly recipientStatus: "active" | "email_removed" | "contact_removed" | "profile_archived";
+} {
+  if (subject.kind === "contact") {
+    return resolveContactIssueCapabilities(
+      lookup.contactsById.get(recipientId),
+      baseEditable,
+      lookup.profilesById,
+    );
+  }
+  if (subject.kind === "profile") {
+    const profile = lookup.profilesById.get(recipientId);
+    if (!profile) {
+      return {
+        canArchiveProfile: false,
+        canClearEmail: false,
+        canDeleteContact: false,
+        canEditEmail: false,
+        recipientStatus: "contact_removed",
+      };
+    }
+    const archived = isProfileArchived(profile);
+    const primaryContact = lookup.primaryContactByProfileId.get(recipientId);
+    return {
+      canArchiveProfile: baseEditable && !archived,
+      canClearEmail: baseEditable && primaryContact?.email != null,
+      canDeleteContact: false,
+      canEditEmail: baseEditable,
+      recipientStatus: archived
+        ? "profile_archived"
+        : primaryContact?.email === null
+          ? "email_removed"
+          : "active",
+    };
+  }
+  return {
+    canArchiveProfile: false,
+    canClearEmail: false,
+    canDeleteContact: false,
+    canEditEmail: false,
+    recipientStatus: "active",
+  };
+}
+
 function buildDeliveryIssue(
   record: DeliveryRow,
   issueKind: NonNullable<ReturnType<typeof communicationDeliveryIssueKind>>,
+  subject: ReturnType<typeof parseDeliverySubject>,
+  recipientId: string,
+  lookup: IssueRecipientLookup,
 ): CommunicationDeliveryIssue {
-  const subject = parseDeliverySubject(record.recipientSubjectJson, record.profileId);
-  const recipientId = communicationRecipientSubjectId(subject);
-  const canEditEmail =
+  const baseEditable =
     record.channel === "email" &&
     issueKind !== "complained" &&
     (subject.kind === "profile" || subject.kind === "contact") &&
     z.uuid().safeParse(recipientId).success &&
     z.uuid().safeParse(record.id).success;
+  const capabilities = resolveIssueCapabilities(subject, recipientId, baseEditable, lookup);
   const detail = record.providerReason || record.failureDetail;
   return {
     attempts: record.attempts,
-    canEditEmail,
+    canArchiveProfile: capabilities.canArchiveProfile,
+    canClearEmail: capabilities.canClearEmail,
+    canDeleteContact: capabilities.canDeleteContact,
+    canEditEmail: capabilities.canEditEmail,
     category: communicationFailureCategory(detail),
     channel: record.channel,
     deliveryId: record.id,
@@ -118,29 +311,50 @@ function buildDeliveryIssue(
     recipientId: recipientId.slice(0, 128),
     recipientKind: subject.kind,
     recipientName: record.recipientName,
+    recipientStatus: capabilities.recipientStatus,
     status: record.status,
   };
 }
 
 function collectCommunicationDeliveryIssues(
+  storage: DurableObjectStorage,
   records: readonly DeliveryRow[],
   issuesReviewedAt: string | null,
 ) {
-  const issues: CommunicationDeliveryIssue[] = [];
+  const candidates: {
+    readonly issueKind: NonNullable<ReturnType<typeof communicationDeliveryIssueKind>>;
+    readonly recipientId: string;
+    readonly record: DeliveryRow;
+    readonly subject: ReturnType<typeof parseDeliverySubject>;
+  }[] = [];
+  const contactIdSet = new Set<string>();
+  const profileIdSet = new Set<string>();
   let hasMoreIssues = false;
   let unresolvedIssueCount = 0;
+
   for (const record of records) {
     const issueKind = communicationDeliveryIssueKind(record.status, record.providerStatus);
     if (!issueKind) continue;
     if (!issuesReviewedAt || record.updatedAt > issuesReviewedAt) {
       unresolvedIssueCount += 1;
     }
-    if (issues.length < 100) {
-      issues.push(buildDeliveryIssue(record, issueKind));
+    if (candidates.length < 100) {
+      const subject = parseDeliverySubject(record.recipientSubjectJson, record.profileId);
+      const recipientId = communicationRecipientSubjectId(subject);
+      candidates.push({ issueKind, recipientId, record, subject });
+      if (z.uuid().safeParse(recipientId).success) {
+        if (subject.kind === "contact") contactIdSet.add(recipientId);
+        else if (subject.kind === "profile") profileIdSet.add(recipientId);
+      }
     } else {
       hasMoreIssues = true;
     }
   }
+
+  const lookup = loadIssueRecipientLookup(storage, [...contactIdSet], [...profileIdSet]);
+  const issues = candidates.map(({ issueKind, recipientId, record, subject }) =>
+    buildDeliveryIssue(record, issueKind, subject, recipientId, lookup),
+  );
   return { hasMoreIssues, issues, unresolvedIssueCount };
 }
 
@@ -174,6 +388,7 @@ export function readCommunicationSummaryFromStore(
     .toArray();
   const summary = summarizeCommunicationDeliveries(parsedMessageId.data, records);
   const { hasMoreIssues, issues, unresolvedIssueCount } = collectCommunicationDeliveryIssues(
+    storage,
     records,
     issuesReviewedAt,
   );

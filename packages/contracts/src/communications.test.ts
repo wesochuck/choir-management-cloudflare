@@ -456,9 +456,35 @@ describe("communication delivery issue resolution contracts", () => {
       email: "fixed@example.test",
       resend: true,
     });
+    expect(communicationResolveDeliveryEmailRequestSchema.parse({ action: "clear_email" })).toEqual(
+      {
+        action: "clear_email",
+      },
+    );
+    expect(
+      communicationResolveDeliveryEmailRequestSchema.parse({ action: "delete_contact" }),
+    ).toEqual({
+      action: "delete_contact",
+    });
+    expect(
+      communicationResolveDeliveryEmailRequestSchema.parse({ action: "archive_profile" }),
+    ).toEqual({
+      action: "archive_profile",
+    });
     expect(
       communicationResolveDeliveryEmailRequestSchema.safeParse({ email: "not-an-email" }).success,
     ).toBe(false);
+    expect(
+      communicationResolveDeliveryEmailResponseSchema.safeParse({
+        action: "clear_email",
+        clearedBounceSuppression: true,
+        deliveryId: DELIVERY_ID,
+        email: null,
+        messageId: MESSAGE_ID,
+        requestId: REQUEST_ID,
+        resent: false,
+      }).success,
+    ).toBe(true);
     expect(
       communicationResolveDeliveryEmailResponseSchema.safeParse({
         clearedBounceSuppression: true,

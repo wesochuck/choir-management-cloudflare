@@ -404,4 +404,167 @@ describe("CommunicationDeliveryDetails", () => {
       resend: false,
     });
   });
+
+  it("supports removing a bounced email address or deleting a standalone contact from Fix email", async () => {
+    const user = userEvent.setup();
+    const clearDeliveryId = "20000000-0000-4000-8000-000000000010";
+    const deleteDeliveryId = "20000000-0000-4000-8000-000000000011";
+    const archiveDeliveryId = "20000000-0000-4000-8000-000000000013";
+    const removedDeliveryId = "20000000-0000-4000-8000-000000000012";
+    const onResolveDeliveryEmail = vi.fn().mockResolvedValue({
+      action: "clear_email",
+      clearedBounceSuppression: true,
+      deliveryId: clearDeliveryId,
+      email: null,
+      messageId: sampleMessage.id,
+      requestId: "00000000-0000-4000-8000-000000000099",
+      resent: false,
+    });
+
+    const summaryWithOptions: CommunicationDeliverySummary = {
+      ...sampleSummary,
+      hasMoreIssues: false,
+      issues: [
+        {
+          attempts: 1,
+          canClearEmail: true,
+          canDeleteContact: true,
+          canEditEmail: true,
+          category: "invalid-destination",
+          channel: "email",
+          deliveryId: clearDeliveryId,
+          destination: "carol@example.test",
+          failureDetail: "",
+          issueKind: "bounced",
+          lastSeen: "2026-08-14T18:15:00.000Z",
+          providerReason: "554 mailbox disabled",
+          providerStatus: "bounced",
+          recipientId: "30000000-0000-4000-8000-000000000010",
+          recipientKind: "contact",
+          recipientName: "Carol Ann Family",
+          recipientStatus: "active",
+          status: "sent",
+        },
+        {
+          attempts: 1,
+          canClearEmail: false,
+          canDeleteContact: true,
+          canEditEmail: true,
+          category: "invalid-destination",
+          channel: "email",
+          deliveryId: deleteDeliveryId,
+          destination: "britta@example.test",
+          failureDetail: "",
+          issueKind: "bounced",
+          lastSeen: "2026-08-14T18:16:00.000Z",
+          providerReason: "550 5.1.10",
+          providerStatus: "bounced",
+          recipientId: "30000000-0000-4000-8000-000000000011",
+          recipientKind: "contact",
+          recipientName: "Britta Sharp",
+          recipientStatus: "email_removed",
+          status: "sent",
+        },
+        {
+          attempts: 1,
+          canArchiveProfile: true,
+          canClearEmail: true,
+          canDeleteContact: false,
+          canEditEmail: true,
+          category: "invalid-destination",
+          channel: "email",
+          deliveryId: archiveDeliveryId,
+          destination: "member@example.test",
+          failureDetail: "",
+          issueKind: "bounced",
+          lastSeen: "2026-08-14T18:16:30.000Z",
+          providerReason: "550 unknown",
+          providerStatus: "bounced",
+          recipientId: "30000000-0000-4000-8000-000000000013",
+          recipientKind: "profile",
+          recipientName: "Morgan Member",
+          recipientStatus: "active",
+          status: "sent",
+        },
+        {
+          attempts: 1,
+          canClearEmail: false,
+          canDeleteContact: false,
+          canEditEmail: false,
+          category: "invalid-destination",
+          channel: "email",
+          deliveryId: removedDeliveryId,
+          destination: "gone@example.test",
+          failureDetail: "",
+          issueKind: "bounced",
+          lastSeen: "2026-08-14T18:17:00.000Z",
+          providerReason: "550 unknown",
+          providerStatus: "bounced",
+          recipientId: "30000000-0000-4000-8000-000000000012",
+          recipientKind: "contact",
+          recipientName: "Already Removed",
+          recipientStatus: "contact_removed",
+          status: "sent",
+        },
+      ],
+      issuesReviewedAt: null,
+      unresolvedIssueCount: 4,
+    };
+
+    render(
+      <CommunicationDeliveryDetails
+        busy={false}
+        message={sampleMessage}
+        onResolveDeliveryEmail={onResolveDeliveryEmail}
+        onRetry={vi.fn()}
+        summary={summaryWithOptions}
+      />,
+    );
+
+    expect(screen.getByText("Email removed")).toBeVisible();
+    expect(screen.getByText("Contact removed")).toBeVisible();
+
+    const fixButtons = screen.getAllByRole("button", { name: "Fix email" });
+    expect(fixButtons).toHaveLength(3);
+    const [firstFixButton, secondFixButton, thirdFixButton] = fixButtons;
+    expect(firstFixButton).toBeDefined();
+    expect(secondFixButton).toBeDefined();
+    expect(thirdFixButton).toBeDefined();
+    if (!firstFixButton || !secondFixButton || !thirdFixButton) return;
+
+    // 1. Remove email address for Carol Ann Family
+    await user.click(firstFixButton);
+    await user.click(screen.getByLabelText(/Remove email address/));
+    await user.click(screen.getByRole("button", { name: "Remove email" }));
+
+    await waitFor(() => {
+      expect(onResolveDeliveryEmail).toHaveBeenCalledWith(clearDeliveryId, {
+        action: "clear_email",
+      });
+    });
+
+    // 2. Remove contact for Britta Sharp
+    await user.click(secondFixButton);
+    expect(screen.queryByLabelText(/Remove email address/)).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText(/Remove contact/));
+    await user.click(screen.getByRole("button", { name: "Delete contact" }));
+
+    await waitFor(() => {
+      expect(onResolveDeliveryEmail).toHaveBeenCalledWith(deleteDeliveryId, {
+        action: "delete_contact",
+      });
+    });
+
+    // 3. Archive Organization Profile for Morgan Member (cannot permanently delete)
+    await user.click(thirdFixButton);
+    expect(screen.queryByLabelText(/Remove contact/)).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText(/Archive Organization Profile/));
+    await user.click(screen.getByRole("button", { name: "Archive profile" }));
+
+    await waitFor(() => {
+      expect(onResolveDeliveryEmail).toHaveBeenCalledWith(archiveDeliveryId, {
+        action: "archive_profile",
+      });
+    });
+  });
 });

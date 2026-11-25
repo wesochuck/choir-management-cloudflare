@@ -23,6 +23,212 @@ function issueDetailText(issue: CommunicationDeliveryIssue): string | null {
   return detail.length > 0 ? detail : null;
 }
 
+type ResolveMode = "update_email" | "clear_email" | "delete_contact" | "archive_profile";
+
+function resolveSubmitLabel(mode: ResolveMode, saving: boolean, resend: boolean): string {
+  if (mode === "delete_contact") return saving ? "Deleting…" : "Delete contact";
+  if (mode === "archive_profile") return saving ? "Archiving…" : "Archive profile";
+  if (mode === "clear_email") return saving ? "Removing…" : "Remove email";
+  if (saving) return "Saving…";
+  return resend ? "Save & resend" : "Save email";
+}
+
+function ResolveModeChoices({
+  canArchiveProfile,
+  canClearEmail,
+  canDeleteContact,
+  mode,
+  onSelect,
+  recipientKind,
+  saving,
+}: {
+  readonly canArchiveProfile: boolean;
+  readonly canClearEmail: boolean;
+  readonly canDeleteContact: boolean;
+  readonly mode: ResolveMode;
+  readonly onSelect: (nextMode: ResolveMode) => void;
+  readonly recipientKind: CommunicationDeliveryIssue["recipientKind"];
+  readonly saving: boolean;
+}) {
+  return (
+    <fieldset className="field">
+      <legend>Fix option</legend>
+      <div className="choice-group">
+        <label className="choice-field" htmlFor="resolve-mode-update">
+          <input
+            checked={mode === "update_email"}
+            disabled={saving}
+            id="resolve-mode-update"
+            name="resolve-delivery-mode"
+            onChange={() => {
+              onSelect("update_email");
+            }}
+            type="radio"
+            value="update_email"
+          />
+          <span className="choice-field__content">
+            <span className="choice-field__title">Update email address</span>
+            <span className="choice-field__description">
+              Replace the bounced address with a working email.
+            </span>
+          </span>
+        </label>
+        {canClearEmail ? (
+          <label className="choice-field" htmlFor="resolve-mode-clear">
+            <input
+              checked={mode === "clear_email"}
+              disabled={saving}
+              id="resolve-mode-clear"
+              name="resolve-delivery-mode"
+              onChange={() => {
+                onSelect("clear_email");
+              }}
+              type="radio"
+              value="clear_email"
+            />
+            <span className="choice-field__content">
+              <span className="choice-field__title">Remove email address</span>
+              <span className="choice-field__description">
+                Clear this email while keeping the{" "}
+                {recipientKind === "profile" ? "Organization Profile" : "contact"}.
+              </span>
+            </span>
+          </label>
+        ) : null}
+        {canArchiveProfile ? (
+          <label className="choice-field" htmlFor="resolve-mode-archive">
+            <input
+              checked={mode === "archive_profile"}
+              disabled={saving}
+              id="resolve-mode-archive"
+              name="resolve-delivery-mode"
+              onChange={() => {
+                onSelect("archive_profile");
+              }}
+              type="radio"
+              value="archive_profile"
+            />
+            <span className="choice-field__content">
+              <span className="choice-field__title">Archive Organization Profile</span>
+              <span className="choice-field__description">
+                Hide from the active roster while preserving message and roster history.
+              </span>
+            </span>
+          </label>
+        ) : null}
+        {canDeleteContact ? (
+          <label className="choice-field" htmlFor="resolve-mode-delete">
+            <input
+              checked={mode === "delete_contact"}
+              disabled={saving}
+              id="resolve-mode-delete"
+              name="resolve-delivery-mode"
+              onChange={() => {
+                onSelect("delete_contact");
+              }}
+              type="radio"
+              value="delete_contact"
+            />
+            <span className="choice-field__content">
+              <span className="choice-field__title">Remove contact</span>
+              <span className="choice-field__description">
+                Permanently delete this contact from Contacts and its lists.
+              </span>
+            </span>
+          </label>
+        ) : null}
+      </div>
+    </fieldset>
+  );
+}
+
+function ResolveModeBody({
+  email,
+  issue,
+  mode,
+  onEmailChange,
+  onResendChange,
+  resend,
+  saving,
+}: {
+  readonly email: string;
+  readonly issue: CommunicationDeliveryIssue;
+  readonly mode: ResolveMode;
+  readonly onEmailChange: (value: string) => void;
+  readonly onResendChange: (value: boolean) => void;
+  readonly resend: boolean;
+  readonly saving: boolean;
+}) {
+  if (mode === "clear_email") {
+    return (
+      <div className="notice notice--warning">
+        <p>
+          This removes <strong>{issue.destination}</strong> from{" "}
+          <strong>{issue.recipientName}</strong> so future emails will not be sent to this address.
+          The {issue.recipientKind === "profile" ? "Organization Profile" : "contact record"} will
+          be kept.
+        </p>
+      </div>
+    );
+  }
+  if (mode === "archive_profile") {
+    return (
+      <div className="notice notice--warning">
+        <p>
+          Organization Profiles with message or roster history cannot be permanently deleted.
+          Archiving hides <strong>{issue.recipientName}</strong> from the active roster while
+          preserving their history. You can restore archived profiles at any time.
+        </p>
+      </div>
+    );
+  }
+  if (mode === "delete_contact") {
+    return (
+      <div className="notice notice--error">
+        <p>
+          This permanently deletes <strong>{issue.recipientName}</strong> from Contacts, including
+          communication preferences and list memberships. This action cannot be undone.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <>
+      <div className="field">
+        <label htmlFor="resolve-delivery-email-input">Updated email address</label>
+        <input
+          autoComplete="email"
+          disabled={saving}
+          id="resolve-delivery-email-input"
+          maxLength={320}
+          onChange={(event) => {
+            onEmailChange(event.target.value);
+          }}
+          required
+          type="email"
+          value={email}
+        />
+      </div>
+      <label className="checkbox-row" htmlFor="resolve-delivery-resend-checkbox">
+        <input
+          checked={resend}
+          disabled={saving}
+          id="resolve-delivery-resend-checkbox"
+          onChange={(event) => {
+            onResendChange(event.target.checked);
+          }}
+          type="checkbox"
+        />
+        <span>Also resend this message to the updated email</span>
+      </label>
+      <p className="field-help">
+        Saving a new email address automatically clears provider bounce suppression on the old
+        address. Explicit unsubscribes and spam complaints are preserved.
+      </p>
+    </>
+  );
+}
+
 function ResolveDeliveryEmailDialog({
   busy,
   issue,
@@ -37,27 +243,41 @@ function ResolveDeliveryEmailDialog({
     input: CommunicationResolveDeliveryEmailRequest,
   ) => Promise<CommunicationResolveDeliveryEmailResponse>;
 }) {
-  const [email, setEmail] = useState(issue?.destination ?? "");
+  const initialEmail = issue?.recipientStatus === "email_removed" ? "" : (issue?.destination ?? "");
+  const [mode, setMode] = useState<ResolveMode>("update_email");
+  const [email, setEmail] = useState(initialEmail);
   const [resend, setResend] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   if (!issue) return null;
 
+  const canArchiveProfile = issue.canArchiveProfile === true;
+  const canClearEmail = issue.canClearEmail === true;
+  const canDeleteContact = issue.canDeleteContact === true;
   const trimmedEmail = email.trim();
-  const isDirty = trimmedEmail !== issue.destination.trim() || !resend;
+  const isDirty = mode !== "update_email" || trimmedEmail !== initialEmail.trim() || !resend;
+  const isDestructive = mode !== "update_email";
 
   async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!issue) return;
-    if (!trimmedEmail.includes("@")) {
+    if (mode === "update_email" && !trimmedEmail.includes("@")) {
       setFormError("Enter a valid email address.");
       return;
     }
     setSaving(true);
     setFormError(null);
     try {
-      await onSubmit(issue.deliveryId, { email: trimmedEmail, resend });
+      const payload: CommunicationResolveDeliveryEmailRequest =
+        mode === "clear_email"
+          ? { action: "clear_email" }
+          : mode === "delete_contact"
+            ? { action: "delete_contact" }
+            : mode === "archive_profile"
+              ? { action: "archive_profile" }
+              : { email: trimmedEmail, resend };
+      await onSubmit(issue.deliveryId, payload);
       onClose();
     } catch (error: unknown) {
       setFormError(failureMessage(error));
@@ -77,12 +297,12 @@ function ResolveDeliveryEmailDialog({
             </button>
           </DialogClose>
           <button
-            className="button button--primary"
+            className={isDestructive ? "button button--danger" : "button button--primary"}
             disabled={busy || saving}
             form="resolve-delivery-email-form"
             type="submit"
           >
-            {saving ? "Saving…" : resend ? "Save & resend" : "Save email"}
+            {resolveSubmitLabel(mode, saving, resend)}
           </button>
         </>
       }
@@ -105,38 +325,34 @@ function ResolveDeliveryEmailDialog({
           Previous address: <strong>{issue.destination}</strong> (
           {communicationDeliveryIssueLabel(issue.issueKind)})
         </p>
-        <div className="field">
-          <label htmlFor="resolve-delivery-email-input">Updated email address</label>
-          <input
-            autoComplete="email"
-            disabled={saving}
-            id="resolve-delivery-email-input"
-            maxLength={320}
-            onChange={(event) => {
-              setEmail(event.target.value);
-              if (formError) setFormError(null);
+
+        {canArchiveProfile || canClearEmail || canDeleteContact ? (
+          <ResolveModeChoices
+            canArchiveProfile={canArchiveProfile}
+            canClearEmail={canClearEmail}
+            canDeleteContact={canDeleteContact}
+            mode={mode}
+            onSelect={(nextMode) => {
+              setMode(nextMode);
+              setFormError(null);
             }}
-            required
-            type="email"
-            value={email}
+            recipientKind={issue.recipientKind}
+            saving={saving}
           />
-        </div>
-        <label className="checkbox-row" htmlFor="resolve-delivery-resend-checkbox">
-          <input
-            checked={resend}
-            disabled={saving}
-            id="resolve-delivery-resend-checkbox"
-            onChange={(event) => {
-              setResend(event.target.checked);
-            }}
-            type="checkbox"
-          />
-          <span>Also resend this message to the updated email</span>
-        </label>
-        <p className="field-help">
-          Saving a new email address automatically clears provider bounce suppression on the old
-          address. Explicit unsubscribes and spam complaints are preserved.
-        </p>
+        ) : null}
+
+        <ResolveModeBody
+          email={email}
+          issue={issue}
+          mode={mode}
+          onEmailChange={(value) => {
+            setEmail(value);
+            setFormError(null);
+          }}
+          onResendChange={setResend}
+          resend={resend}
+          saving={saving}
+        />
       </form>
     </Dialog>
   );
@@ -211,6 +427,13 @@ export function DeliveryIssuesSection({
                   <span className="status-pill status-pill--failed">
                     {communicationDeliveryIssueLabel(issue.issueKind)}
                   </span>
+                  {issue.recipientStatus === "contact_removed" ? (
+                    <span className="status-pill status-pill--neutral">Contact removed</span>
+                  ) : issue.recipientStatus === "profile_archived" ? (
+                    <span className="status-pill status-pill--neutral">Archived</span>
+                  ) : issue.recipientStatus === "email_removed" ? (
+                    <span className="status-pill status-pill--neutral">Email removed</span>
+                  ) : null}
                 </div>
                 <p className="communication-delivery-issues__destination">{issue.destination}</p>
                 <p className="field-help">

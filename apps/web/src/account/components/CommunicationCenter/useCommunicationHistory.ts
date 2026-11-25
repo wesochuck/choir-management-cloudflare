@@ -446,10 +446,22 @@ export function useCommunicationHistory({
         setDeliverySummary(summary);
         setMessages(await listOrganizationCommunications());
         void loadHistoryPage(statusFilter, originFilter, currentCursor);
-        const parts = [`Updated email to ${result.email}`];
-        if (result.clearedBounceSuppression) parts.push("cleared bounce suppression");
-        if (result.resent) parts.push("queued resend");
-        setSuccessNotice(`${parts.join(", ")}.`);
+        if (result.action === "delete_contact") {
+          setSuccessNotice("Contact removed.");
+        } else if (result.action === "archive_profile") {
+          setSuccessNotice("Organization Profile archived.");
+        } else if (result.action === "clear_email") {
+          setSuccessNotice(
+            result.clearedBounceSuppression
+              ? "Removed email address and cleared bounce suppression."
+              : "Removed email address.",
+          );
+        } else {
+          const parts = [result.email ? `Updated email to ${result.email}` : "Updated email"];
+          if (result.clearedBounceSuppression) parts.push("cleared bounce suppression");
+          if (result.resent) parts.push("queued resend");
+          setSuccessNotice(`${parts.join(", ")}.`);
+        }
         return result;
       } finally {
         setBusy(false);

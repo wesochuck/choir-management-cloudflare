@@ -1031,19 +1031,31 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           400,
         );
       try {
-        const result = await organizationStoreStub(
-          context.env,
-          authorization.organizationId,
-        ).resolveCommunicationDeliveryEmail({
+        const baseInput = {
           actorUserId: authorization.userId,
           deliveryId: deliveryId.data,
-          email: body.data.email,
           jobId: crypto.randomUUID(),
           messageId: messageId.data,
           organizationId: authorization.organizationId,
           requestId: context.get("requestId"),
-          resend: body.data.resend,
-        });
+        };
+        const rpcInput =
+          body.data.action === "clear_email"
+            ? { ...baseInput, action: "clear_email" as const }
+            : body.data.action === "delete_contact"
+              ? { ...baseInput, action: "delete_contact" as const }
+              : body.data.action === "archive_profile"
+                ? { ...baseInput, action: "archive_profile" as const }
+                : {
+                    ...baseInput,
+                    action: "update_email" as const,
+                    email: body.data.email,
+                    resend: body.data.resend,
+                  };
+        const result = await organizationStoreStub(
+          context.env,
+          authorization.organizationId,
+        ).resolveCommunicationDeliveryEmail(rpcInput);
         if (result.status === "not_found")
           return context.json(
             {
@@ -1064,6 +1076,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           );
         return context.json(
           communicationResolveDeliveryEmailResponseSchema.parse({
+            action: result.action,
             clearedBounceSuppression: result.clearedBounceSuppression,
             deliveryId: result.deliveryId,
             email: result.email,

@@ -422,6 +422,9 @@ export const communicationDeliveryIssueKindSchema = z.enum([
 
 export const communicationDeliveryIssueSchema = z.object({
   attempts: z.number().int().nonnegative(),
+  canArchiveProfile: z.boolean().optional(),
+  canClearEmail: z.boolean().optional(),
+  canDeleteContact: z.boolean().optional(),
   canEditEmail: z.boolean(),
   category: communicationFailureCategorySchema,
   channel: z.enum(["email", "sms"]),
@@ -435,6 +438,9 @@ export const communicationDeliveryIssueSchema = z.object({
   recipientId: z.string().min(1).max(128),
   recipientKind: z.enum(["profile", "contact", "ticket_purchase", "donation"]),
   recipientName: z.string().min(1).max(200),
+  recipientStatus: z
+    .enum(["active", "email_removed", "contact_removed", "profile_archived"])
+    .optional(),
   status: z.enum(["failed", "processing", "queued", "sent", "suppressed"]),
 });
 
@@ -541,14 +547,27 @@ export const communicationReviewIssuesResponseSchema = z.object({
   messageId: z.uuid(),
   requestId: requestIdSchema,
 });
-export const communicationResolveDeliveryEmailRequestSchema = z.object({
-  email: z.string().trim().max(320).pipe(z.email()),
-  resend: z.boolean().default(true),
-});
+export const communicationResolveDeliveryEmailRequestSchema = z.union([
+  z.object({
+    action: z.literal("update_email").optional(),
+    email: z.string().trim().max(320).pipe(z.email()),
+    resend: z.boolean().default(true),
+  }),
+  z.object({
+    action: z.literal("clear_email"),
+  }),
+  z.object({
+    action: z.literal("delete_contact"),
+  }),
+  z.object({
+    action: z.literal("archive_profile"),
+  }),
+]);
 export const communicationResolveDeliveryEmailResponseSchema = z.object({
+  action: z.enum(["update_email", "clear_email", "delete_contact", "archive_profile"]).optional(),
   clearedBounceSuppression: z.boolean(),
   deliveryId: z.uuid(),
-  email: z.email().max(320),
+  email: z.email().max(320).nullable(),
   messageId: z.uuid(),
   requestId: requestIdSchema,
   resent: z.boolean(),
