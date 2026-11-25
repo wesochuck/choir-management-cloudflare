@@ -28,14 +28,20 @@ function safeEmailUrl(value: string): string | null {
   }
 }
 
-export function renderEmailAction(label: string, url: string): string {
+export function renderEmailAction(label: string, url: string, aside?: string): string {
   const safeUrl = safeEmailUrl(url);
-  if (!safeUrl) return `<p>${escapeEmailHtml(label)}</p>`;
-  return `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin:24px 0;width:auto;">
+  const trimmedAside = aside?.trim();
+  if (!safeUrl) {
+    return `<p>${escapeEmailHtml(label)}${trimmedAside ? ` ${escapeEmailHtml(trimmedAside)}` : ""}</p>`;
+  }
+  const asideCell = trimmedAside
+    ? `\n    <td style="color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;padding-left:14px;vertical-align:middle;">${escapeEmailHtml(trimmedAside)}</td>`
+    : "";
+  return `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin:20px 0;max-width:100%;width:auto;">
   <tr>
-    <td bgcolor="#1b4d3e" style="background-color:#1b4d3e;border:1px solid #1b4d3e;border-radius:8px;padding:13px 22px;text-align:center;">
+    <td bgcolor="#1b4d3e" style="background-color:#1b4d3e;border:1px solid #1b4d3e;border-radius:8px;padding:13px 22px;text-align:center;vertical-align:middle;">
       <a href="${safeUrl}" style="color:#ffffff;display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;line-height:20px;text-decoration:none;">${escapeEmailHtml(label)}</a>
-    </td>
+    </td>${asideCell}
   </tr>
 </table>`;
 }

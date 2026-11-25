@@ -969,8 +969,8 @@ export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
     options.venueAddress,
   );
 
-  const testRsvpLink = `[Open RSVP page](https://${options.baseDomain || "localhost"}/rsvp?sample=1)\n\n(No login required.)`;
-  const testPlayerLink = `[Open practice player](https://${options.baseDomain || "localhost"}/player?sample=1)\n\n(No login required.)`;
+  const testRsvpLink = `[Open RSVP page](https://${options.baseDomain || "localhost"}/rsvp?sample=1) (No login required.)`;
+  const testPlayerLink = `[Open practice player](https://${options.baseDomain || "localhost"}/player?sample=1) (No login required.)`;
 
   const templatedContent = renderCommunicationTemplate(
     options.contentMarkdown,

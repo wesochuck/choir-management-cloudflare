@@ -274,6 +274,10 @@ export const scheduledEventTemplateIds = {
   ticketCloseout: "5f0ca4a5-7e4c-4e1a-9a1c-000000000020",
 } as const;
 
+function formatNoLoginActionLink(label: string, url: string): string {
+  return `[${label}](${url}) (No login required.)`;
+}
+
 export async function renderAuditionLink(
   env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET"> &
     Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
@@ -306,7 +310,7 @@ export async function renderAuditionLink(
     version: 1,
   });
   const link = `${await deliveryOrigin(env, organizationId, { unsubscribeUrl: null })}/auditions?token=${encodeURIComponent(token)}`;
-  const replacement = `[Review or update your audition](${link})\n\n(No login required.)`;
+  const replacement = formatNoLoginActionLink("Review or update your audition", link);
   if (hasPlaceholder) {
     return replaceBoundedPattern(
       content,
@@ -453,7 +457,7 @@ export async function renderRsvpLinks(
   }
   const token = await issueRsvpToken(env, organizationId, eventId, delivery.profileId);
   const rsvpLink = `${await deliveryOrigin(env, organizationId, delivery, canonicalOrigin)}/rsvp?token=${encodeURIComponent(token)}`;
-  const replacement = `[Open RSVP page](${rsvpLink})\n\n(No login required.)`;
+  const replacement = formatNoLoginActionLink("Open RSVP page", rsvpLink);
   return replaceBoundedPattern(content, rsvpPlaceholderReplacementPattern, () => replacement, {
     field: "body",
     limit: maxLength,
@@ -489,7 +493,7 @@ export async function renderPlayerLinks(
   }
   const token = await issuePlayerToken(env, organizationId, eventId, delivery.profileId);
   const playerLink = `${await deliveryOrigin(env, organizationId, delivery, canonicalOrigin)}/player?token=${encodeURIComponent(token)}`;
-  const replacement = `[Open practice player](${playerLink})\n\n(No login required.)`;
+  const replacement = formatNoLoginActionLink("Open practice player", playerLink);
   return replaceBoundedPattern(content, playerPlaceholderReplacementPattern, () => replacement, {
     field: "body",
     limit: maxLength,

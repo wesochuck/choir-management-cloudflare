@@ -264,6 +264,24 @@ describe("Organization communication provider", () => {
     expect(rendered).toContain('href="https://example.com/tickets?id=1&amp;order=2"');
   });
 
+  it("places (No login required.) on the right side of standalone action buttons", () => {
+    const rendered = renderCommunicationMarkdown(
+      "[Open RSVP page](https://example.com/rsvp?token=abc) (No login required.)\n\n[Handbook](https://example.com/handbook) has been updated.",
+    );
+
+    expect(rendered).toMatch(
+      /<td bgcolor="#1b4d3e"[\s\S]*?>Open RSVP page<\/a>\s*<\/td>\s*<td [^>]*>\(No login required\.\)<\/td>/,
+    );
+    expect(rendered).toContain(
+      '<p style="color:#30343b;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;margin:0 0 18px;"><a href="https://example.com/handbook" style="color:#1b4d3e;font-weight:700;text-decoration:underline;">Handbook</a> has been updated.</p>',
+    );
+
+    const text = renderCommunicationText(
+      "[Open RSVP page](https://example.com/rsvp?token=abc) (No login required.)",
+    );
+    expect(text).toBe("Open RSVP page: https://example.com/rsvp?token=abc (No login required.)");
+  });
+
   it("renders blockquotes as styled callouts in HTML", () => {
     const rendered = renderCommunicationMarkdown(
       "**Note**\n> First line of note\n> Second line of note",

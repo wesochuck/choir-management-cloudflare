@@ -194,12 +194,16 @@ function renderMarkdownBlock(trimmed: string): string {
   if (trimmed.startsWith("# ")) {
     return `<h2 style="color:#1b4d3e;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:700;line-height:31px;margin:28px 0 12px;">${renderMarkdownInline(trimmed.slice(2))}</h2>`;
   }
-  const standaloneLink = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(trimmed);
+  const standaloneLink = /^\[([^\]]+)\]\(([^)]+)\)(?:\s+(\(No login required\.?\)))?$/.exec(
+    trimmed,
+  );
   if (standaloneLink) {
     const effectiveUrl = restoreMarkdownEscapedText(standaloneLink[2] ?? "");
+    const aside = standaloneLink[3] ? restoreMarkdownEscapedText(standaloneLink[3]) : undefined;
     return renderEmailAction(
       restoreMarkdownEscapedText(standaloneLink[1] ?? "Open link"),
       effectiveUrl,
+      aside,
     );
   }
   return trimmed

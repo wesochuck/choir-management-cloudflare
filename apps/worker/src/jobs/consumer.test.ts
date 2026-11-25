@@ -38,6 +38,10 @@ describe("communication RSVP links", () => {
     )?.[1];
     expect(link).toBeTruthy();
     expect(content).toContain("No login required");
+    const renderedRsvp = renderCommunicationMarkdown(content.replace("Please respond here: ", ""));
+    expect(renderedRsvp).toMatch(
+      />Open RSVP page<\/a>\s*<\/td>\s*<td [^>]*>\(No login required\.\)<\/td>/,
+    );
     await expect(
       verifySignedLink(secret, decodeURIComponent(link ?? ""), {
         expectedOrganizationId: "organization-alpha",
@@ -83,6 +87,10 @@ describe("communication practice-player links", () => {
     )?.[1];
     expect(link).toBeTruthy();
     expect(content).toContain("No login required");
+    const renderedPlayer = renderCommunicationMarkdown(content.replace("Practice here: ", ""));
+    expect(renderedPlayer).toMatch(
+      />Open practice player<\/a>\s*<\/td>\s*<td [^>]*>\(No login required\.\)<\/td>/,
+    );
     await expect(
       verifySignedLink(secret, decodeURIComponent(link ?? ""), {
         expectedOrganizationId: "organization-alpha",

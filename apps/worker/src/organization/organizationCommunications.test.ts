@@ -525,4 +525,44 @@ describe("handleTestEmailDelivery render budget enforcement (SEC-01)", () => {
       }),
     );
   });
+
+  it("places (No login required.) on the right side of RSVP and player buttons in test emails", async () => {
+    const sentPayloads: { readonly html: string; readonly text: string }[] = [];
+    const sendEmailMock = vi.fn((payload: { readonly html: string; readonly text: string }) => {
+      sentPayloads.push(payload);
+      return Promise.resolve({ messageId: "test-msg-2" });
+    });
+    const event = makeEvent();
+    const env = createTestEmailDeliveryEnv(event, sendEmailMock);
+
+    await handleTestEmailDelivery(
+      env,
+      "org-alpha",
+      {
+        contentMarkdown: "{{RSVP_LINKS}}\n\n{{PLAYER_LINK}}",
+        email: "director@example.test",
+        eventId: event.id,
+        subject: "Details: {eventTitle}",
+      },
+      "https://alpha.localhost",
+    );
+
+    expect(sentPayloads).toHaveLength(1);
+    const sent = sentPayloads[0];
+    expect(sent?.html).toMatch(
+      />Open RSVP page<\/a>\s*<\/td>\s*<td [^>]*>\(No login required\.\)<\/td>/,
+    );
+    expect(sent?.html).toMatch(
+      />Open practice player<\/a>\s*<\/td>\s*<td [^>]*>\(No login required\.\)<\/td>/,
+    );
+    expect(sent?.html).not.toContain(
+      '<p style="color:#30343b;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;margin:0 0 18px;">(No login required.)</p>',
+    );
+    expect(sent?.text).toContain(
+      "Open RSVP page: https://alpha.localhost/rsvp?sample=1 (No login required.)",
+    );
+    expect(sent?.text).toContain(
+      "Open practice player: https://alpha.localhost/player?sample=1 (No login required.)",
+    );
+  });
 });
