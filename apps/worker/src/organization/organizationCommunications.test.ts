@@ -156,6 +156,28 @@ describe("renderTestEmailPayload", () => {
     expect(rendered.templatedContent).toContain("{setlist}");
   });
 
+  it("formats {eventCallTime} as 12-hour AM/PM and resolves {eventLocation} from venueName when event.location is blank", () => {
+    const rendered = renderTestEmailPayload({
+      baseDomain: "alpha.localhost",
+      branding: { logoFileId: null, organizationName: "Alpha Choir" },
+      contentMarkdown: "- **Call time:** {eventCallTime}\n- **Location:** {eventLocation}",
+      event: makeEvent({
+        callTime: "17:30",
+        location: "",
+        venueId: "22222222-2222-4222-8222-222222222222",
+      }),
+      fromName: "Alpha Choir",
+      subject: "Performance details for: {eventTitle}",
+      timezone: "America/New_York",
+      venueName: "First United Methodist Church - Sanctuary Main Floor",
+    });
+
+    expect(rendered.templatedContent).toContain("- **Call time:** 5:30 PM");
+    expect(rendered.templatedContent).toContain(
+      "- **Location:** First United Methodist Church - Sanctuary Main Floor",
+    );
+  });
+
   it("enforces exact-limit and +1 budgets on body, subject, and generated links (SEC-01)", () => {
     const event = makeEvent({
       setList: [{ title: "Song One" }, { title: "Song Two" }],
@@ -224,6 +246,13 @@ describe("renderTestEmailPayload", () => {
 function createTestEmailDeliveryEnv(
   event: OrganizationEvent,
   sendEmailMock: ReturnType<typeof vi.fn>,
+  venues: readonly {
+    readonly address: string;
+    readonly createdAt: string;
+    readonly id: string;
+    readonly name: string;
+    readonly updatedAt: string;
+  }[] = [],
 ): Env {
   const stub = {
     calendarRpc(call: { readonly path: string }) {
@@ -233,6 +262,14 @@ function createTestEmailDeliveryEnv(
           ok: true as const,
           status: 200,
           value: { events: [event] },
+        });
+      }
+      if (call.path === "/internal/calendar/venues") {
+        return Promise.resolve({
+          headers: {},
+          ok: true as const,
+          status: 200,
+          value: { venues },
         });
       }
       if (call.path === "/internal/calendar/settings") {
@@ -426,5 +463,53 @@ describe("handleTestEmailDelivery render budget enforcement (SEC-01)", () => {
       expect(problem.problem.code).toBe("communication_render_limit_exceeded");
     }
     expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("resolves the event venue name and 12-hour call time in delivered test emails", async () => {
+    const sendEmailMock = vi.fn().mockResolvedValue({ messageId: "msg-venue-1" });
+    const venueId = "22222222-2222-4222-8222-222222222222";
+    const event = makeEvent({
+      callTime: "17:30",
+      location: "",
+      venueId,
+    });
+    const env = createTestEmailDeliveryEnv(event, sendEmailMock, [
+      {
+        address: "100 Main St",
+        createdAt: pastIsoDate({ days: 30 }),
+        id: venueId,
+        name: "First United Methodist Church - Sanctuary Main Floor",
+        updatedAt: pastIsoDate({ days: 10 }),
+      },
+    ]);
+
+    await handleTestEmailDelivery(
+      env,
+      "org-alpha",
+      {
+        contentMarkdown: "- **Call time:** {eventCallTime}\n- **Location:** {eventLocation}",
+        email: "director@example.test",
+        eventId: event.id,
+        subject: "Performance details for: {eventTitle}",
+      },
+      "https://alpha.localhost",
+    );
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining("5:30 PM"),
+      }),
+    );
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining("First United Methodist Church - Sanctuary Main Floor"),
+      }),
+    );
+    expect(sendEmailMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining("17:30"),
+      }),
+    );
   });
 });

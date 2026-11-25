@@ -344,4 +344,56 @@ describe("renderCommunicationMarkdownPreview", () => {
     );
     expect(emptyHtml).toContain("<ul><li>Set list not published</li></ul>");
   });
+
+  it("resolves {eventLocation} from the selected event venue and formats {eventCallTime} in 12-hour time", () => {
+    const venueId = "77777777-7777-4777-8777-777777777777";
+    const eventWithVenue: OrganizationEvent = {
+      advancePriceCents: 0,
+      callTime: "17:30",
+      createdAt: pastIsoDate({ days: 20 }),
+      dayOfPriceCents: 0,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 90,
+      id: "66666666-6666-4666-8666-666666666666",
+      isCanceled: false,
+      isTicketingEnabled: false,
+      location: "",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: false,
+      rsvpDeadlineAt: null,
+      rsvpDeadlineDate: null,
+      rsvpDeadlinePassed: false,
+      rsvpFollowUpLeadHours: null,
+      rsvpFollowUpMode: "inherit",
+      rsvpSelfServiceOpen: true,
+      setList: [],
+      setListApproved: false,
+      setListDefaultTransitionSeconds: 0,
+      startsAt: futureIsoDate({ days: 10 }),
+      ticketCapacity: null,
+      ticketSlug: null,
+      title: "Downtown Christmas Stroll",
+      type: "Performance",
+      updatedAt: pastIsoDate({ days: 5 }),
+      venueId,
+    };
+
+    const values = communicationPreviewValues(eventWithVenue, "America/New_York", null, undefined, {
+      venues: [
+        {
+          address: "100 Main St",
+          createdAt: pastIsoDate({ days: 30 }),
+          id: venueId,
+          name: "First United Methodist Church - Sanctuary Main Floor",
+          updatedAt: pastIsoDate({ days: 10 }),
+        },
+      ],
+    });
+
+    expect(values["{eventCallTime}"]).toBe("5:30 PM");
+    expect(values["{eventLocation}"]).toBe("First United Methodist Church - Sanctuary Main Floor");
+  });
 });

@@ -8,6 +8,7 @@ import {
   UPCOMING_PERFORMANCES_PLACEHOLDER,
   communicationRecipientNamePlaceholderKeys,
   filterUpcomingPerformances,
+  formatClockTime12Hour,
   formatCommunicationSetList,
   formatUpcomingPerformancesList,
   renderOrganizationLogoPlaceholder,
@@ -121,15 +122,22 @@ function formatPreviewDate(value: string, timezone: string): string {
 }
 
 function formatPreviewTime(value: string): string {
-  const match = /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) ? value.split(":") : null;
-  if (!match) return value.length > 0 ? value : "6:30 PM";
-  const date = new Date(2000, 0, 1, Number(match[0]), Number(match[1]));
-  return new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(date);
+  const formatted = formatClockTime12Hour(value);
+  return formatted.length > 0 ? formatted : "6:30 PM";
 }
 
 function previewText(value: string | undefined, fallback: string): string {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function resolvePreviewEventLocation(
+  event: OrganizationEvent | null,
+  venues: readonly OrganizationVenue[] | undefined,
+): string {
+  const venueName =
+    event?.venueId && venues ? venues.find((venue) => venue.id === event.venueId)?.name : undefined;
+  return previewText(venueName?.trim() ? venueName : event?.location, "Main Hall");
 }
 
 export const SAMPLE_COMMUNICATION_RECIPIENT_NAME = "Johann Sebastian Bach";
@@ -194,7 +202,7 @@ export function communicationPreviewValues(
       ? formatPreviewDate(event.startsAt, timezone)
       : "Loading Organization timezone…"
     : "August 20, 2026 at 7:00 PM";
-  const eventLocation = previewText(event?.location, "Main Hall");
+  const eventLocation = resolvePreviewEventLocation(event, options?.venues);
   const eventDetails = previewText(event?.details, "Event details will appear here.");
   const setlist = formatCommunicationSetList(event?.setList);
 

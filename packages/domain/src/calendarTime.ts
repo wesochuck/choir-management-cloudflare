@@ -171,3 +171,25 @@ export function formatTimezoneOption(timezone: string): string {
   }
   return timezone;
 }
+
+export function formatClockTime12Hour(value: string | null | undefined): string {
+  const trimmed = value?.trim() ?? "";
+  if (trimmed.length === 0) return "";
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(trimmed);
+  if (!match) return trimmed;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return trimmed;
+  }
+  const hour12 = hours % 12 || 12;
+  const period = hours >= 12 ? "PM" : "AM";
+  return `${String(hour12)}:${String(minutes).padStart(2, "0")} ${period}`;
+}

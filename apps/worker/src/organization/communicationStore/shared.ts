@@ -12,6 +12,7 @@ import {
 } from "./contracts";
 import {
   filterUpcomingPerformances,
+  formatClockTime12Hour,
   formatCommunicationSetList,
   ticketSalesPath,
   type UpcomingPerformanceListItem,
@@ -170,7 +171,8 @@ export function eventCommunicationContext(
       readonly setListJson: string;
     }>(
       `SELECT e.title AS eventTitle, e.type AS eventType, e.starts_at AS eventDate,
-        e.call_time AS callTime, e.details, COALESCE(v.name, e.location) AS eventLocation,
+        e.call_time AS callTime, e.details,
+        COALESCE(NULLIF(TRIM(v.name), ''), NULLIF(TRIM(e.location), ''), '') AS eventLocation,
         e.set_list_json AS setListJson,
         (SELECT slug FROM ticket_url_names WHERE kind = 'performance' AND resource_id = e.id) AS ticketSlug
        FROM events e LEFT JOIN venues v ON v.id = e.venue_id
@@ -185,7 +187,7 @@ export function eventCommunicationContext(
     .one().timezone;
   return {
     eventId,
-    eventCallTime: event.callTime,
+    eventCallTime: formatClockTime12Hour(event.callTime),
     eventDate: new Intl.DateTimeFormat("en-US", {
       dateStyle: "long",
       timeStyle: "short",

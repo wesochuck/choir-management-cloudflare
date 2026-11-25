@@ -31,6 +31,7 @@ import {
   communicationReach,
   dedupeCommunicationCandidates,
   extractCommunicationPlaceholders,
+  formatClockTime12Hour,
   formatCommunicationSetList,
   formatUpcomingPerformancesList,
   normalizeEmail,
@@ -48,6 +49,7 @@ import { z } from "zod";
 import type { Env } from "../env";
 import {
   listOrganizationEvents,
+  listOrganizationVenues,
   readOrganizationCalendarSettings,
 } from "../calendar/organizationCalendar";
 import { assertEmailProviderRecipientAvailable } from "../communications/emailFeedback";
@@ -896,6 +898,31 @@ interface TestEmailTemplateOptions {
   readonly renderLimits?: CommunicationRenderLimits | undefined;
   readonly subject: string;
   readonly timezone: string;
+  readonly venueName?: string | null | undefined;
+}
+
+function resolveTestEmailEventContext(
+  event: OrganizationEvent | null,
+  timezone: string,
+  venueName: string | null | undefined,
+): Record<string, string> {
+  if (!event) return {};
+  const trimmedVenue = venueName?.trim() ?? "";
+  const resolvedLocation = trimmedVenue.length > 0 ? trimmedVenue : event.location.trim();
+  return {
+    eventCallTime: formatClockTime12Hour(event.callTime),
+    eventDate: new Intl.DateTimeFormat("en-US", {
+      dateStyle: "long",
+      timeStyle: "short",
+      timeZone: timezone,
+    }).format(new Date(event.startsAt)),
+    eventDetails: event.details,
+    eventId: event.id,
+    eventLocation: resolvedLocation,
+    eventTitle: event.title,
+    eventType: event.type,
+    setlist: formatCommunicationSetList(event.setList),
+  };
 }
 
 export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
@@ -917,23 +944,11 @@ export function renderTestEmailPayload(options: TestEmailTemplateOptions): {
     logoUrl,
     organizationName: orgName,
   });
-
-  const eventContext = options.event
-    ? {
-        eventCallTime: options.event.callTime,
-        eventDate: new Intl.DateTimeFormat("en-US", {
-          dateStyle: "long",
-          timeStyle: "short",
-          timeZone: options.timezone,
-        }).format(new Date(options.event.startsAt)),
-        eventDetails: options.event.details,
-        eventId: options.event.id,
-        eventLocation: options.event.location,
-        eventTitle: options.event.title,
-        eventType: options.event.type,
-        setlist: formatCommunicationSetList(options.event.setList),
-      }
-    : {};
+  const eventContext = resolveTestEmailEventContext(
+    options.event,
+    options.timezone,
+    options.venueName,
+  );
 
   const testRsvpLink = `[Open RSVP page](https://${options.baseDomain || "localhost"}/rsvp?sample=1)\n\n(No login required.)`;
   const testPlayerLink = `[Open practice player](https://${options.baseDomain || "localhost"}/player?sample=1)\n\n(No login required.)`;
@@ -1019,20 +1034,22 @@ export async function handleTestEmailDelivery(
   await assertEmailProviderRecipientAvailable(env.CONTROL_DB, data.email);
   const eventId = data.eventId ?? data.audience?.eventId ?? null;
   const includeUpcoming = usesUpcomingPerformancesPlaceholder(data.contentMarkdown);
-  const [senderConfig, branding, selectedEvent, timezone, upcomingContext] = await Promise.all([
-    readOrganizationEmailSenderConfig(env, organizationId),
-    readOrganizationBrandingConfig(env, organizationId),
-    loadTestEmailEvent(env, organizationId, eventId),
-    loadTestEmailTimezone(env, organizationId),
-    includeUpcoming
-      ? organizationStoreStub(env, organizationId).readUpcomingPerformancesContext({
-          includeUnpublished: data.audience
-            ? shouldIncludeUnpublishedUpcomingPerformances(data.audience.targetAudiences)
-            : false,
-          organizationId,
-        })
-      : Promise.resolve(null),
-  ]);
+  const [senderConfig, branding, selectedEvent, venues, timezone, upcomingContext] =
+    await Promise.all([
+      readOrganizationEmailSenderConfig(env, organizationId),
+      readOrganizationBrandingConfig(env, organizationId),
+      loadTestEmailEvent(env, organizationId, eventId),
+      loadTestEmailVenues(env, organizationId, eventId),
+      loadTestEmailTimezone(env, organizationId),
+      includeUpcoming
+        ? organizationStoreStub(env, organizationId).readUpcomingPerformancesContext({
+            includeUnpublished: data.audience
+              ? shouldIncludeUnpublishedUpcomingPerformances(data.audience.targetAudiences)
+              : false,
+            organizationId,
+          })
+        : Promise.resolve(null),
+    ]);
 
   const { fromName, templatedContent, templatedSubject } = renderTestEmailPayload({
     baseDomain: env.PRODUCT_BASE_DOMAIN || "localhost",
@@ -1043,6 +1060,7 @@ export async function handleTestEmailDelivery(
     renderLimits,
     subject: data.subject,
     timezone,
+    venueName: resolveTestEmailVenueName(selectedEvent, venues),
   });
   const contentWithUpcomingPerformances = finalizeTestEmailContent({
     bodyLimit,
@@ -1080,6 +1098,19 @@ async function loadTestEmailEvent(env: Env, organizationId: string, eventId: str
   if (!eventId) return null;
   const events = await listOrganizationEvents(env, organizationId).catch(() => []);
   return events.find((event) => event.id === eventId) ?? null;
+}
+
+async function loadTestEmailVenues(env: Env, organizationId: string, eventId: string | null) {
+  if (!eventId) return [];
+  return listOrganizationVenues(env, organizationId).catch(() => []);
+}
+
+function resolveTestEmailVenueName(
+  event: OrganizationEvent | null,
+  venues: readonly { readonly id: string; readonly name: string }[],
+): string | null {
+  if (!event?.venueId) return null;
+  return venues.find((venue) => venue.id === event.venueId)?.name ?? null;
 }
 
 async function loadTestEmailTimezone(env: Env, organizationId: string): Promise<string> {

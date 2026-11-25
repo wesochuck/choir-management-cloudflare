@@ -37,6 +37,7 @@ export {
 
 export {
   datePartInTimeZone,
+  formatClockTime12Hour,
   formatTimezoneName,
   formatTimezoneOption,
   isValidTimeZone,

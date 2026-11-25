@@ -1,5 +1,8 @@
-import { hasAttendanceWarning } from "@choir/domain";
-import { renderCommunicationTemplate } from "@choir/domain";
+import {
+  formatClockTime12Hour,
+  hasAttendanceWarning,
+  renderCommunicationTemplate,
+} from "@choir/domain";
 import {
   listOrganizationProfiles,
   listOrganizationProfileEmails,
@@ -101,10 +104,10 @@ export async function deliverScheduledEventCommunication(
   }).format(new Date(scheduled.event.startsAt));
 
   const eventValues: Record<string, string> = {
-    eventCallTime: scheduled.event.callTime,
+    eventCallTime: formatClockTime12Hour(scheduled.event.callTime),
     eventDate: eventDateFormatted,
     eventDetails: scheduled.event.details,
-    eventLocation: scheduled.event.location || scheduled.event.venueName,
+    eventLocation: scheduled.event.venueName.trim() || scheduled.event.location.trim(),
     eventTitle: scheduled.event.title,
     eventType: scheduled.event.type,
   };
@@ -295,7 +298,7 @@ export async function deliverAttendanceReportJob(
           timeStyle: "short",
           timeZone: parsed.data.event.timezone,
         }).format(new Date(parsed.data.event.startsAt)),
-        eventLocation: parsed.data.event.location || parsed.data.event.venueName,
+        eventLocation: parsed.data.event.venueName.trim() || parsed.data.event.location.trim(),
       }),
       eventId: parsed.data.eventId,
       recipients,
