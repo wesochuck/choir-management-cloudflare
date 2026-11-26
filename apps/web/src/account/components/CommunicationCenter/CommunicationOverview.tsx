@@ -133,10 +133,6 @@ function RowAction({
     </a>
   );
 }
-function statusClass(status: CommunicationOverviewItem["status"]) {
-  if (status === "Sent") return "sent";
-  return status === "Failed" || status === "Sent with issues" ? "failed" : "neutral";
-}
 function statusLabel(item: CommunicationOverviewItem) {
   if (item.projected) return "Automatic preview";
   return item.status === "Scheduled" ? "Scheduled send" : item.status;
@@ -172,9 +168,7 @@ function OverviewRow({
           {!drafts ? (
             <>
               {" "}
-              <span
-                className={`communication-overview__status communication-overview__status--${statusClass(item.status)}`}
-              >
+              <span className="communication-row-status" data-status={item.status}>
                 {statusLabel(item)}
               </span>
             </>

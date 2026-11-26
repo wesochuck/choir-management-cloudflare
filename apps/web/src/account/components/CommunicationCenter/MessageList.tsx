@@ -185,7 +185,7 @@ function MessageCardActions({
   );
 }
 
-function MessageTimestamp({ item }: { readonly item: UnifiedCommunicationItem }) {
+function messageTimestamp(item: UnifiedCommunicationItem): string {
   const timezone = item.kind === "scheduled" ? item.scheduledMessage.timezone : undefined;
   const date = timezone
     ? new Intl.DateTimeFormat(undefined, {
@@ -195,41 +195,40 @@ function MessageTimestamp({ item }: { readonly item: UnifiedCommunicationItem })
       }).format(new Date(item.timestamp))
     : displayDate(item.timestamp);
   const tzLabel = timezone ? formatTimezoneName(timezone, item.timestamp) : "";
-  return (
-    <span>
-      {item.status === "Scheduled" ? "Scheduled for " : ""}
-      {date}
-      {tzLabel ? ` (${tzLabel})` : ""}
-    </span>
-  );
+  return `${item.status === "Scheduled" ? "Scheduled for " : ""}${date}${tzLabel ? ` (${tzLabel})` : ""}`;
 }
 
-function AutomationContext({ item }: { readonly item: UnifiedCommunicationItem }) {
-  if (item.kind !== "scheduled") return null;
-  const action = scheduledMessageActionLink(item.scheduledMessage);
-  return (
-    <>
-      {item.scheduledMessage.projected ? (
-        <p className="field-help">
-          Automation preview. Recipients and eligibility are checked at send time.
-        </p>
-      ) : null}
-      {action ? (
-        <a className="text-link" href={action.href}>
-          {action.label}
-        </a>
-      ) : null}
-    </>
-  );
-}
+function MessageMetadata({ item }: { readonly item: UnifiedCommunicationItem }) {
+  const details = [item.channel, messageTimestamp(item)];
+  if (item.automated) details.push("Automated");
 
-function QueuedByMetadata({ item }: { readonly item: UnifiedCommunicationItem }) {
-  if (item.kind !== "manual" || !item.message.queuedByName) return null;
+  if (item.kind === "manual") {
+    if (item.recipientCount > 0) {
+      details.push(
+        `${String(item.recipientCount)} ${item.recipientCount === 1 ? "recipient" : "recipients"}`,
+      );
+    }
+    if (item.message.queuedByName) details.push(`Queued by ${item.message.queuedByName}`);
+  } else {
+    const { kind, projected, recipientCount, recipientEmail, skipReason } = item.scheduledMessage;
+    const kindLabel = scheduledMessageKindLabel(kind);
+    if (recipientEmail) details.push(recipientEmail);
+    if (skipReason) details.push(skipReason.replaceAll("_", " "));
+    if (projected && kind === "ticket_reminder") {
+      details.push(
+        `${String(recipientCount)} ticket ${recipientCount === 1 ? "purchase" : "purchases"}`,
+      );
+    }
+    if (kindLabel !== item.title) details.push(kindLabel);
+  }
+
   return (
-    <>
-      <span>·</span>
-      <span>Queued by {item.message.queuedByName}</span>
-    </>
+    <p className="communication-history-entry__meta">
+      {details.join(" · ")} ·{" "}
+      <span className="communication-row-status" data-status={item.status}>
+        {item.status}
+      </span>
+    </p>
   );
 }
 
@@ -305,62 +304,26 @@ function MessageCard({
 }: MessageCardProps) {
   const isDetailsOpen =
     item.kind === "manual" && deliveryDetailsMessage?.id === item.id && deliverySummary !== null;
+  const scheduled = item.kind === "scheduled" ? item.scheduledMessage : null;
+  const automationAction = scheduled ? scheduledMessageActionLink(scheduled) : null;
 
   return (
     <article
       aria-label={`${item.title} (${item.status})`}
-      className={`communication-history-entry communication-message-card communication-message-card--${item.status.toLowerCase()}`}
+      className="communication-history-entry communication-message-card"
     >
       <div className="communication-history-entry__header">
         <div className="communication-history-entry__title-area">
-          <div className="communication-history-entry__title-row">
-            <h3 className="communication-history-entry__title">{item.title}</h3>
-            <div className="communication-history-entry__badges">
-              {item.automated ? (
-                <span className="status-pill status-pill--automated">Automated</span>
-              ) : null}
-              <span className={`status-pill status-pill--${item.status.toLowerCase()}`}>
-                {item.status}
-              </span>
-            </div>
-          </div>
-
-          <div className="communication-history-entry__meta">
-            <span>{item.channel}</span>
-            <span>·</span>
-            <MessageTimestamp item={item} />
-            {item.kind === "manual" && item.recipientCount > 0 ? (
-              <>
-                <span>·</span>
-                <span>
-                  {String(item.recipientCount)}{" "}
-                  {item.recipientCount === 1 ? "recipient" : "recipients"}
-                </span>
-              </>
-            ) : null}
-            <QueuedByMetadata item={item} />
-            <CheckoutReminderMetadata item={item} />
-            {item.kind === "scheduled" &&
-            item.scheduledMessage.projected &&
-            item.scheduledMessage.kind === "ticket_reminder" ? (
-              <>
-                <span>·</span>
-                <span>
-                  {String(item.scheduledMessage.recipientCount)} ticket{" "}
-                  {item.scheduledMessage.recipientCount === 1 ? "purchase" : "purchases"}
-                </span>
-              </>
-            ) : null}
-            {item.kind === "scheduled" ? (
-              <>
-                <span>·</span>
-                <span>{scheduledMessageKindLabel(item.scheduledMessage.kind)}</span>
-              </>
-            ) : null}
-          </div>
+          <h3 className="communication-history-entry__title">{item.title}</h3>
+          <MessageMetadata item={item} />
         </div>
 
         <div className="communication-history-actions">
+          {automationAction ? (
+            <a className="text-button" href={automationAction.href}>
+              {automationAction.label}
+            </a>
+          ) : null}
           <MessageCardActions
             busy={busy}
             isLoadingThis={isLoadingThis}
@@ -374,7 +337,11 @@ function MessageCard({
         </div>
       </div>
 
-      <AutomationContext item={item} />
+      {scheduled?.projected ? (
+        <p className="field-help communication-history-preview">
+          Automation preview. Recipients and eligibility are checked at send time.
+        </p>
+      ) : null}
       {isDetailsOpen ? (
         <MessageDeliveryDetailsPanel
           branding={branding}
@@ -447,18 +414,5 @@ export function MessageList({
         />
       ))}
     </div>
-  );
-}
-
-function CheckoutReminderMetadata({ item }: { readonly item: UnifiedCommunicationItem }) {
-  return (
-    <>
-      {item.kind === "scheduled" && item.scheduledMessage.recipientEmail ? (
-        <span>{item.scheduledMessage.recipientEmail}</span>
-      ) : null}
-      {item.kind === "scheduled" && item.scheduledMessage.skipReason ? (
-        <span>{item.scheduledMessage.skipReason.replaceAll("_", " ")}</span>
-      ) : null}
-    </>
   );
 }

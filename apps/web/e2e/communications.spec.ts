@@ -1033,6 +1033,78 @@ test("shows recipient names in message delivery details", async ({ page }) => {
   await expect(deliveryDetails.getByText("Delivered", { exact: true })).toHaveCount(2);
 });
 
+test("keeps message history rows compact across themes and widths", async ({ page }, testInfo) => {
+  const desktop = testInfo.project.name === "chromium";
+  if (desktop) await page.setViewportSize({ width: 951, height: 862 });
+
+  const reminder = {
+    id: "99999999-9999-4999-8999-999999999998",
+    eventId: null,
+    eventTitle: "",
+    kind: "checkout_reminder",
+    subject: "Incomplete checkout reminder",
+    status: "Skipped",
+    recipientCount: 0,
+    recipientEmail: "recipient-with-a-long-mailbox-name@example.test",
+    skipReason: "payment_completed",
+    scheduledAt: queuedMessage.createdAt,
+    timezone: "America/New_York",
+  };
+  await page.route("**/api/**", (route) => {
+    if (!new URL(route.request().url()).pathname.endsWith("/communications/history")) {
+      return handleRoute(route, []);
+    }
+    return fulfillJson(route, {
+      items: [
+        { kind: "automated", scheduledMessage: reminder, sortTimestamp: reminder.scheduledAt },
+        { kind: "manual", message: queuedMessage, sortTimestamp: queuedMessage.createdAt },
+      ],
+      nextCursor: null,
+      requestId,
+    });
+  });
+  await page.goto("/admin/communications?tab=messages");
+  await page.addStyleTag({
+    content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
+  });
+
+  const skipped = page.getByRole("article", { name: "Incomplete checkout reminder (Skipped)" });
+  const heading = skipped.getByRole("heading", { name: reminder.subject });
+  const settings = skipped.getByRole("link", { name: "View reminder settings" });
+  const queued = page.getByRole("article", { name: "Queued announcement (Queued)" });
+  await expect(skipped).toContainText(`Automated · ${reminder.recipientEmail} · payment completed`);
+  await expect(skipped.getByText("Skipped", { exact: true })).toBeVisible();
+  await expect(settings).toHaveAttribute("href", "/admin/settings?tab=payments");
+  await settings.focus();
+  await expect(settings).toBeFocused();
+
+  for (const theme of ["light", "dark"]) {
+    const themeButton = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await themeButton.count()) await themeButton.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    const rowBox = await skipped.boundingBox();
+    const headingBox = await heading.boundingBox();
+    const settingsBox = await settings.boundingBox();
+    if (!rowBox || !headingBox || !settingsBox) throw new Error("Message row must be visible");
+    expect(settingsBox.height).toBeGreaterThanOrEqual(40);
+    if (desktop) {
+      expect(settingsBox.x).toBeGreaterThan(headingBox.x + headingBox.width);
+      expect(rowBox.height).toBeLessThan(90);
+      expect((await queued.boundingBox())?.height).toBeLessThan(72);
+    }
+    for (const row of [skipped, queued]) {
+      expect(await row.evaluate((item) => item.scrollWidth <= item.clientWidth)).toBe(true);
+    }
+    for (const name of ["Edit & requeue", "Cancel message", "View delivery details"]) {
+      await expect(queued.getByRole("button", { name, exact: true })).toBeVisible();
+    }
+    const accessibility = await new AxeBuilder({ page })
+      .include(".communication-message-list")
+      .analyze();
+    expect(accessibility.violations).toEqual([]);
+  }
+});
+
 test("allows queued messages to be edited or canceled", async ({ page }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", async (route) => {

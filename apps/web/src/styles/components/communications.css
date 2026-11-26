@@ -204,36 +204,23 @@
     flex-direction: column;
     width: 100%;
     min-width: 0;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-xs);
   }
 
   .communication-history-entry__header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: var(--spacing-md);
+    gap: var(--spacing-2xs) var(--spacing-sm);
     width: 100%;
     min-width: 0;
   }
 
-  .communication-history-entry__header > :first-child {
-    min-width: 0;
-  }
-
   .communication-history-entry__title-area {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-3xs);
     min-width: 0;
-    flex: 1 1 auto;
-  }
-
-  .communication-history-entry__title-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--spacing-xs) var(--spacing-sm);
-    min-width: 0;
+    flex: 1 1 12.5rem;
+    overflow-wrap: anywhere;
   }
 
   .communication-history-entry__title {
@@ -242,21 +229,9 @@
     font-weight: var(--font-weight-bold);
     color: var(--color-text);
     line-height: var(--line-height-normal);
-    overflow-wrap: anywhere;
-  }
-
-  .communication-history-entry__badges {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-2xs);
-    flex-wrap: wrap;
   }
 
   .communication-history-entry__meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--spacing-xs);
     margin: var(--spacing-3xs) 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
@@ -265,10 +240,26 @@
 
   .communication-history-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--spacing-xs);
-    flex: 0 0 auto;
+    gap: var(--spacing-2xs) var(--spacing-xs);
     justify-content: flex-end;
+    margin-inline-start: auto;
+    max-width: 100%;
+  }
+
+  .communication-history-actions:empty {
+    display: none;
+  }
+
+  .communication-history-actions > a.text-button {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+  }
+
+  .communication-history-preview {
+    margin: 0;
   }
 
   .communication-delivery-details {
@@ -439,16 +430,6 @@
   @media (max-width: 40rem) {
     .communication-delivery-issues__item {
       flex-direction: column;
-    }
-
-    .communication-history-entry__header {
-      align-items: flex-start;
-      flex-direction: column;
-    }
-
-    .communication-history-actions {
-      justify-content: flex-start;
-      width: 100%;
     }
   }
 
@@ -722,19 +703,11 @@
 
   .communication-message-list {
     display: grid;
-    gap: var(--spacing-sm);
   }
 
   .communication-message-card {
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
-    background: var(--color-surface);
-    transition: border-color 0.15s ease;
-  }
-
-  .communication-message-card:hover {
-    border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+    padding-block: var(--spacing-xs);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .status-pill--draft {
@@ -1606,11 +1579,14 @@
     display: inline;
     margin: 0;
   }
-  .communication-overview__recent .communication-overview__status {
+  .communication-overview__recent .communication-row-status {
     margin-inline-start: var(--spacing-xs);
   }
   .communication-overview__recent .communication-overview__row > :is(.button, .text-button) {
     flex: none;
+  }
+  .communication-overview__recent .communication-overview__row > :is(.button, .text-button),
+  .communication-history-actions > :is(.button, .text-button) {
     min-block-size: var(--control-height);
     width: auto;
   }
@@ -1626,14 +1602,14 @@
   .communication-overview__aside .communication-overview__panel > .field-help {
     margin-block: var(--spacing-md);
   }
-  .communication-overview__status {
+  .communication-row-status {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
   }
-  .communication-overview__status--sent {
+  .communication-row-status[data-status="Sent"] {
     color: var(--color-success-text);
   }
-  .communication-overview__status--failed {
+  .communication-row-status:is([data-status="Failed"], [data-status="Sent with issues"]) {
     color: var(--color-danger-text);
   }
   .communication-overview__health {
