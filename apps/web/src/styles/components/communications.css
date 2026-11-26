@@ -1589,6 +1589,31 @@
   .communication-overview__row > .text-button {
     flex-shrink: 0;
   }
+  .communication-overview__recent .communication-overview__row {
+    flex-wrap: nowrap;
+    gap: var(--spacing-sm);
+    padding-block: var(--spacing-xs);
+  }
+  .communication-overview__recent .communication-overview__row-copy {
+    flex: 1;
+    width: auto;
+  }
+  .communication-overview__recent .communication-overview__row-meta {
+    margin-top: var(--spacing-3xs);
+    font-size: var(--font-size-sm);
+  }
+  .communication-overview__recent .communication-overview__row-meta > p {
+    display: inline;
+    margin: 0;
+  }
+  .communication-overview__recent .communication-overview__status {
+    margin-inline-start: var(--spacing-xs);
+  }
+  .communication-overview__recent .communication-overview__row > :is(.button, .text-button) {
+    flex: none;
+    min-block-size: var(--control-height);
+    width: auto;
+  }
   .communication-overview__aside .communication-overview__row {
     align-items: center;
     flex-wrap: nowrap;

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile, cp } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, cp } from "node:fs/promises";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -300,19 +300,31 @@ describe("reusable local release qualification", () => {
     expect(wrangler).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])(
-    "cached qualification preserves hosted checks and rollback (failure=%s)",
-    async (failure) => {
+  it.each(["none", "qualification", "triggers", "rollback verification"])(
+    "cached qualification preserves hosted checks and recovery reporting (%s)",
+    async (failedStep) => {
       const root = await fixture();
       const receipt = await qualify(root);
       const gateRunner = vi.fn(() => {
         throw new Error("cached gate must not rerun");
       });
-      const deployVersion = vi.fn();
-      const deployTriggers = vi.fn();
-      const qualifyDeployment = vi.fn(() => {
-        if (failure) throw new Error("hosted qualification failed");
+      let activeVersion = "previous-version";
+      const deployVersion = vi.fn((version) => {
+        activeVersion = version;
       });
+      const deployTriggers = vi.fn(() => {
+        if (failedStep === "triggers") throw new Error("trigger update failed");
+      });
+      const qualifyDeployment = vi.fn(() => {
+        if (failedStep !== "none") throw new Error("hosted qualification failed");
+      });
+      const fetcher = vi.fn(async (url) => ({
+        status: 200,
+        json: async () =>
+          url.endsWith("/api/ready")
+            ? { status: "ready" }
+            : { status: "ok", environment: "staging", version: "previous-build" },
+      }));
       const wrangler = vi.fn((args, options) => {
         if (args[0] === "email") return "│ zone │ mail.staging.musicsite.org │ yes │ tag │";
         if (args[0] === "queues")
@@ -343,7 +355,6 @@ describe("reusable local release qualification", () => {
       const recordProvenance = vi.fn(async () => ({
         record: { artifactManifestSha256: "a".repeat(64) },
       }));
-      let statusCalls = 0;
       const deployment = deployStaging({
         argv: ["--yes"],
         verifyCheckout: () => receipt.inputs.commitSha,
@@ -358,7 +369,7 @@ describe("reusable local release qualification", () => {
         stagingStatus: () => ({
           versions: [
             {
-              version_id: statusCalls++ === 0 ? "previous-version" : "new-version",
+              version_id: activeVersion,
               percentage: 100,
             },
           ],
@@ -367,22 +378,63 @@ describe("reusable local release qualification", () => {
         deployVersion,
         deployTriggers,
         qualifyDeployment,
+        fetcher,
+        ...(failedStep === "rollback verification"
+          ? {
+              verifyRollback: () => {
+                throw new Error("Worker readiness returned HTTP 503");
+              },
+            }
+          : {}),
         persistArtifact,
         recordProvenance,
+        releasesDir: root,
       });
-      if (failure) await expect(deployment).rejects.toThrow("hosted qualification failed");
-      else await deployment;
+      if (failedStep === "none") await deployment;
+      else {
+        const message =
+          failedStep === "triggers"
+            ? "trigger update failed"
+            : failedStep === "rollback verification"
+              ? "automatic rollback could not be verified: Worker readiness returned HTTP 503"
+              : "hosted qualification failed";
+        await expect(deployment).rejects.toThrow(message);
+        const failureDir = join(root, "failed-staging");
+        const reports = await readdir(failureDir);
+        expect(reports).toHaveLength(1);
+        const failure = JSON.parse(await readFile(join(failureDir, reports[0]), "utf8"));
+        expect(failure).toMatchObject({
+          commitSha: receipt.inputs.commitSha,
+          migrations: "completed",
+          previousWorkerVersionId: "previous-version",
+          triggers: failedStep === "triggers" ? "started" : "completed",
+          rollback:
+            failedStep === "triggers"
+              ? "not-attempted"
+              : failedStep === "qualification"
+                ? "verified"
+                : "deployed-unverified",
+          uploadedWorkerVersionId: failedStep === "triggers" ? null : "new-version",
+        });
+      }
       expect(gateRunner).not.toHaveBeenCalled();
-      for (const command of ["whoami", "email", "queues", "d1", "versions"]) {
+      for (const command of ["whoami", "email", "queues", "d1"]) {
         expect(wrangler.mock.calls.some(([args]) => args[0] === command)).toBe(true);
       }
       expect(deployTriggers).toHaveBeenCalledWith("staging");
-      expect(qualifyDeployment).toHaveBeenCalledWith(receipt.inputs.commitSha);
-      expect(deployVersion.mock.calls.map(([version]) => version)).toEqual(
-        failure ? ["new-version", "previous-version"] : ["new-version"],
-      );
-      expect(persistArtifact).toHaveBeenCalledTimes(failure ? 0 : 1);
-      expect(recordProvenance).toHaveBeenCalledTimes(failure ? 0 : 1);
+      const versionCalls = deployVersion.mock.calls.map(([version]) => version);
+      if (failedStep === "triggers") {
+        expect(qualifyDeployment).not.toHaveBeenCalled();
+        expect(versionCalls).toEqual([]);
+      } else {
+        expect(qualifyDeployment).toHaveBeenCalledWith(receipt.inputs.commitSha);
+        expect(versionCalls).toEqual(
+          failedStep === "none" ? ["new-version"] : ["new-version", "previous-version"],
+        );
+      }
+      expect(fetcher).toHaveBeenCalledTimes(failedStep === "qualification" ? 3 : 1);
+      expect(persistArtifact).toHaveBeenCalledTimes(failedStep === "none" ? 1 : 0);
+      expect(recordProvenance).toHaveBeenCalledTimes(failedStep === "none" ? 1 : 0);
     },
   );
 });

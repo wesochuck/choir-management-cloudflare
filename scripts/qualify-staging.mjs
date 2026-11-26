@@ -121,11 +121,15 @@ export async function probe(entry, options = {}) {
   if (body?.status !== "ok" || body?.environment !== expectedEnvironment) {
     throw new Error(`${entry.label} did not report healthy ${expectedEnvironment} state.`);
   }
-  if (body?.version !== expectedVersion) {
+  if (typeof body.version !== "string" || body.version.trim() === "") {
+    throw new Error(`${entry.label} did not report a build version.`);
+  }
+  if (expectedVersion !== undefined && body.version !== expectedVersion) {
     throw new Error(
       `${entry.label} serves ${String(body?.version)} instead of ${expectedVersion}.`,
     );
   }
+  return { version: body.version };
 }
 
 function delay(milliseconds) {

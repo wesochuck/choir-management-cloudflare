@@ -50,7 +50,7 @@ describe("check:release strictness", () => {
     expect(calls[0][1]).not.toContain("--dev");
   });
 
-  it("passes RELEASE_QUALIFICATION=1 into the Playwright suite", async () => {
+  it("passes the qualified web build to Playwright after strict CI", async () => {
     const seen = [];
     const root = mkdtempSync(join(tmpdir(), "check-release-test-"));
     const gateFailure = new Error("e2e failed");
@@ -67,7 +67,9 @@ describe("check:release strictness", () => {
     const e2eCall = seen.find((call) => call.args.includes("test:e2e"));
     expect(e2eCall).toBeDefined();
     expect(e2eCall.env.RELEASE_QUALIFICATION).toBe("1");
+    expect(e2eCall.env.E2E_PREBUILT_WEB).toBe("1");
     const ciCall = seen.find((call) => call.args.includes("check:ci"));
+    expect(ciCall.env.E2E_PREBUILT_WEB).toBeUndefined();
     expect(ciCall.env.RELEASE_QUALIFICATION).toBe("1");
     expect(ciCall.env.CHECK_COMPACT).toBe("1");
     expect(e2eCall.env.CHECK_COMPACT).toBe("1");

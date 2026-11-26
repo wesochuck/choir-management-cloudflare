@@ -12,7 +12,66 @@ import {
   runReleaseGate,
   sanitizeExternalOutput,
   uploadedVersionId,
+  verifyStagingRollback,
 } from "./deploy-staging-local.mjs";
+
+describe("automatic staging rollback verification", () => {
+  it("waits for the captured Worker version and its exact build to be healthy and ready", async () => {
+    const statusRunner = vi
+      .fn()
+      .mockReturnValueOnce({ versions: [{ version_id: "candidate", percentage: 100 }] })
+      .mockReturnValue({ versions: [{ version_id: "previous", percentage: 100 }] });
+    const healthVersions = ["candidate-build", "previous-build"];
+    const fetcher = vi.fn(async (url) => ({
+      status: 200,
+      json: async () =>
+        url.endsWith("/api/ready")
+          ? { status: "ready" }
+          : { status: "ok", environment: "staging", version: healthVersions.shift() },
+    }));
+    const sleeper = vi.fn();
+    await verifyStagingRollback({
+      previousVersionId: "previous",
+      previousBuild: "previous-build",
+      statusRunner,
+      fetcher,
+      attempts: 3,
+      sleeper,
+    });
+    expect(statusRunner).toHaveBeenCalledTimes(3);
+    expect(fetcher.mock.calls.map(([url]) => new URL(url).pathname)).toEqual([
+      "/api/health",
+      "/api/ready",
+      "/api/health",
+      "/api/ready",
+    ]);
+    expect(sleeper).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails when readiness stays unhealthy even though the prior version is active", async () => {
+    const sleeper = vi.fn();
+    await expect(
+      verifyStagingRollback({
+        previousVersionId: "previous",
+        statusRunner: () => ({ versions: [{ version_id: "previous", percentage: 100 }] }),
+        fetcher: async (url) =>
+          url.endsWith("/api/ready")
+            ? { status: 503, json: async () => ({ status: "unavailable" }) }
+            : {
+                status: 200,
+                json: async () => ({
+                  status: "ok",
+                  environment: "staging",
+                  version: "healthy-build",
+                }),
+              },
+        attempts: 2,
+        sleeper,
+      }),
+    ).rejects.toThrow("deployed Worker readiness returned HTTP 503");
+    expect(sleeper).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("local staging deployment safeguards", () => {
   it("requires a clean main checkout synchronized with origin", () => {

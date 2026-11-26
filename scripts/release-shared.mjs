@@ -64,6 +64,7 @@ export function run(command, args, options = {}) {
     encoding: "utf8",
     env: { ...process.env, ...options.env },
     stdio: options.capture ? "pipe" : "inherit",
+    timeout: options.timeout,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {

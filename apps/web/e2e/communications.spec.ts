@@ -405,19 +405,34 @@ async function editRecipients(page: Page): Promise<void> {
   }
 }
 
-test("opens an attendee email with the event and Yes response selected", async ({ page }) => {
+test("opens an attendee email with the event and Yes response selected", async ({
+  page,
+}, testInfo) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
   await page.goto(`/admin/communications?tab=compose&attendeeEventId=${eventId}`);
   const recipients = page.locator(".communication-recipient-panel");
-  await expect(recipients.getByLabel("Event (optional)")).toHaveValue(eventId);
+  const eventPicker = recipients.getByLabel("Event (optional)");
+  const rsvpPicker = recipients.getByLabel("Member RSVP response");
+  await expect(eventPicker).toHaveValue(eventId);
   await expect(recipients.getByLabel("Delivery channel")).toHaveValue("Email");
   await expect(recipients.getByRole("checkbox", { name: "Members", exact: true })).toBeChecked();
   await expect(
     recipients.getByRole("checkbox", { name: "Contacts", exact: true }),
   ).not.toBeChecked();
-  await recipients.getByText("More member filters", { exact: true }).click();
-  await expect(recipients.getByLabel("Member RSVP response")).toHaveValue("Yes");
+  await expect(rsvpPicker).toBeVisible();
+  await expect(rsvpPicker).toHaveValue("Yes");
+  const eventBox = await eventPicker.boundingBox();
+  const rsvpBox = await rsvpPicker.boundingBox();
+  if (!eventBox || !rsvpBox) throw new Error("Event and RSVP controls must be visible");
+  if (testInfo.project.use.isMobile) {
+    expect(rsvpBox.y).toBeGreaterThan(eventBox.y + eventBox.height);
+  } else {
+    expect(rsvpBox.x).toBeGreaterThan(eventBox.x + eventBox.width);
+    expect(Math.abs(rsvpBox.y - eventBox.y)).toBeLessThan(2);
+  }
+  await eventPicker.press("Tab");
+  await expect(rsvpPicker).toBeFocused();
   await expect(page.getByLabel("Subject", { exact: true })).toHaveValue("");
   await expect(page.getByRole("textbox", { name: "Message body" })).toHaveValue("");
   await expect
@@ -426,6 +441,17 @@ test("opens an attendee email with the event and Yes response selected", async (
       channel: "Email",
       audience: { eventId, rsvp: "Yes", targetAudiences: ["Members"] },
     });
+
+  await rsvpPicker.selectOption("Pending");
+  await expect
+    .poll(() => previewBodies.at(-1))
+    .toMatchObject({
+      audience: { eventId, rsvp: "Pending" },
+    });
+  await eventPicker.selectOption({ label: "No event selected" });
+  await expect(rsvpPicker).toBeHidden();
+  await eventPicker.selectOption(eventId);
+  await expect(rsvpPicker).toHaveValue("All");
 });
 
 test("preserves all selected audiences and automatically computes reach preview", async ({
@@ -498,6 +524,7 @@ test("reviews and queues an event-specific ticket-holder service notice", async 
       response.request().postData()?.includes('"ticketBuyerMode":"ticket_service"') === true,
   );
   await recipientPanel.getByLabel("Event (required)").selectOption(eventId);
+  await expect(recipientPanel.getByLabel("Member RSVP response")).toBeHidden();
   await serviceReach;
   await expect
     .poll(() => previewBodies[previewBodies.length - 1])
@@ -1826,6 +1853,8 @@ test("communications overview supports bookmarkable navigation, drafts, and resp
     href: `/admin/communications?draftId=${draft.id}`,
     message: draft,
   };
+  const longTicketSubject =
+    "Tickets confirmed: A night of seasonal music with Lancaster Men's Chorus and special guests";
   let overviewReads = 0;
   const histories: string[] = [];
   await page.route("**/api/**", async (route) => {
@@ -1850,6 +1879,16 @@ test("communications overview supports bookmarkable navigation, drafts, and resp
               subject: "Rehearsal update",
               sentAt: row.timestamp,
             },
+          },
+          {
+            ...row,
+            id: secondQueuedMessageId,
+            source: "ticket",
+            subject: longTicketSubject,
+            automatic: true,
+            status: "Sent with issues",
+            issueCount: 1,
+            message: null,
           },
         ],
         upcoming: [
@@ -1933,7 +1972,29 @@ test("communications overview supports bookmarkable navigation, drafts, and resp
       path: `/tmp/communications-overview-content-${testInfo.project.name}-${theme}.png`,
     });
   }
-  await page.getByRole("button", { name: "View details", exact: true }).click();
+  if (testInfo.project.name === "chromium") {
+    await page.setViewportSize({ width: 951, height: 862 });
+  }
+  const recent = page.getByRole("region", { name: "Recent messages", exact: true });
+  for (const subject of ["Rehearsal update", longTicketSubject]) {
+    const heading = recent.getByRole("heading", { name: subject, exact: true });
+    const item = recent.getByRole("listitem").filter({
+      has: page.getByRole("heading", { name: subject, exact: true }),
+    });
+    const action = item.getByRole("button", { name: "View details", exact: true });
+    const titleBox = await heading.boundingBox();
+    const actionBox = await action.boundingBox();
+    if (!titleBox || !actionBox)
+      throw new Error("Recent message subject and action must be visible");
+    expect(actionBox.x).toBeGreaterThan(titleBox.x + titleBox.width);
+    expect(actionBox.height).toBeGreaterThanOrEqual(40);
+    expect(titleBox.width).toBeGreaterThan(actionBox.width);
+  }
+  const recentMessage = recent.getByRole("listitem").filter({ hasText: "Rehearsal update" });
+  if (testInfo.project.name === "chromium") {
+    expect((await recentMessage.boundingBox())?.height).toBeLessThan(80);
+  }
+  await recentMessage.getByRole("button", { name: "View details", exact: true }).press("Enter");
   const delivery = page.getByRole("dialog", { name: "Rehearsal update", exact: true });
   await expect(delivery.getByText(/1 sent · 1 failed/)).toBeVisible();
   await delivery.getByRole("button", { name: "Close", exact: true }).last().click();

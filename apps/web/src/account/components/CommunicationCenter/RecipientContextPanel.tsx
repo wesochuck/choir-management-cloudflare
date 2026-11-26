@@ -39,7 +39,6 @@ interface RecipientContextPanelProps {
 
 interface MemberFiltersDetailsProps {
   readonly audience: CommunicationAudienceRequest;
-  readonly idPrefix: string;
   readonly onToggleGlobalStatus: (status: "Active" | "Idle" | "Inactive", checked: boolean) => void;
   readonly onUpdateAudience: (
     updater: (current: CommunicationAudienceRequest) => CommunicationAudienceRequest,
@@ -51,7 +50,6 @@ function MemberFiltersDetails({
   audience,
   onToggleGlobalStatus,
   onUpdateAudience,
-  idPrefix,
   rosterConfiguration,
 }: MemberFiltersDetailsProps) {
   const globalStatuses: readonly ("Active" | "Idle" | "Inactive")[] = [
@@ -64,7 +62,9 @@ function MemberFiltersDetails({
     <details className="communication-member-filters">
       <summary>
         <span>More member filters</span>
-        <span className="communication-member-filters__hint">Status, sections, RSVP</span>
+        <span className="communication-member-filters__hint">
+          {rosterConfiguration ? "Status, sections" : "Status"}
+        </span>
       </summary>
       <div className="communication-member-filters__panel">
         <fieldset className="field">
@@ -96,28 +96,6 @@ function MemberFiltersDetails({
             }}
             value={audience.voiceParts.join(", ")}
           />
-        ) : null}
-
-        {audience.eventId ? (
-          <div className="field">
-            <label htmlFor={`${idPrefix}-rsvp-select`}>Member RSVP response</label>
-            <select
-              id={`${idPrefix}-rsvp-select`}
-              onChange={(event) => {
-                const value = event.target.value;
-                onUpdateAudience((current) => ({
-                  ...current,
-                  rsvp: value === "Yes" || value === "No" || value === "Pending" ? value : "All",
-                }));
-              }}
-              value={audience.rsvp}
-            >
-              <option value="All">Any response</option>
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-              <option value="Pending">Pending</option>
-            </select>
-          </div>
         ) : null}
       </div>
     </details>
@@ -259,7 +237,7 @@ function EventSelector({
   readonly timezone?: string | null | undefined;
 }) {
   return (
-    <div className="field">
+    <div className="field only:col-span-full">
       <label htmlFor={`${idPrefix}-event`}>
         Event {isTicketServiceNotice ? "(required)" : "(optional)"}
       </label>
@@ -282,7 +260,7 @@ function EventSelector({
         value={audience.eventId ?? ""}
       >
         <option value="">
-          {isTicketServiceNotice ? "Select the affected performance" : "All matching contacts"}
+          {isTicketServiceNotice ? "Select the affected performance" : "No event selected"}
         </option>
         {events.map((event) => (
           <option key={event.id} value={event.id}>
@@ -373,14 +351,37 @@ function EventAudienceContext({
 }) {
   if (isEventPromotion || (!isMembersSelected && !isTicketBuyersSelected)) return null;
   return (
-    <EventSelector
-      audience={audience}
-      events={events}
-      idPrefix={idPrefix}
-      isTicketServiceNotice={isTicketServiceNotice}
-      onUpdateAudience={onUpdateAudience}
-      timezone={timezone}
-    />
+    <div className="grid min-w-0 gap-x-md gap-y-sm md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <EventSelector
+        audience={audience}
+        events={events}
+        idPrefix={idPrefix}
+        isTicketServiceNotice={isTicketServiceNotice}
+        onUpdateAudience={onUpdateAudience}
+        timezone={timezone}
+      />
+      {isMembersSelected && audience.eventId ? (
+        <div className="field">
+          <label htmlFor={`${idPrefix}-rsvp-select`}>Member RSVP response</label>
+          <select
+            id={`${idPrefix}-rsvp-select`}
+            onChange={(event) => {
+              const value = event.target.value;
+              onUpdateAudience((current) => ({
+                ...current,
+                rsvp: value === "Yes" || value === "No" || value === "Pending" ? value : "All",
+              }));
+            }}
+            value={audience.rsvp}
+          >
+            <option value="All">Any response</option>
+            <option value="Yes">Yes</option>
+            <option value="No">No</option>
+            <option value="Pending">Pending</option>
+          </select>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -651,7 +652,6 @@ export function RecipientContextPanel({
             {isMembersSelected ? (
               <MemberFiltersDetails
                 audience={audience}
-                idPrefix={idPrefix}
                 onToggleGlobalStatus={toggleGlobalStatus}
                 onUpdateAudience={onUpdateAudience}
                 rosterConfiguration={rosterConfiguration}

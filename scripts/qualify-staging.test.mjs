@@ -53,7 +53,7 @@ describe("qualify-staging helper logic", () => {
             fetcher,
           },
         ),
-      ).resolves.toBeUndefined();
+      ).resolves.toEqual({ version: "target-sha" });
     });
 
     it("fulfills for readiness check when status is ready", async () => {

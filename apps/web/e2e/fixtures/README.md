@@ -46,17 +46,15 @@ Specs express only differing behavior. Spec-specific routes may be registered af
 ## Full-stack suites (`*.fullstack.spec.ts`)
 
 Full-stack specs reach the real local Worker, CONTROL_DB D1, and the test Organization's Durable
-Object through the preview proxy. They prove frontend/Worker contract agreement that mocked suites
-cannot detect: live responses are parsed with `@choir/contracts` schemas, and UI assertions run
-against Worker-persisted state (including after a reload).
+Object directly. They prove frontend/Worker contract agreement that mocked suites cannot detect:
+live responses are parsed with `@choir/contracts` schemas, and UI assertions run against
+Worker-persisted state (including after a reload).
 
-- Seeding: `POST /api/local/fullstack-bootstrap` resets exactly one deterministic tenant
-  (`organization-fullstack` / `fullstack.admin@example.test`), implemented in
-  `apps/worker/src/routes/localFullstackSeed.ts`. That module answers 404 unless
-  `APP_ENV === "local"`, so staging and production have no test backdoor. Cleanup is built in:
-  bootstrap deletes the test tenant's control-plane rows before re-inserting them, and specs use
-  `uniqueFullstackName()` so per-run entities never collide with rows left by earlier runs. No
-  manual cleanup is needed; no other Organization, user, or session is touched.
+- Each Playwright run migrates and starts Wrangler against its own temporary local state. The
+  launcher removes that state on shutdown. Within a run, `POST /api/local/fullstack-bootstrap`
+  prepares the deterministic `organization-fullstack` tenant and the requested test identity. The
+  endpoint answers 404 outside local development. Specs use `uniqueFullstackName()` to distinguish
+  entities created by different tests and browser projects in the same run.
 - Sign-in: the one-time code travels through `PLATFORM_EMAIL_MODE=capture` (no real email leaves the
   machine) and is read back through the local-only `GET /api/local/fullstack-otp` seam, then entered
   through the real sign-in UI.

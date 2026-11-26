@@ -1,255 +1,148 @@
 # AGENTS.md
 
-Mandatory instructions for AI coding agents working in this repository.
+## Scope and sources
 
-## 1. Current Mission and Scope
+The current user request defines the task. Permanent staging is the active deployment target.
+Production requires separate authorization under the release rules below.
 
-- The user's current request defines the immediate task scope. The Cloudflare application is
-  standalone; legacy parity tracking has been retired (ADR 0049).
-- The active deployment target is permanent staging. Do not launch or modify production.
-- Treat `docs/goal/GOAL.md` as the durable goal contract and `docs/goal/READINESS.md` as the
-  machine/environment handoff.
-- Keep this repository fully standalone. Never import legacy source into builds, tests, CI,
-  deployments, or runtime.
-
-## 2. Sources of Truth
-
-Within repository evidence, apply this order:
+Use repository evidence in this order:
 
 1. Current security, tenancy, architecture, and environment decisions in this file,
-   `docs/goal/GOAL.md`, and applicable accepted, non-superseded architectural decision records under
-   `docs/adr/`.
-2. Current executable contracts (`packages/contracts`), application code, automated tests,
-   migrations, and verification gates.
-3. Active architecture contracts under `docs/architecture/` (e.g., `signed-link-behavior.md`,
-   `csv-contracts.md`, `data-model.md`).
-4. `CONTEXT.md` for product language and domain concepts.
+   [GOAL.md](docs/goal/GOAL.md), and applicable accepted, non-superseded [ADRs](docs/adr/).
+2. Current executable contracts in `packages/contracts`, code, tests, migrations, and gates.
+3. Active [architecture contracts](docs/architecture/).
+4. [CONTEXT.md](CONTEXT.md) for domain concepts and product language.
 
-The legacy PocketBase repository and pinned commit are historical reference only, never a feature
-requirement or default agent research step. An explicit current decision supersedes legacy behavior.
-Record architectural decisions in an ADR under `docs/adr/` instead of reproducing obsolete behavior.
-An executable implementation cannot silently override an explicit current architectural decision,
-nor should historical documents override current code.
+[READINESS.md](docs/goal/READINESS.md) tracks the environment and handoff. Record architectural
+decisions in ADRs. Current decisions govern implementation, and current code takes precedence over
+historical documents. ADR 0049 retired legacy parity tracking. Treat PocketBase and its pinned
+commit as historical reference only. Keep legacy source out of routine research, builds, tests, CI,
+deployment, and runtime.
 
-## 3. Scoped Instructions
+Follow the scoped instructions in [apps/web](apps/web/AGENTS.md),
+[apps/worker](apps/worker/AGENTS.md), and [packages](packages/AGENTS.md). Keep operational
+procedures in [runbooks](docs/runbooks/). Verify time-sensitive provider steps against authoritative
+documentation before changing hosted resources.
 
-More specific instructions inherit this file and apply by directory:
+## Engineering
 
-- `apps/web/AGENTS.md` — React, browser behavior, accessibility, and styling.
-- `apps/worker/AGENTS.md` — Worker, Durable Object, tenancy, queue, and provider rules.
-- `packages/AGENTS.md` — domain, contract, UI primitive, and testkit boundaries.
+- Use strict TypeScript and narrow `unknown`. Explicit user approval is required for `any`,
+  `as any`, `// @ts-ignore`, or blanket lint suppression.
+- Keep secrets, credentials, one-time and recovery codes, full signed tokens, and sensitive provider
+  payloads out of logs and Git. Retain raw provider errors for typed internal formatters and redact
+  secrets from logs and user-visible output.
+- One Organization is one tenant. Isolate operational data, files, jobs, tokens, caches, and audit
+  events. Resolve the Organization from the validated hostname and authoritative registry before
+  authorization. Never let a client-supplied Organization ID select storage.
+- D1 is control-plane only. Each Organization Durable Object owns its operational data. KV is
+  derived routing cache only. Scope every R2 key to its Organization.
+- External work must be bounded, retryable, idempotent, and attributable to exactly one
+  Organization. Keep provider calls outside Durable Object transactions. Use Workers RPC
+  (`stub.methodName(...)`) for new Durable Object features and operations.
+- Use forward-only, rollback-compatible expand/contract migrations. Never edit an applied migration.
+- Avoid quadratic work with precomputed `Map` or `Set` lookups in hot loops and sort comparators.
+  Use a selective index or a strict partition or filter for recurring metered queries over growing
+  tables. Justify each new D1 or Durable Object SQLite index with a concrete access path.
+- Keep code reachable from `OrganizationStore.ts` hibernation-friendly. No external fetches,
+  provider I/O, outbound sockets, long-lived timers, `waitUntil()`, or OrganizationStore WebSockets.
+  `npm run check:do-runtime` governs exceptions for initialization and migration barriers via
+  `blockConcurrencyWhile` and bounded scheduler handoff to `JOBS_QUEUE`. Keep alarm ownership in
+  `scheduler.ts` and request work through the shared wake helpers.
+- Preserve quality, size, security, isolation, accessibility, and migration gates. Follow the web
+  design system and keep eyebrow kickers out (`npm run check:no-eyebrows`).
 
-Operational procedures belong in `docs/runbooks/`, not in this root policy. Verify time-sensitive
-provider instructions against current authoritative documentation before changing hosted resources.
+## Git and verification
 
-## 4. Non-Negotiable Engineering Rules
+Check Git status before editing. Preserve unrelated changes and untracked files. Use destructive Git
+or filesystem commands only when the user explicitly requests the exact operation and target. If
+committing, group changes with their regression tests and verification. Stage `package-lock.json`
+with `package.json` changes.
 
-- Use strict TypeScript. Do not use `any`, `as any`, `// @ts-ignore`, or blanket lint suppression
-  without explicit user approval. Use `unknown` and narrow it.
-- Never log or commit secrets, credentials, one-time codes, recovery codes, full signed tokens, or
-  sensitive provider payloads.
-- One Organization is one tenant. Operational data, files, jobs, tokens, caches, and audit events
-  must never cross Organization boundaries.
-- Resolve the Organization from the validated hostname and authoritative registry before
-  authorization. A client-supplied Organization ID must never select storage.
-- D1 is control-plane only. Each Organization Durable Object owns that Organization's operational
-  data. KV is derived routing cache only, and every R2 key must be Organization-scoped.
-- All external work must be bounded, retryable, idempotent, and attributable to exactly one
-  Organization.
-- Keep provider calls outside Durable Object transactions.
-- Implement new Durable Object features and operational methods using Cloudflare Workers RPC
-  (`stub.methodName(...)`) instead of internal HTTP `fetch()` routing.
-- Every schema change is forward-only. Never rewrite an applied migration. Use expand/contract
-  changes compatible with rollback.
-- Preserve raw provider errors for typed internal formatters while redacting secrets from logs and
-  user-visible output.
-- Prevent O(N^2) bottlenecks. Do not run linear scans inside tight loops or sort comparators;
-  precompute `Map` or `Set` lookups.
-- Do not weaken a quality, size, security, isolation, accessibility, or migration gate merely to
-  make it pass.
-- Do not introduce eyebrow kickers into the web design system. Headings carry their own context;
-  `npm run check:no-eyebrows` enforces this.
-- Avoid recurring, unbounded table scans in metered storage (D1 queries, scheduled tasks, queue
-  consumers, and Durable Object SQLite). Where a query runs repeatedly over a growing table, ensure
-  it is supported by a selective index or bounded by a strict partition/filter.
-- Every index added to Durable Object SQLite or D1 must be justified by an access path. Do not add
-  indexes speculatively; each index adds write cost to every insert/update for that table.
-- Keep the Organization Durable Object runtime boundary hibernation-friendly. Runtime code reachable
-  from `OrganizationStore.ts` must not perform external fetches, provider I/O, outbound sockets,
-  long-lived timers, or other operations prohibited by `npm run check:do-runtime`. The executable
-  checker is authoritative for narrowly approved exceptions (constructor initialization and
-  migration barriers via `blockConcurrencyWhile`, and bounded scheduler handoff to `JOBS_QUEUE`). Do
-  not use `waitUntil()` in a Durable Object; it does not extend DO lifetime. OrganizationStore
-  WebSockets are outside the current architecture. Alarm ownership stays in `scheduler.ts`; store
-  code requests scheduler work through the shared alarm helpers. `npm run check:do-runtime` enforces
-  these boundaries.
+Classify the work by risk. When uncertain, treat it as material.
 
-## 5. Worktree and Git Safety
+- **Routine.** For docs, copy, isolated styling, and tightly scoped behavior outside contract,
+  route, schema, provider, queue, authentication, and tenancy boundaries, run focused tests and
+  relevant formatting, lint, or type checks.
+- **Material.** For application behavior, shared components, contracts, Worker logic, persistence,
+  authentication, payments, communications, queues, or tenant data, run focused tests and affected
+  build and integration gates.
+- **Release-bound.** Qualify the clean committed candidate before pushing `main` or promoting to
+  staging. Only the staging deploy command may reuse matching qualification under ADR 0051.
 
-- Inspect Git status before editing. Existing changes belong to the user unless the task clearly
-  places them in scope.
-- Preserve unrelated modifications and untracked files. Never discard, rewrite, stage, or commit
-  unrelated work merely to obtain a clean tree.
-- Group a change with its regression tests and required verification in one cohesive commit.
-- Always stage `package-lock.json` with a `package.json` change. The pre-commit hook and local
-  verification gate enforce lockfile synchronization.
-- Do not use destructive Git or filesystem commands unless the user explicitly requests the exact
-  operation and target.
+For material and release-bound work, report goal or architecture coverage, checks and reasons for
+skips, migration and rollback implications, tenant isolation, external effects, accessibility,
+performance, and how any artifacts were regenerated. Report remaining milestone work only during
+active milestone execution.
 
-## 6. Change Classes and Verification
+Use standard project commands directly and `npm ci` in automation and test environments after the
+lockfile exists. Keep the root commands `npm run format:check`, `npm run lint`, `npm run typecheck`,
+`npm test`, `npm run test:integration`, `npm run test:e2e`, `npm run build`, and
+`npm audit --audit-level=high` available.
 
-Classify work by its actual risk:
+- **Development.** Run focused tests and relevant static and contract checks as you iterate.
+- **Comprehensive.** `npm run check:ci` is the strict browser-free gate. A recognized npm registry
+  outage runs the remaining checks but exits nonzero. For development, `npm run check:ci:dev` may
+  report DEGRADED when only the audit is unverified. See the
+  [dependency audit outage runbook](docs/runbooks/dependency-audit-outage.md).
+- **Release.** `npm run check:release` runs strict CI and full desktop/mobile Chromium E2E with
+  `RELEASE_QUALIFICATION=1`, which forbids focused `.only` tests and captures failure artifacts. Run
+  focused checks, commit, qualify the clean commit, push, then run `npm run deploy:staging -- --yes`
+  when authorized. Commit fixes and qualify the resulting clean commit before pushing. Local commits
+  can precede full qualification. Dirty runs cannot save reusable evidence. An explicit release
+  check always reruns. Let the canonical gate own full qualification and avoid duplicating its CI,
+  test, or build steps immediately beforehand.
 
-- **Routine:** documentation, copy, isolated styling, or a tightly scoped behavior change without a
-  contract, route, schema, provider, queue, authentication, or tenancy boundary. Run focused checks
-  plus formatting, lint, or typecheck as relevant.
-- **Material:** changes to application behavior, shared components, contracts, Worker logic,
-  persistence, authentication, payments, communications, queues, or tenant-scoped data. Run focused
-  tests and the affected build/integration gates. Report risks and rollback implications.
-- **Release-bound:** anything being pushed to `main` or promoted to staging. Qualify the clean
-  committed candidate with the complete local release gate described below; staging may reuse
-  matching evidence under ADR 0051.
+Build the deployable artifact before `npm run test:integration:prepared`. Inspect build output,
+address bundle-size and build warnings, and preserve route-level code splitting.
 
-When uncertain, treat the change as material.
+For route changes, run `npm run check:routes`. Maintain route tests and safe boundary coverage
+(`npm run qualify:staging:evidence`) when changing endpoints. Follow the
+[signed-link contract](docs/architecture/signed-link-behavior.md) for purpose, authorization,
+Organization binding, expiry, revocation, and constant-time verification. Follow the
+[CSV contract](docs/architecture/csv-contracts.md) for imports and exports. Update the plan's File
+Responsibility Map when milestone work adds an unrepresented responsibility or a fix changes
+ownership.
 
-Three clearly differentiated verification levels govern local work:
+## Deployment
 
-1. **Development iteration:** Run focused unit/UI tests, contract checks, and relevant static checks
-   (`npm run lint`, `npm run typecheck`, or focused vitest runs) while modifying code.
-2. **Browser-free comprehensive check:** Run `npm run check:ci`. This is the canonical browser-free
-   local verification gate. It runs dependency audits, lockfile verification, DO runtime checks,
-   formatting, lint, Knip, contracts, route checks, unit tests, artifact packaging verification, and
-   workerd integration tests without launching browser processes. `npm run check:ci` is strict: a
-   recognized transient npm-registry outage still runs the remaining checks for diagnostics but
-   exits nonzero and is never release-qualified. For local development only, `npm run check:ci:dev`
-   runs the same checks and may exit 0 as explicitly labeled DEGRADED when the audit alone is
-   unverified and everything else passes; see `docs/runbooks/dependency-audit-outage.md`. Pushing
-   `main` or promoting always requires the strict gate (`npm run check:release`), never a degraded
-   result.
-3. **Complete release qualification:** Run `npm run check:release` on the clean committed candidate
-   before pushing `main`. Staging reuses matching recent evidence or runs this gate itself. It runs
-   `npm run check:ci`, followed by the full Chromium desktop and mobile E2E suites with
-   `RELEASE_QUALIFICATION=1`, which rejects committed `.only` tests and captures failure artifacts.
+- Keep local and preview messaging and charges simulated. Staging uses isolated resources and
+  secrets. Use supported developer keyrings and deployed Worker secret stores.
+- Modify hosted resources, domains, data, or provider configuration only with authenticated
+  environment context and explicit in-scope authorization. GitHub Actions is disabled. Adding
+  repository workflows requires explicit user approval.
+- Use the guarded local `npm run deploy:staging -- --yes` path from clean `main` exactly matching
+  `origin/main`. It runs full qualification or verifies matching evidence at most four hours old,
+  verifies one immutable artifact with commit, lockfile, Worker, and web asset hashes, and retains
+  the prior Worker Version for rollback. See the
+  [staging deployment runbook](docs/runbooks/staging-deployment.md).
+- The guarded path uses `wrangler versions upload` followed by `wrangler versions deploy`. Direct
+  `wrangler deploy` is prohibited. Apply non-versioned routes, schedules, queue consumers, and
+  Workflow triggers explicitly and keep them compatible with the prior version.
+- Qualify staging through the API with direct Worker health and readiness, exact `BUILD_VERSION`,
+  and seeded Organization-host resolution. Custom-domain HTTP 403 is degradable only when direct
+  Worker checks pass. A healthy previous version throughout the window may indicate propagation
+  delay. Worker failures require rollback.
+- Retry transient deployment or qualification failures at one layer. When the orchestrator retries,
+  use a single inner attempt (for example, `STAGING_QUALIFY_ATTEMPTS=1`).
+- Production requires a separate explicit user decision, an updated goal contract, independently
+  resolved resources and secrets, and release approval. Use the identical staging-qualified commit
+  and lockfile.
 
-Required root scripts must remain available:
+## Pauses and handoffs
 
-```bash
-npm run format:check
-npm run lint
-npm run typecheck
-npm test
-npm run test:integration
-npm run test:e2e
-npm run build
-npm audit --audit-level=high
-```
+Continue through safe, in-scope implementation and verification. Pause only for interactive
+authorization, secure secret entry, unavailable external entitlement or permission, a
+product-changing decision unresolved by the goal or ADRs, production launch, or a destructive
+hosted-data operation.
 
-Additional rules:
+- Keep secrets out of chat. Before directing the user to enter credentials, codes, or commands in a
+  specific surface, verify that exact surface is visibly open and usable by them in the current
+  turn. Only claim a prompt, page, or panel is open with current-turn evidence.
+- Coding-tool terminals, background jobs, queued sessions, and inferred browser tabs are agent-only.
+  Keep secrets in the verified provider surface or the user's own terminal. When visibility cannot
+  be verified, provide a direct navigation path or the complete command for the user's own terminal.
+  Keep interactive authentication out of coding-tool terminals.
+- Verify the non-secret result after the user reports completing a handoff step.
 
-- Use standard project commands directly; do not require a machine-specific wrapper.
-- In automated scripts or test environments, use `npm ci`, not `npm install`, after the lockfile
-  exists.
-- Run focused checks while iterating.
-- After any route change, run `npm run check:routes`.
-- Build the deployable artifact before `npm run test:integration:prepared`.
-- Use this release order: focused development checks → commit locally → run `npm run check:release`
-  on the clean committed candidate → push → `npm run deploy:staging -- --yes` when deployment is
-  authorized. If checks require fixes, commit those fixes and qualify the resulting clean commit
-  before pushing. Local commits do not require prior full qualification; pushing `main` does. Dirty
-  full-gate runs cannot save reusable evidence.
-- Do not run `check:ci`, full test suites, or a separate build immediately before `check:release`
-  merely to repeat its included steps. Use focused checks during development and let the canonical
-  gate own complete qualification. An explicit `check:release` always reruns; staging deployment
-  owns evidence reuse. See [the staging runbook](docs/runbooks/staging-deployment.md) for reuse
-  conditions, commands, and fresh hosted checks. Do not reproduce the gate with ad-hoc commands.
-- Treat bundle-size and build-output warnings as actionable. Preserve route-level code splitting and
-  inspect generated output.
-
-Before finishing a material or release-bound change, report:
-
-- what changed and which goal or architectural requirements it satisfies;
-- checks run, results, and exact reasons for any skipped check;
-- migration and rollback implications;
-- tenant-isolation, external-effect, accessibility, and performance risks;
-- generated artifacts and how they were regenerated;
-- remaining milestone work only when the task is part of active milestone execution.
-
-## 7. Plan and Route Maintenance
-
-- Update the plan's File Responsibility Map when milestone work introduces a responsibility not
-  represented there. Routine fixes do not require map edits unless ownership changes.
-- When a Worker route is added, renamed, or removed, verify route module registrations with
-  `npm run check:routes`.
-- Maintain route-level tests and safe boundary coverage (`npm run qualify:staging:evidence`) when
-  changing endpoints.
-- New signed-link flows must satisfy the requirements in
-  `docs/architecture/signed-link-behavior.md`: purpose, authorization, Organization binding, expiry,
-  revocation, and constant-time verification.
-- CSV import and export flows must satisfy the requirements in `docs/architecture/csv-contracts.md`.
-
-## 8. Staging Deployment Contract
-
-- Local and preview environments must not send real messages or create real charges.
-- Staging uses isolated resources and secrets. Store developer credentials in supported keyrings and
-  deployed secrets in Worker secret stores, never tracked files.
-- The sole permanent-staging release path is the guarded local command
-  `npm run deploy:staging -- --yes`. It must run from a clean `main` checkout that exactly matches
-  `origin/main`, execute the complete local release gate or verify matching local qualification
-  evidence under ADR 0051 (at most four hours old), create and verify one immutable artifact
-  containing commit, lockfile, Worker bundle, and web asset hashes, and retain the prior Worker
-  Version for rollback. Follow `docs/runbooks/staging-deployment.md`.
-- GitHub Actions is disabled for this repository. Release checks run locally through
-  `npm run check:release`; repository workflows must not be added without explicit user approval. Do
-  not use direct `wrangler deploy` for promotion.
-- Promote with `wrangler versions upload` followed by `wrangler versions deploy`. Apply
-  non-versioned routes, schedules, queue consumers, and Workflow triggers explicitly and keep them
-  backward compatible with the previously deployed Worker Version.
-- Qualification is API-only: direct Worker health/readiness, exact `BUILD_VERSION`, and seeded
-  Organization-host resolution. Browser smoke tests do not belong in release promotion.
-- A custom-domain HTTP 403 may be reported as degraded only when direct Worker probes pass. A
-  healthy previous version throughout the qualification window may be reported as propagation delay.
-  Real Worker failures remain hard failures and trigger rollback.
-- Deduplicate deployment retries: retry transient failures at exactly one layer — either at the
-  outermost orchestrator OR at the inner transport, never both. When orchestrating qualification or
-  deployment steps, configure inner helpers with a single attempt (e.g. `{ outerMaxAttempts: N }`
-  setting inner `STAGING_QUALIFY_ATTEMPTS: "1"`) so outer retry limits strictly bound total attempts
-  and prevent cascading timeout blowups.
-- Do not modify hosted resources, domains, data, or provider configuration without authenticated
-  environment context and explicit in-scope authorization.
-- Production requires a separate explicit user decision, updated goal contract, independently
-  resolved resources and secrets, and release approval. It must promote the identical
-  staging-qualified commit and lockfile. Staging authorization never implies production
-  authorization.
-
-## 9. Pause Conditions
-
-Continue autonomously through safe, in-scope implementation and verification. Pause only when:
-
-- interactive account authorization is required;
-- a secret must be entered through a secure provider flow;
-- a genuinely product-changing decision is absent from the accepted goal or ADRs;
-- an external account lacks a required paid product, entitlement, zone, or permission;
-- production launch or a destructive hosted-data operation would be required.
-
-### Interactive handoff rule
-
-Never ask or direct the user to enter credentials, codes, or commands into a surface unless that
-exact surface has been verified to be visibly open and usable by the user in the current turn. Agent
-terminals, background execution tasks, queued tool sessions, or inferred browser tabs are agent-only
-and are not user-facing surfaces.
-
-Mandatory preflight rules:
-
-- Never ask the user to paste one-time codes, recovery codes, passwords, cookies, tokens, or other
-  secrets into chat. Keep those values in the verified provider or user-owned terminal surface.
-- Treat every terminal launched by coding tools as agent-only and non-interactive for the user.
-  Never start an interactive authentication command there and ask the user to type into it; provide
-  the complete command for the user to run in their own terminal instead.
-- Do not claim a prompt, browser page, or panel is open unless verified by current-turn evidence. If
-  surface visibility cannot be verified, provide a self-contained command or direct navigation path.
-- After the user reports completing an action, verify the resulting non-secret postcondition before
-  proceeding. Treat a report or completion notice as a signal to verify, not proof of success.
-
-Update `docs/goal/READINESS.md` only when a blocker affects active milestone completion or must
-survive a handoff. For a temporary question or local-only interruption, report the blocker without
-creating an unrelated documentation change.
+Update [READINESS.md](docs/goal/READINESS.md) only for blockers affecting active milestone
+completion or requiring a durable handoff. Report temporary and local-only interruptions directly.

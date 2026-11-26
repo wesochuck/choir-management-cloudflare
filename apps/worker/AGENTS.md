@@ -32,6 +32,10 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
   `userId`, `role`, `createdAt`, and `profileId`.
 - Do not remove `organization_memberships` without a rollback-safe forward migration.
 - Use versioned D1 and Organization-store migrations with explicit schema registries.
+- Add a populated upgrade case for each new migration. Start from the preceding schema, seed
+  representative synthetic rows, apply the migration, and check the new behavior and the previous
+  version's affected reads or writes against the upgraded data. Use `schemaUpgrade.test.ts` for D1
+  and `organizationMigrations.integration.test.ts` for Organization storage.
 - Keep Durable Object transactions short. Provider calls never occur inside them.
 - New features and operations on Durable Objects (e.g. `OrganizationStore`) must use strongly-typed
   Cloudflare Workers RPC methods on the class (`stub.methodName(...)`) rather than internal HTTP

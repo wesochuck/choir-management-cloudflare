@@ -46,7 +46,7 @@ const steps = [
     label: "Run Playwright Chromium browser suite",
     command: "npm",
     args: ["run", "test:e2e"],
-    env: { RELEASE_QUALIFICATION: "1" },
+    env: { E2E_PREBUILT_WEB: "1" },
   },
 ];
 

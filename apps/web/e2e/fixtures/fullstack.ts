@@ -16,10 +16,10 @@ import { z } from "zod";
 // scenario and browser project seeds its own `fullstack.<area>@example.test`
 // admin identity so parallel workers never delete each other's sessions; the shared
 // Organization and loopback domains are inserted idempotently.
-// Operational rows created by earlier runs (events, donations) are left in
-// the test Organization's Durable Object; specs therefore create uniquely
-// named entities per run (uniqueFullstackName) and assert on those instead
-// of on global counts or list positions.
+// Each Playwright invocation has fresh local Worker state. The browser
+// projects still share one Organization within a run, so specs create uniquely
+// named entities (uniqueFullstackName) and assert on those instead of global
+// counts or list positions.
 //
 // Cookie note: only `page.request` shares the signed-in browser cookies. The
 // standalone `request` fixture is a separate context, so specs use `request`

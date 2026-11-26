@@ -2,10 +2,11 @@
 
 import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { buildStepEnv, isVerboseMode } from "./check-step-runner.mjs";
+import { buildProbes, probe } from "./qualify-staging.mjs";
 import { createReleaseManifest, verifyReleaseManifest } from "./release-artifact.mjs";
 import { invalidateQualification, readQualification } from "./release-qualification.mjs";
 import { applyReleaseBuildDefaults } from "./release-environment.mjs";
@@ -18,6 +19,7 @@ import {
   deployVersion as sharedDeployVersion,
   persistStagingArtifact,
   readManifestHashes,
+  releasesDir,
   run as sharedRun,
   sanitizeExternalOutput as sharedSanitize,
   stagingReceiptPath,
@@ -30,6 +32,7 @@ import {
 const workerConfig = WORKER_CONFIG;
 const stagingWorkerUrl =
   "https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev";
+const { workerProbes } = buildProbes({ env: {}, workerUrl: stagingWorkerUrl });
 const emailFeedbackQueue = "choir-management-email-events-staging";
 const expectedEmailEvents = new Set([
   "message.delivered",
@@ -109,8 +112,36 @@ function stagingStatus() {
   return JSON.parse(
     wrangler(["deployments", "status", "--json", "--config", workerConfig, "--env", "staging"], {
       capture: true,
+      timeout: 10_000,
     }),
   );
+}
+
+export async function verifyStagingRollback({
+  previousVersionId,
+  previousBuild,
+  statusRunner = stagingStatus,
+  fetcher,
+  attempts = 6,
+  sleeper = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+}) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const activeVersion = activeVersionId(statusRunner());
+      if (activeVersion !== previousVersionId) {
+        throw new Error("The captured previous Worker version does not serve 100% of traffic.");
+      }
+      const results = await Promise.allSettled(
+        workerProbes.map((entry) => probe(entry, { expectedVersion: previousBuild, fetcher })),
+      );
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed) throw failed.reason;
+      return;
+    } catch (error) {
+      if (attempt === attempts) throw error;
+      await sleeper(2000);
+    }
+  }
 }
 
 export async function deployVersion(versionId, message, options = {}) {
@@ -262,8 +293,12 @@ export async function deployStaging(options = {}) {
 
   const releaseRoot = await mkdtemp(join(tmpdir(), "choir-staging-release-"));
   let previousVersionId;
+  let previousBuild;
   let uploadedId;
   let trafficShifted = false;
+  let migrations = "not-started";
+  let triggers = "not-started";
+  let rollback = "not-attempted";
   try {
     console.log("Creating and verifying the immutable local release artifact...");
     const prepare = options.prepareArtifact ?? prepareArtifact;
@@ -292,8 +327,16 @@ export async function deployStaging(options = {}) {
     );
     assertEmailFeedbackSubscription(subscriptions);
     previousVersionId = activeVersionId(statusRunner());
+    try {
+      previousBuild = (await probe(workerProbes[0], { fetcher: options.fetcher })).version;
+    } catch {
+      console.warn(
+        "The current staging build could not be read. If rollback is needed, verification will use the captured Worker version ID and direct health and readiness.",
+      );
+    }
 
     console.log("Applying forward-only staging migrations and version-external triggers...");
+    migrations = "started";
     wranglerRunner(
       [
         "d1",
@@ -308,7 +351,10 @@ export async function deployStaging(options = {}) {
       ],
       { capture: !verbose },
     );
+    migrations = "completed";
+    triggers = "started";
     await deployTriggersRunner("staging");
+    triggers = "completed";
 
     console.log("Uploading the verified artifact as an inactive Worker version...");
     const uploadOutputPath = join(releaseRoot, "version-upload.json");
@@ -373,6 +419,7 @@ export async function deployStaging(options = {}) {
       `Promote later without rebuilding: npm run release:promote -- --sha ${commitSha} --yes (artifact manifest ${record.artifactManifestSha256.slice(0, 12)}).`,
     );
   } catch (error) {
+    let failure = error;
     if (trafficShifted && previousVersionId) {
       console.error(
         "Staging qualification failed; restoring the captured previous Worker version...",
@@ -380,15 +427,52 @@ export async function deployStaging(options = {}) {
       try {
         const deployVersionRunner = options.deployVersion ?? deployVersion;
         await deployVersionRunner(previousVersionId, `Automatic local rollback from ${commitSha}`);
+        rollback = "deployed-unverified";
+        const verifyRollback = options.verifyRollback ?? verifyStagingRollback;
+        await verifyRollback({
+          previousVersionId,
+          previousBuild,
+          statusRunner: options.stagingStatus ?? stagingStatus,
+          fetcher: options.fetcher,
+        });
+        rollback = "verified";
+        console.error(`Verified staging recovery on Worker version ${previousVersionId}.`);
       } catch (rollbackError) {
-        throw new AggregateError(
+        if (rollback !== "deployed-unverified") rollback = "deploy-failed";
+        const reason =
+          rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+        failure = new AggregateError(
           [error, rollbackError],
-          "Release failed and automatic rollback failed.",
+          `Release failed and automatic rollback could not be verified: ${sharedSanitize(reason)}`,
           { cause: rollbackError },
         );
       }
     }
-    throw error;
+    if (migrations !== "not-started") {
+      console.error(
+        `Staging failure summary: D1 migrations ${migrations}, triggers ${triggers}, rollback ${rollback}.`,
+      );
+      const reportPath = join(
+        releasesDir(options),
+        "failed-staging",
+        `${basename(releaseRoot)}.json`,
+      );
+      try {
+        await writeReceiptAtomic(reportPath, {
+          commitSha,
+          failedAt: new Date().toISOString(),
+          migrations,
+          triggers,
+          rollback,
+          previousWorkerVersionId: previousVersionId,
+          uploadedWorkerVersionId: uploadedId ?? null,
+        });
+        console.error(`Staging failure report: ${reportPath}`);
+      } catch {
+        console.error("Could not write the staging failure report. See the failure summary above.");
+      }
+    }
+    throw failure;
   } finally {
     await rm(releaseRoot, { recursive: true, force: true });
   }

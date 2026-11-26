@@ -162,19 +162,24 @@ function OverviewRow({
     <li className="communication-overview__row">
       <div className="communication-overview__row-copy">
         <h3>{item.subject}</h3>
-        <p className="field-help">
-          {date(item.timestamp, model.overview.data?.timezone ?? "UTC")} · {item.channel}
-          {item.automatic ? " · Automatic" : ""}
-          {recipients}
-          {issues}
-        </p>
-        {!drafts ? (
-          <span
-            className={`communication-overview__status communication-overview__status--${statusClass(item.status)}`}
-          >
-            {statusLabel(item)}
-          </span>
-        ) : null}
+        <div className="communication-overview__row-meta">
+          <p className="field-help">
+            {date(item.timestamp, model.overview.data?.timezone ?? "UTC")} · {item.channel}
+            {item.automatic ? " · Automatic" : ""}
+            {recipients}
+            {issues}
+          </p>
+          {!drafts ? (
+            <>
+              {" "}
+              <span
+                className={`communication-overview__status communication-overview__status--${statusClass(item.status)}`}
+              >
+                {statusLabel(item)}
+              </span>
+            </>
+          ) : null}
+        </div>
       </div>
       <RowAction item={item} model={model} drafts={drafts} />
     </li>
@@ -263,7 +268,10 @@ function DraftsAndRecent({ data, model }: { readonly data: OverviewData; readonl
           <p className="field-help">No drafts. Start a new message when you’re ready.</p>
         )}
       </section>
-      <section aria-labelledby="communication-recent-heading">
+      <section
+        aria-labelledby="communication-recent-heading"
+        className="communication-overview__recent"
+      >
         <div className="communication-overview__section-heading">
           <h2 id="communication-recent-heading">Recent messages</h2>
           <HistoryLink model={model} query="tab=messages">

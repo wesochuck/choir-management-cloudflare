@@ -27,14 +27,18 @@ staging traffic.
 
 After promotion it qualifies the exact `BUILD_VERSION`, direct Worker health and readiness, both
 seeded Organization hosts, and the safe anonymous API boundary. A real qualification failure shifts
-traffic back to the captured Worker Version. Only a complete success retains the qualified bytes
-under `.wrangler/releases/artifacts/<sha>/` and writes a separate staging receipt
-`.wrangler/releases/staging-<sha>.json` tying together the commit SHA, lockfile hash, artifact
-manifest hash, staging Worker version and deployment IDs, `BUILD_VERSION`, release-gate evidence,
-and qualification time. Failed or rolled-back attempts never create a promotable receipt, and a
-second staging run for the same SHA replaces the persistent artifact only after its own successful
-qualification. The temporary build directory is removed afterward. All release records under
-`.wrangler/releases/` are ignored by Git and must never contain secrets.
+traffic back to the captured Worker Version. The script checks that the restored version serves 100%
+of traffic and that direct Worker health and readiness recover. It also checks the previous build
+when the pre-deploy health probe could identify it. Failed attempts that reach migrations retain a
+local report under `.wrangler/releases/failed-staging/` with the migration, trigger, and rollback
+states. A `started` step may have partially applied and needs inspection. Only a complete success
+retains the qualified bytes under `.wrangler/releases/artifacts/<sha>/` and writes a separate
+staging receipt `.wrangler/releases/staging-<sha>.json` tying together the commit SHA, lockfile
+hash, artifact manifest hash, staging Worker version and deployment IDs, `BUILD_VERSION`,
+release-gate evidence, and qualification time. Failed or rolled-back attempts never create a
+promotable receipt, and a second staging run for the same SHA replaces the persistent artifact only
+after its own successful qualification. The temporary build directory is removed afterward. All
+release records under `.wrangler/releases/` are ignored by Git and must never contain secrets.
 
 `npm run check:ci` is the browser-free subset of qualification. `npm run check:release` is the full
 standalone release qualification command (check:ci plus the Playwright Chromium E2E suite); run it
@@ -64,8 +68,9 @@ The normal feature-to-staging sequence is:
 1. Run focused tests and relevant static/browser checks while developing.
 2. Commit the candidate locally; do not push yet.
 3. Run `npm run check:release` once on that clean commit. It already includes `check:ci`, the
-   deployable build, integration tests, and desktop/mobile Chromium tests. If it fails, fix and
-   commit the changes, then qualify the new clean commit.
+   deployable build, integration tests, and desktop/mobile Chromium tests. Playwright serves the web
+   assets from that build and uses a fresh local Worker state directory. If it fails, fix and commit
+   the changes, then qualify the new clean commit.
 4. Push the qualified commit to `main`.
 5. When staging deployment is authorized, run `npm run deploy:staging -- --yes` from the same
    checkout within the four-hour window. Look for “Reusing verified check:release evidence”.

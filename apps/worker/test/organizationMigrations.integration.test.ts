@@ -18,12 +18,79 @@ function requireBinding<T>(binding: T | undefined, name: string): T {
 }
 
 const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
+const populatedUpgradeBaseline = 148;
+const populatedUpgrades = [
+  {
+    version: 149,
+    exercise: (sql: SqlStorage, upgrade: () => void) => {
+      sql.exec(`INSERT INTO profiles (id, display_name, global_status, created_at, updated_at) VALUES
+        ('profile-active', 'Active singer', 'Active', '2026-01-01', '2026-01-01'),
+        ('profile-on-break', 'Singer on break', 'Idle', '2026-01-01', '2026-01-01')`);
+      const readRoster = () =>
+        sql.exec("SELECT id, display_name, global_status FROM profiles ORDER BY id").toArray();
+      const roster = readRoster();
+      expect(roster).toHaveLength(2);
+
+      upgrade();
+
+      expect(
+        sql.exec("SELECT receive_all_communications FROM profiles ORDER BY id").toArray(),
+      ).toEqual([{ receive_all_communications: 0 }, { receive_all_communications: 0 }]);
+      sql.exec("UPDATE profiles SET receive_all_communications = 1 WHERE id = 'profile-active'");
+      expect(
+        sql.exec("SELECT id FROM profiles WHERE receive_all_communications = 1").toArray(),
+      ).toEqual([{ id: "profile-active" }]);
+      expect(readRoster()).toEqual(roster);
+    },
+  },
+];
 
 afterEach(async () => {
   await reset();
 });
 
 describe("Organization schema migrations", () => {
+  it("requires a populated upgrade and prior-schema compatibility case for each new migration", () => {
+    expect(
+      organizationSchemaMigrations
+        .filter(({ version }) => version > populatedUpgradeBaseline)
+        .map(({ version }) => version),
+    ).toEqual(populatedUpgrades.map(({ version }) => version));
+  });
+
+  it.each(populatedUpgrades)(
+    "upgrades a populated Organization through v$version",
+    async ({ version, exercise }) => {
+      const stub = stores.getByName(`organization-populated-upgrade-${String(version)}`);
+      await runInDurableObject<OrganizationStore, null>(stub, async (_instance, state) => {
+        // This dedicated test object is initialized at the current schema. Rebuild the exact
+        // preceding schema in its private local SQLite store using the real migration applier.
+        await state.storage.deleteAll();
+        const { sql } = state.storage;
+        sql.exec(`CREATE TABLE organization_schema_migrations (
+        version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL
+      ) STRICT`);
+        const preceding = organizationSchemaMigrations.filter((entry) => entry.version < version);
+        const superseded = new Set(preceding.flatMap((entry) => entry.supersedes ?? []));
+        for (const entry of preceding) {
+          if (!superseded.has(entry.version)) applyOrganizationMigration(state.storage, entry);
+        }
+        const migration = organizationSchemaMigrations.find((entry) => entry.version === version);
+        if (!migration) throw new Error(`No Organization schema migration v${String(version)}.`);
+        exercise(sql, () => {
+          applyOrganizationMigration(state.storage, migration);
+        });
+        expect(
+          sql
+            .exec("SELECT version FROM organization_schema_migrations WHERE version = ?", version)
+            .one(),
+        ).toEqual({ version });
+        expect(sql.exec("PRAGMA foreign_key_check").toArray()).toEqual([]);
+        return null;
+      });
+    },
+  );
+
   it("rolls back replacement markers if recording the recovery migration fails", async () => {
     const stub = stores.getByName("organization-recovery-atomicity");
     await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
