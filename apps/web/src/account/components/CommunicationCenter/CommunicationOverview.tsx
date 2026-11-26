@@ -217,24 +217,49 @@ function HistoryLink({
     </button>
   );
 }
-function DeliveryStatus({ data, model }: { readonly data: OverviewData; readonly model: Model }) {
-  const { loading } = model.overview;
-  let message = "No delivery problems to review";
-  if (loading) message = "Checking delivery status…";
-  else if (data.attention.length) message = "Delivery needs attention";
+function OverviewRefreshNotice({ model }: { readonly model: Model }) {
+  return (
+    <span>
+      Couldn’t refresh{" "}
+      <button
+        type="button"
+        className="text-button"
+        disabled={model.overview.loading}
+        onClick={() => void model.overview.refresh()}
+      >
+        Retry
+      </button>
+    </span>
+  );
+}
+
+function DeliveryStatus({
+  data,
+  model,
+}: {
+  readonly data: OverviewData | null;
+  readonly model: Model;
+}) {
+  const attention = data?.attention ?? [];
+  const message = !data
+    ? "Checking delivery status…"
+    : attention.length
+      ? "Delivery needs attention"
+      : "No delivery problems to review";
   return (
     <section aria-label="Delivery status" className="communication-overview__health">
-      <p>{message}</p>
+      <p role="status">{message}</p>
+      {model.overview.error && data ? <OverviewRefreshNotice model={model} /> : null}
       <HistoryLink model={model} query="tab=messages">
         View delivery history
       </HistoryLink>
-      {!loading && data.attention.length ? (
+      {attention.length ? (
         <>
           <p className="field-help">
             Review failed deliveries and potentially delayed messages. An email already sent cannot
             be recalled.
           </p>
-          <OverviewRows items={data.attention} model={model} />
+          <OverviewRows items={attention} model={model} />
         </>
       ) : null}
     </section>
@@ -406,12 +431,13 @@ export function CommunicationOverview({
   const { data, loading, error } = model.overview;
   return (
     <div className="communication-overview">
-      {error ? (
+      {error && !data ? (
         <div className="notice notice--error" role="alert">
           <p>{error}</p>
           <button
             type="button"
             className="button button--secondary"
+            disabled={loading}
             onClick={() => {
               void model.overview.refresh();
             }}
@@ -420,10 +446,10 @@ export function CommunicationOverview({
           </button>
         </div>
       ) : null}
-      {loading ? <p role="status">Refreshing communications…</p> : null}
-      {data && !error ? (
-        <OverviewContent data={data} model={model} automations={automations} />
-      ) : null}
+      {!data && !error && !automations ? <DeliveryStatus data={null} model={model} /> : null}
+      {!data && !error && automations ? <p role="status">Loading automations…</p> : null}
+      {data && error && automations ? <OverviewRefreshNotice model={model} /> : null}
+      {data ? <OverviewContent data={data} model={model} automations={automations} /> : null}
       <DeliveryDialog model={model} />
     </div>
   );

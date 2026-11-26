@@ -887,8 +887,12 @@ test("shows the queued message in unified list and lets the user start another m
   const reviewDialog = page.getByRole("dialog", { name: "Review message" });
   await expect(reviewDialog).toContainText("Johann Sebastian Bach");
   await expect(reviewDialog).not.toContainText("{singerName}");
+  const overviewRefresh = page.waitForResponse((response) =>
+    response.url().endsWith("/communications/overview"),
+  );
   await reviewDialog.getByRole("button", { name: "Send to 2 recipients" }).click();
 
+  expect((await overviewRefresh).ok()).toBe(true);
   await expect(page.getByText("Message queued for 2 recipients.")).toBeVisible();
   await expect(page.getByRole("button", { name: "New message" })).toBeVisible();
 });
@@ -1981,6 +1985,8 @@ test("communications overview supports bookmarkable navigation, drafts, and resp
         attention: [],
         hasMore: { drafts: false, recent: false, upcoming: false, attention: false },
       });
+    } else if (url.pathname.endsWith(`/${queuedMessageId}/retry-failed`)) {
+      await fulfillJson(route, { requestId, messageId: queuedMessageId, retried: 1 });
     } else if (url.pathname.endsWith(`/${queuedMessageId}/delivery-summary`)) {
       const counts = { failed: 1, processing: 0, queued: 0, sent: 1, suppressed: 0, total: 2 };
       await fulfillJson(route, {
@@ -2069,6 +2075,11 @@ test("communications overview supports bookmarkable navigation, drafts, and resp
   await recentMessage.getByRole("button", { name: "View details", exact: true }).press("Enter");
   const delivery = page.getByRole("dialog", { name: "Rehearsal update", exact: true });
   await expect(delivery.getByText(/1 sent · 1 failed/)).toBeVisible();
+  const retryRefresh = page.waitForResponse((response) =>
+    response.url().endsWith("/communications/overview"),
+  );
+  await delivery.getByRole("button", { name: "Retry failed deliveries" }).click();
+  expect((await retryRefresh).ok()).toBe(true);
   await delivery.getByRole("button", { name: "Close", exact: true }).last().click();
   if (testInfo.project.name === "mobile-chromium") {
     await page
@@ -2082,7 +2093,6 @@ test("communications overview supports bookmarkable navigation, drafts, and resp
   }
   const readsBeforeFocus = overviewReads;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await expect.poll(() => overviewReads).toBeGreaterThan(readsBeforeFocus);
   await page.getByRole("button", { name: "View all drafts", exact: true }).click();
   await expect(page).toHaveURL(/status=draft/);
   await expect
@@ -2097,6 +2107,8 @@ test("communications overview supports bookmarkable navigation, drafts, and resp
     "aria-current",
     "page",
   );
+  await expect(page.getByText("No delivery problems to review")).toBeVisible();
+  expect(overviewReads).toBe(readsBeforeFocus);
   await page.goForward();
   await expect(navigation.getByRole("button", { name: "Messages", exact: true })).toHaveAttribute(
     "aria-current",
@@ -2155,16 +2167,20 @@ test("communications overview supports bookmarkable navigation, drafts, and resp
 test("overview errors remain retryable and never show healthy or fabricated empty sections", async ({
   page,
 }) => {
+  const start = Date.now();
+  await page.clock.setFixedTime(start);
   let fail = true;
   let showAttention = false;
+  const backgroundFailure = Promise.withResolvers<undefined>();
   await page.route("**/api/**", async (route) => {
-    if (new URL(route.request().url()).pathname.endsWith("/communications/overview") && fail)
+    if (new URL(route.request().url()).pathname.endsWith("/communications/overview") && fail) {
+      if (showAttention) await backgroundFailure.promise;
       await fulfillJson(
         route,
         { code: "temporarily_unavailable", message: "Overview unavailable", requestId },
         503,
       );
-    else if (
+    } else if (
       new URL(route.request().url()).pathname.endsWith("/communications/overview") &&
       showAttention
     )
@@ -2200,12 +2216,34 @@ test("overview errors remain retryable and never show healthy or fabricated empt
   await expect(page.getByText("No delivery problems to review")).toBeVisible();
   await expect(page.getByText("No messages have been sent yet.")).toBeVisible();
   showAttention = true;
+  await page.clock.setFixedTime(start + 60_000);
+  await page.bringToFront();
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   const deliveryStatus = page.getByRole("region", { name: "Delivery status", exact: true });
   await expect(deliveryStatus.getByText("Delivery needs attention", { exact: true })).toBeVisible();
   await expect(deliveryStatus.getByText("Delayed", { exact: true })).toBeVisible();
   await expect(deliveryStatus.getByText("Sent with issues", { exact: true })).toBeVisible();
   await expect(page.getByText("No delivery problems to review", { exact: true })).toHaveCount(0);
+  fail = true;
+  await page.clock.setFixedTime(start + 120_000);
+  const drafts = page.getByRole("heading", { name: "Drafts" });
+  const draftsBefore = await drafts.boundingBox();
+  const pendingRefresh = page.waitForRequest((request) =>
+    request.url().endsWith("/communications/overview"),
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await pendingRefresh;
+  try {
+    await expect(deliveryStatus.getByText("Sent with issues", { exact: true })).toBeVisible();
+    expect((await drafts.boundingBox())?.y).toBe(draftsBefore?.y);
+  } finally {
+    backgroundFailure.resolve(undefined);
+  }
+  await expect(deliveryStatus.getByText("Couldn’t refresh")).toBeVisible();
+  await expect(deliveryStatus.getByText("Sent with issues", { exact: true })).toBeVisible();
+  fail = false;
+  await deliveryStatus.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(deliveryStatus.getByText("Couldn’t refresh")).toHaveCount(0);
 });
 
 test("overview creates, saves, and resumes a composer draft without losing its content", async ({

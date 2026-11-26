@@ -57,6 +57,7 @@ export function useCommunicationHistory({
   initialStatusFilter,
   setBusy,
   setError,
+  refreshOverview,
   setSuccessNotice,
 }: {
   readonly confirm: (options: {
@@ -71,6 +72,7 @@ export function useCommunicationHistory({
   readonly initialStatusFilter: MessageStatusFilter;
   readonly setBusy: Dispatch<SetStateAction<boolean>>;
   readonly setError: Dispatch<SetStateAction<string | null>>;
+  readonly refreshOverview: () => Promise<void>;
   readonly setSuccessNotice: Dispatch<SetStateAction<string | null>>;
 }) {
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
@@ -334,6 +336,7 @@ export function useCommunicationHistory({
           );
         }
         await loadHistoryPage(statusFilter, originFilter, currentCursor);
+        void refreshOverview();
         setSuccessNotice(
           ticketId ? "Ticket notification canceled." : "Queued communication canceled.",
         );
@@ -351,6 +354,7 @@ export function useCommunicationHistory({
       originFilter,
       setBusy,
       setError,
+      refreshOverview,
       setSuccessNotice,
       statusFilter,
     ],
@@ -379,6 +383,7 @@ export function useCommunicationHistory({
       setError(null);
       try {
         const retried = await retryOrganizationCommunicationDeliveries(messageId);
+        void refreshOverview();
         const summary = await getOrganizationCommunicationDeliverySummary(messageId);
         setDeliverySummary(summary);
         setMessages(await listOrganizationCommunications());
@@ -396,6 +401,7 @@ export function useCommunicationHistory({
       originFilter,
       setBusy,
       setError,
+      refreshOverview,
       setSuccessNotice,
       statusFilter,
     ],
@@ -407,6 +413,7 @@ export function useCommunicationHistory({
       setError(null);
       try {
         await reviewOrganizationCommunicationIssues(messageId);
+        void refreshOverview();
         const summary = await getOrganizationCommunicationDeliverySummary(messageId);
         setDeliverySummary(summary);
         void loadHistoryPage(statusFilter, originFilter, currentCursor);
@@ -423,6 +430,7 @@ export function useCommunicationHistory({
       originFilter,
       setBusy,
       setError,
+      refreshOverview,
       setSuccessNotice,
       statusFilter,
     ],
@@ -442,6 +450,7 @@ export function useCommunicationHistory({
           deliveryId,
           input,
         );
+        void refreshOverview();
         const summary = await getOrganizationCommunicationDeliverySummary(messageId);
         setDeliverySummary(summary);
         setMessages(await listOrganizationCommunications());
@@ -473,6 +482,7 @@ export function useCommunicationHistory({
       originFilter,
       setBusy,
       setError,
+      refreshOverview,
       setSuccessNotice,
       statusFilter,
     ],

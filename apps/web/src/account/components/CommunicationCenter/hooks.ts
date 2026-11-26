@@ -91,7 +91,14 @@ export function useCommunicationCenterController({
 
   const { confirm, confirmationDialog } = useConfirmation();
 
+  const overview = useCommunicationOverview(
+    enabled && (activeSection === "overview" || activeSection === "automations")
+      ? activeSection
+      : null,
+  );
+
   const history = useCommunicationHistory({
+    refreshOverview: overview.refresh,
     confirm,
     enabled: enabled && activeSection === "messages",
     initialSearchQuery: initialNav.searchQuery,
@@ -103,6 +110,7 @@ export function useCommunicationCenterController({
   });
 
   const composer = useCommunicationComposer({
+    refreshOverview: overview.refresh,
     clearDeliveryDetails: history.clearDeliveryDetails,
     confirm,
     currentCursor: history.currentCursor,
@@ -126,10 +134,6 @@ export function useCommunicationCenterController({
     statusFilter: history.statusFilter,
   });
 
-  const overview = useCommunicationOverview(
-    enabled && (activeSection === "overview" || activeSection === "automations"),
-    successNotice,
-  );
   const navigateCommunication = useCallback(
     (href: string) => {
       if (navigate) {
@@ -421,13 +425,7 @@ export function useCommunicationCenterController({
     reachState: composer.reachState,
     recipientsExpanded: composer.recipientsExpanded,
     removeConflictingPlaceholder: composer.removeConflictingPlaceholder,
-    resolveDeliveryEmail: async (messageId, deliveryId, input) => {
-      const result = await history.resolveDeliveryEmailAction(messageId, deliveryId, input);
-      if (activeSection === "overview" || activeSection === "automations") {
-        void overview.refresh();
-      }
-      return result;
-    },
+    resolveDeliveryEmail: history.resolveDeliveryEmailAction,
     resumeDraft: (draft) => {
       void requestGlobalLeave({
         reason: "navigate",
@@ -437,18 +435,8 @@ export function useCommunicationCenterController({
         },
       });
     },
-    retryDeliveries: async (messageId) => {
-      await history.retryDeliveriesAction(messageId);
-      if (activeSection === "overview" || activeSection === "automations") {
-        void overview.refresh();
-      }
-    },
-    reviewIssues: async (messageId) => {
-      await history.reviewIssuesAction(messageId);
-      if (activeSection === "overview" || activeSection === "automations") {
-        void overview.refresh();
-      }
-    },
+    retryDeliveries: history.retryDeliveriesAction,
+    reviewIssues: history.reviewIssuesAction,
     rosterConfiguration,
     saveDraft: composer.saveDraftAction,
     saveTemplate: templates.saveTemplateAction,

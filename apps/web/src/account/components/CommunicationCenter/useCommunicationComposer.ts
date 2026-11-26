@@ -79,6 +79,7 @@ export function useCommunicationComposer({
   setHistoryItems,
   setMessageMode,
   setMessages,
+  refreshOverview,
   setSuccessNotice,
   statusFilter,
 }: {
@@ -111,6 +112,7 @@ export function useCommunicationComposer({
   readonly setHistoryItems: Dispatch<SetStateAction<readonly CommunicationHistoryItem[]>>;
   readonly setMessageMode: Dispatch<SetStateAction<MessageWorkspaceMode>>;
   readonly setMessages: Dispatch<SetStateAction<readonly CommunicationMessage[]>>;
+  readonly refreshOverview: () => Promise<void>;
   readonly setSuccessNotice: Dispatch<SetStateAction<string | null>>;
   readonly statusFilter: MessageStatusFilter;
 }) {
@@ -324,6 +326,7 @@ export function useCommunicationComposer({
       setError(null);
       try {
         await deleteOrganizationCommunicationDraft(messageId);
+        void refreshOverview();
         setMessages((current) => current.filter((m) => m.id !== messageId));
         setHistoryItems((current) =>
           current.filter((item) => !(item.kind === "manual" && item.message.id === messageId)),
@@ -349,6 +352,7 @@ export function useCommunicationComposer({
       setError,
       setHistoryItems,
       setMessages,
+      refreshOverview,
       setSuccessNotice,
       statusFilter,
     ],
@@ -370,6 +374,7 @@ export function useCommunicationComposer({
           : {}),
         subject,
       });
+      void refreshOverview();
       setActiveDraft(saved);
       setBaseline({ audience, channel, contentMarkdown, eventPromotion, subject });
       setReviewSnapshot(null);
@@ -398,6 +403,7 @@ export function useCommunicationComposer({
     setBusy,
     setError,
     setMessages,
+    refreshOverview,
     setSuccessNotice,
     statusFilter,
     subject,
@@ -496,6 +502,7 @@ export function useCommunicationComposer({
         },
         sendIdempotencyKey,
       );
+      void refreshOverview();
       setMessages((current) => [queued, ...current.filter((m) => m.id !== queued.id)]);
       if (activeDraft) {
         setDraftCount?.((prev) => Math.max(0, prev - 1));
@@ -537,6 +544,7 @@ export function useCommunicationComposer({
     setError,
     setMessageMode,
     setMessages,
+    refreshOverview,
     setSuccessNotice,
     statusFilter,
     subject,
