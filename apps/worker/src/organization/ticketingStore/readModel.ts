@@ -1,5 +1,6 @@
 import { readTicketSlug } from "../ticketSlugs";
 import { discountCodeSchema, ticketBundleSchema } from "@choir/contracts";
+import { ticketBundleSaleEnd, ticketEventSaleEnd } from "@choir/domain";
 import { z } from "zod";
 
 import {
@@ -184,9 +185,28 @@ export function bundleEventIds(storage: DurableObjectStorage, bundleId: string):
 }
 
 export function bundleResult(storage: DurableObjectStorage, row: TicketBundleRow) {
+  const includedEvents = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly eventId: string;
+      readonly type: string | null;
+      readonly startsAt: string | null;
+      readonly isArchived: number | null;
+      readonly isCanceled: number | null;
+      readonly isTicketingEnabled: number | null;
+    }>(
+      `SELECT b.event_id AS eventId, e.type, e.starts_at AS startsAt, e.is_archived AS isArchived,
+        e.is_canceled AS isCanceled, e.is_ticketing_enabled AS isTicketingEnabled
+       FROM ticket_bundle_events b LEFT JOIN events e ON e.id = b.event_id
+       WHERE b.bundle_id = ? ORDER BY b.sort_order, b.event_id`,
+      row.id,
+    )
+    .toArray();
+  const saleEnd = ticketBundleSaleEnd(row.saleEndAt, includedEvents.map(readTicketEventSaleEnd));
   return ticketBundleSchema.parse({
     ...row,
-    eventIds: bundleEventIds(storage, row.id),
+    effectiveSaleEndAt: saleEnd === null ? null : new Date(saleEnd).toISOString(),
+    eventIds: includedEvents.map(({ eventId }) => eventId),
     ticketSlug: readTicketSlug(storage.sql, "bundle", row.id),
     isActive: row.isActive === 1,
     publicGraphicFileId: row.publicGraphicFileId ?? null,
@@ -259,13 +279,29 @@ export function ticketEventIsOpen(
   event: TicketEventRow | undefined,
   now: Date,
 ): event is TicketEventRow {
-  return (
-    event?.type === "Performance" &&
-    event.isArchived === 0 &&
-    event.isCanceled === 0 &&
-    event.isTicketingEnabled === 1 &&
-    new Date(event.startsAt).getTime() > now.getTime()
-  );
+  const saleEnd = readTicketEventSaleEnd(event);
+  return saleEnd !== null && saleEnd > now.getTime();
+}
+
+export function readTicketEventSaleEnd(
+  event:
+    | {
+        readonly type: string | null;
+        readonly startsAt: string | null;
+        readonly isArchived: number | null;
+        readonly isCanceled: number | null;
+        readonly isTicketingEnabled: number | null;
+      }
+    | undefined,
+): number | null {
+  if (!event?.type || !event.startsAt) return null;
+  return ticketEventSaleEnd({
+    type: event.type,
+    startsAt: event.startsAt,
+    isArchived: event.isArchived !== 0,
+    isCanceled: event.isCanceled !== 0,
+    isTicketingEnabled: event.isTicketingEnabled === 1,
+  });
 }
 
 export function redemptionReservationCount(storage: DurableObjectStorage, codeId: string): number {

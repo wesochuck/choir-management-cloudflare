@@ -282,6 +282,7 @@ export const ticketBundleRequestSchema = z.object({
 });
 
 export const ticketBundleSchema = ticketBundleRequestSchema.extend({
+  effectiveSaleEndAt: z.iso.datetime().nullable().optional(),
   ticketSlug: z
     .string()
     .min(1)

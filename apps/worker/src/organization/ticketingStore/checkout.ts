@@ -4,6 +4,7 @@ import {
   isSupportedPaidCheckoutAmount,
   isValidTicketDiscountValue,
   normalizeDiscountCode,
+  ticketBundleSaleEnd,
   ticketOrderQuote,
   ticketUnitPriceCents,
 } from "@choir/domain";
@@ -29,6 +30,7 @@ import {
   enrichPurchaseWithCurrentVenue,
   purchaseResult,
   readTicketEvent,
+  readTicketEventSaleEnd,
   redemptionReservationCount,
   ticketEventIsOpen,
 } from "./readModel";
@@ -147,21 +149,21 @@ function resolveCheckoutItem(
       .toArray()
       .at(0);
     const eventIds = bundle ? bundleEventIds(storage, bundle.id) : [];
-    events = eventIds
-      .map((id) => {
-        const event = readTicketEvent(storage, id);
-        return event ? { ...event, id } : null;
-      })
-      .filter((event): event is TicketEventRow & { readonly id: string } => event !== null);
-    if (
-      bundle?.isActive !== 1 ||
-      new Date(bundle.saleEndAt).getTime() <= now.getTime() ||
-      events.length !== eventIds.length ||
-      events.length === 0 ||
-      events.some((event) => !ticketEventIsOpen(event, now))
-    ) {
+    const includedEvents = eventIds.map((id) => {
+      const event = readTicketEvent(storage, id);
+      return event ? { ...event, id } : undefined;
+    });
+    if (bundle?.isActive !== 1) {
       return Response.json({ code: "ticket_sales_closed" }, { status: 409 });
     }
+    const saleEnd = ticketBundleSaleEnd(
+      bundle.saleEndAt,
+      includedEvents.map(readTicketEventSaleEnd),
+    );
+    if (saleEnd === null || saleEnd <= now.getTime()) {
+      return Response.json({ code: "ticket_sales_closed" }, { status: 409 });
+    }
+    events = includedEvents.filter((event) => event !== undefined);
     const bundleReservedQuantity = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly quantity: number }>(
         `SELECT COALESCE(SUM(quantity), 0) AS quantity FROM ticket_purchases

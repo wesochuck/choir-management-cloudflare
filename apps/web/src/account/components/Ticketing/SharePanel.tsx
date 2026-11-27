@@ -1,8 +1,8 @@
 import { isTicketEventShareable, ticketSalesPath } from "@choir/domain";
 import type { OrganizationEvent, TicketBundle } from "@choir/contracts";
-import { useEffect, useState } from "react";
 import { QRCodeShareCard } from "../../QRCodeShareCard";
 import { money } from "./shared";
+import { useTicketingClock } from "./useTicketingClock";
 
 export function SharePanel({
   bundles,
@@ -11,21 +11,7 @@ export function SharePanel({
   readonly bundles: readonly TicketBundle[];
   readonly ticketEvents: readonly OrganizationEvent[];
 }) {
-  const [nowMs, setNowMs] = useState(Date.now);
-
-  useEffect(() => {
-    const refresh = () => {
-      setNowMs(Date.now());
-    };
-    const interval = window.setInterval(refresh, 30_000);
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, []);
+  const nowMs = useTicketingClock();
 
   return (
     <div

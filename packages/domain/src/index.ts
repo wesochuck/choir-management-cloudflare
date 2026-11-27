@@ -312,6 +312,8 @@ export {
   remainingTicketCapacity,
   renderTicketWillCallCsv,
   ticketOrderQuote,
+  ticketBundleSaleEnd,
+  ticketEventSaleEnd,
   ticketProcessingFeeCents,
   ticketUnitPriceCents,
   defaultTransactionFeeSettings,

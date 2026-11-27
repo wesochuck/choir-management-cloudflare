@@ -12,6 +12,7 @@ import {
   type SyntheticEvent,
 } from "react";
 import { BundleCard } from "./BundleCard";
+import { useTicketingClock } from "./useTicketingClock";
 
 const allowedGraphicTypes = ["image/jpeg", "image/png", "image/webp"];
 const maxGraphicBytes = 5 * 1024 * 1024;
@@ -232,6 +233,7 @@ export function BundlePanel({
     () => new Map(ticketEvents.map((event) => [event.id, event])),
     [ticketEvents],
   );
+  const nowMs = useTicketingClock();
   const { confirm, confirmationDialog } = useConfirmation();
   async function confirmRemoval(bundle: TicketBundle) {
     const approved = await confirm({
@@ -391,6 +393,7 @@ export function BundlePanel({
               busy={busy}
               eventsById={eventsById}
               key={bundle.id}
+              nowMs={nowMs}
               onEdit={() => {
                 editBundle(bundle);
               }}

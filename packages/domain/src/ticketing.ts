@@ -333,6 +333,34 @@ export function calculatePaymentFinancialSummary(
   };
 }
 
+export function ticketEventSaleEnd(event: {
+  readonly type: string;
+  readonly isArchived: boolean;
+  readonly isCanceled: boolean;
+  readonly isTicketingEnabled: boolean;
+  readonly startsAt: string;
+}): number | null {
+  return event.type === "Performance" &&
+    !event.isArchived &&
+    !event.isCanceled &&
+    event.isTicketingEnabled
+    ? Date.parse(event.startsAt)
+    : null;
+}
+
+export function ticketBundleSaleEnd(
+  saleEndAt: string,
+  eventSaleEnds: readonly (number | null)[],
+): number | null {
+  if (eventSaleEnds.length === 0) return null;
+  let end = Date.parse(saleEndAt);
+  for (const eventEnd of eventSaleEnds) {
+    if (eventEnd === null) return null;
+    end = Math.min(end, eventEnd);
+  }
+  return Number.isFinite(end) ? end : null;
+}
+
 /** Public bundle lists contain active bundles; exclude unrelated and ended sales. */
 export function availableTicketBundlesForEvent<
   T extends { readonly eventIds: readonly string[]; readonly saleEndAt: string },

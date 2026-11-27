@@ -1,6 +1,29 @@
 import { describe, expect, it } from "vitest";
 
-import { publicTicketPurchaseResponseSchema } from "./index";
+import { publicTicketPurchaseResponseSchema, ticketBundleSchema } from "./index";
+
+it("accepts current and older ticket bundle responses and validates the effective sale end", () => {
+  const bundle = {
+    id: "11111111-1111-4111-8111-111111111111",
+    eventIds: ["22222222-2222-4222-8222-222222222222"],
+    title: "Season Pass",
+    priceCents: 3000,
+    saleEndAt: "2025-10-01T23:00:00.000Z",
+    createdAt: "2025-07-01T23:00:00.000Z",
+    updatedAt: "2025-07-01T23:00:00.000Z",
+  };
+  expect(ticketBundleSchema.parse(bundle).effectiveSaleEndAt).toBeUndefined();
+  expect(
+    ticketBundleSchema.parse({ ...bundle, effectiveSaleEndAt: null }).effectiveSaleEndAt,
+  ).toBeNull();
+  expect(
+    ticketBundleSchema.parse({ ...bundle, effectiveSaleEndAt: bundle.saleEndAt })
+      .effectiveSaleEndAt,
+  ).toBe(bundle.saleEndAt);
+  expect(ticketBundleSchema.safeParse({ ...bundle, effectiveSaleEndAt: "closed" }).success).toBe(
+    false,
+  );
+});
 
 describe("publicTicketPurchaseResponseSchema", () => {
   const basePurchase = {

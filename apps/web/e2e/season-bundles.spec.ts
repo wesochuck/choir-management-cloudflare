@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { organizationEventSchema } from "@choir/contracts";
 import { expect, test } from "@playwright/test";
-import { futureIsoDate } from "@choir/testkit";
+import { futureIsoDate, pastIsoDate } from "@choir/testkit";
 import { installOrganizationApi } from "./fixtures/apiMocks";
 import { adminBundle, adminEvent, requestId, secondAdminEvent } from "./support/ticketingFixtures";
 
@@ -50,7 +50,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     const card = panel.getByRole("article", { name: "LCC 2026–2027 Season" });
     await expect(card.getByText("$30.00")).toBeVisible();
-    await expect(card.getByText("Active", { exact: true })).toBeVisible();
+    await expect(card.getByText("On sale", { exact: true })).toBeVisible();
     await expect(card.getByText("Unlimited passes")).toBeVisible();
     await expect(card.getByText("Spring Concert", { exact: true })).toBeVisible();
     await expect(card.getByText("Winter Concert", { exact: true })).toBeVisible();
@@ -91,6 +91,18 @@ for (const theme of ["light", "dark"] as const) {
             adminBundle,
             {
               ...adminBundle,
+              id: "66666666-6666-4666-8666-666666666666",
+              title: "Season pass after its first performance",
+              effectiveSaleEndAt: pastIsoDate({ days: 1 }),
+            },
+            {
+              ...adminBundle,
+              id: "77777777-7777-4777-8777-777777777777",
+              title: "Season pass with a closed performance",
+              effectiveSaleEndAt: null,
+            },
+            {
+              ...adminBundle,
               id: "55555555-5555-4555-8555-555555555555",
               title: longTitle,
               isActive: false,
@@ -102,6 +114,11 @@ for (const theme of ["light", "dark"] as const) {
     );
     await page.reload();
     await page.getByRole("tab", { name: "Season Bundles" }).click();
+    await expect(panel.getByText("Sales closed", { exact: true })).toHaveCount(2);
+    const closed = panel.getByRole("article", { name: "Season pass after its first performance" });
+    await closed.getByRole("button", { name: "Edit bundle" }).click();
+    await expect(page.getByRole("checkbox", { name: "Active for public sale" })).toBeChecked();
+    await page.keyboard.press("Escape");
     const inactive = panel.getByRole("article", { name: longTitle });
     await expect(inactive.getByText("Inactive", { exact: true })).toBeVisible();
     await expect(inactive.getByText("Up to 80 passes")).toBeVisible();

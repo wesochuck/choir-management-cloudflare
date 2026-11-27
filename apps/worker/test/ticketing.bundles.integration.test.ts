@@ -106,22 +106,24 @@ describe("Organization ticket bundles", () => {
             eventIds: [firstEvent.id, secondEvent.id],
             isActive: true,
             priceCents: 3_000,
-            saleEndAt: "2027-09-30T23:00:00.000Z",
+            saleEndAt: "2027-10-02T23:00:00.000Z",
             title: "Season Pass",
           },
           cookie,
         )
       ).json(),
     );
+    expect(bundle.effectiveSaleEndAt).toBe(firstEvent.startsAt);
+    const bundleListPath = "/api/organization/tickets/bundles";
+    const unauthenticated = await exports.default.fetch(api("alpha.localhost", bundleListPath));
+    expect(unauthenticated.status).toBe(401);
     expect(
       ticketBundlesResponseSchema.parse(
-        await (
-          await exports.default.fetch(
-            api("alpha.localhost", "/api/organization/tickets/bundles", cookie),
-          )
-        ).json(),
+        await (await exports.default.fetch(api("alpha.localhost", bundleListPath, cookie))).json(),
       ).bundles,
-    ).toHaveLength(1);
+    ).toEqual([
+      expect.objectContaining({ effectiveSaleEndAt: firstEvent.startsAt, id: bundle.id }),
+    ]);
     expect(
       (
         await exports.default.fetch(
@@ -228,6 +230,21 @@ describe("Organization ticket bundles", () => {
         )
       ).status,
     ).toBe(409);
+
+    const cancellation = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${firstEvent.id}/cancel`,
+      "POST",
+      {},
+      cookie,
+    );
+    expect(cancellation.status).toBe(200);
+    const updatedBundles = await exports.default.fetch(
+      api("alpha.localhost", bundleListPath, cookie),
+    );
+    expect(ticketBundlesResponseSchema.parse(await updatedBundles.json()).bundles).toEqual([
+      expect.objectContaining({ effectiveSaleEndAt: null, id: bundle.id, isActive: true }),
+    ]);
   });
 
   it("generates concert-specific reminder notifications for each included performance in a bundle and supports rescheduling", async () => {

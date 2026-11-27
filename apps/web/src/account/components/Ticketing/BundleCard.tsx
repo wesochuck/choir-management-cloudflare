@@ -1,28 +1,52 @@
 import type { OrganizationEvent, TicketBundle } from "@choir/contracts";
-import { ticketSalesPath } from "@choir/domain";
+import { ticketBundleSaleEnd, ticketEventSaleEnd, ticketSalesPath } from "@choir/domain";
 import { money } from "./shared";
+
+const saleStatusLabels = {
+  open: "On sale",
+  closed: "Sales closed",
+  inactive: "Inactive",
+};
 
 export function BundleCard({
   bundle,
   busy,
   eventsById,
+  nowMs,
   onEdit,
   onDelete,
 }: {
   readonly bundle: TicketBundle;
   readonly busy: boolean;
   readonly eventsById: ReadonlyMap<string, OrganizationEvent>;
+  readonly nowMs: number;
   readonly onEdit: () => void;
   readonly onDelete: () => void;
 }) {
+  const saleEnd =
+    bundle.effectiveSaleEndAt === undefined
+      ? ticketBundleSaleEnd(
+          bundle.saleEndAt,
+          bundle.eventIds.map((id) => {
+            const event = eventsById.get(id);
+            // The Organization event list excludes archived performances.
+            return event ? ticketEventSaleEnd({ ...event, isArchived: false }) : null;
+          }),
+        )
+      : bundle.effectiveSaleEndAt === null
+        ? null
+        : Date.parse(bundle.effectiveSaleEndAt);
+  const onSale = bundle.isActive && saleEnd !== null && nowMs < saleEnd;
+  const saleStatus = onSale ? "open" : bundle.isActive ? "closed" : "inactive";
+
   return (
     <article aria-labelledby={`bundle-heading-${bundle.id}`} className="ticket-bundle-card">
       <header className="ticket-bundle-card__header">
         <h4 id={`bundle-heading-${bundle.id}`}>{bundle.title}</h4>
         <span
-          className={`ticket-bundle-card__status${bundle.isActive ? " ticket-bundle-card__status--active" : ""}`}
+          className={`ticket-bundle-card__status${onSale ? " ticket-bundle-card__status--active" : ""}`}
         >
-          {bundle.isActive ? "Active" : "Inactive"}
+          {saleStatusLabels[saleStatus]}
         </span>
       </header>
       <p className="ticket-bundle-card__price">
