@@ -9,7 +9,12 @@ import { useOrganizationModules } from "../../organizationFeatures/moduleStateCo
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 
 import { AppLink } from "./navigation";
-import { PlatformAccess, PlatformDesignSystem, PlatformSetupMonitor } from "./lazyComponents";
+import {
+  PlatformAccess,
+  PlatformDesignSystem,
+  PlatformSetupMonitor,
+  PublicWebsiteManager,
+} from "./lazyComponents";
 
 import { safePlatformContinuation } from "../../../auth/postSignIn";
 import { routeHasModule, routeModule, workspaceLabel } from "./utils";
@@ -258,6 +263,26 @@ function readyAccessFlags(access: Extract<AccessState, { readonly status: "ready
   };
 }
 
+function isWebsiteEditorRoute(context: OrganizationAuthStatusResponse, pathname: string): boolean {
+  return (
+    context.role === "member" && context.websiteEditor === true && pathname === "/admin/website"
+  );
+}
+
+function WebsiteEditorWorkspacePage({
+  access,
+}: {
+  readonly access: Extract<AccessState, { readonly status: "ready" }>;
+}) {
+  if (!readyAccessFlags(access).enabled) {
+    return <OrganizationMfaPrompt message="Verify Organization MFA to edit the public website." />;
+  }
+  if (!routeHasModule({ module: "public_website" }, access.modules)) {
+    return <AccessDeniedPage workspace="Public website" />;
+  }
+  return <PublicWebsiteManager canManageTracking={false} enabled />;
+}
+
 function OrganizationWorkspacePage({
   access,
   displayName,
@@ -299,7 +324,10 @@ function OrganizationWorkspacePage({
       />
     );
   }
-  if (access.context.role === "member" && access.platformContext) {
+  if (isWebsiteEditorRoute(access.context, route.pathname)) {
+    return <WebsiteEditorWorkspacePage access={access} />;
+  }
+  if (access.context.role === "member" && access.platformContext && !access.context.websiteOnly) {
     return (
       <PlatformScopedWorkspacePage
         access={{ ...access, platformContext: access.platformContext, status: "platform-scoped" }}
@@ -442,6 +470,7 @@ function MemberWorkspacePage({
   if (access.status === "none" || access.status === "platform-scoped") {
     return memberWorkspaceNoAccessPage(access.status, route, navigate);
   }
+  if (access.context.websiteOnly) return <AccessDeniedPage workspace="Member" />;
   const mfaRequired =
     access.context.mfaRequired && !access.context.mfaSatisfied && !access.context.mfaVerifiedUntil;
   // Preserve the page-specific MFA guidance where those views already provide it.

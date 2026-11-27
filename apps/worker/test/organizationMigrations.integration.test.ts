@@ -43,6 +43,27 @@ const populatedUpgrades = [
       expect(readRoster()).toEqual(roster);
     },
   },
+  {
+    version: 150,
+    exercise: (sql: SqlStorage, upgrade: () => void) => {
+      sql.exec(`INSERT INTO private_files
+        (id, storage_key, file_name, content_type, size_bytes, status, uploaded_by, request_id, created_at)
+        VALUES ('old-file', 'private/old-file', 'old.pdf', 'application/pdf', 5, 'ready', 'admin', 'request', '2026-01-01')`);
+      upgrade();
+      expect(
+        sql.exec("SELECT website_upload FROM private_files WHERE id = 'old-file'").one()
+          .website_upload,
+      ).toBe(0);
+      expect(
+        sql.exec("SELECT file_name FROM private_files WHERE id = 'old-file'").one().file_name,
+      ).toBe("old.pdf");
+      sql.exec("UPDATE private_files SET website_upload = 1 WHERE id = 'old-file'");
+      expect(
+        sql.exec("SELECT website_upload FROM private_files WHERE id = 'old-file'").one()
+          .website_upload,
+      ).toBe(1);
+    },
+  },
 ];
 
 afterEach(async () => {

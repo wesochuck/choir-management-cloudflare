@@ -229,7 +229,11 @@ export function AccountView({
                       <li key={organization.organizationId}>
                         <div>
                           <h3>{organization.name}</h3>
-                          <p>{organizationRoleLabel(organization.role)}</p>
+                          <p>
+                            {organization.websiteOnly
+                              ? "Website Editor"
+                              : organizationRoleLabel(organization.role)}
+                          </p>
                         </div>
                         {available ? (
                           <a

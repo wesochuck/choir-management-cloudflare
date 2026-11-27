@@ -13,7 +13,7 @@ import { authorizeCalendarRoute, publicWebsiteProblem } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/website", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, true);
+    const authorization = await authorizeCalendarRoute(context, false, "website");
     if (!authorization.ok)
       return context.json(
         { ...authorization, requestId: context.get("requestId") },
@@ -36,7 +36,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.put("/api/organization/website", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, true);
+    const authorization = await authorizeCalendarRoute(context, false, "website");
     if (!authorization.ok)
       return context.json(
         { ...authorization, requestId: context.get("requestId") },
@@ -63,6 +63,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           requestId: context.get("requestId"),
         },
         body.data,
+        authorization.role === "member",
       );
       return context.json({ ...settings, requestId: context.get("requestId") });
     } catch (error: unknown) {
@@ -76,7 +77,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/organization/website/publish", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, true);
+    const authorization = await authorizeCalendarRoute(context, false, "website");
     if (!authorization.ok)
       return context.json(
         { ...authorization, requestId: context.get("requestId") },

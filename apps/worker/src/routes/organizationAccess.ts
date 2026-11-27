@@ -26,6 +26,7 @@ import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import {
+  authorizeCalendarRoute,
   normalizeInvitationRole,
   findInvitationForOrganization,
   recordInvitationAudit,
@@ -135,7 +136,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       organizationId,
       session?.session.id,
       session?.user.id,
-      { enforceMfa: false },
+      { enforceMfa: false, scope: "shell" },
     );
     if (!authorization.ok || !session) {
       const code = authorization.ok ? "unauthorized" : authorization.error.code;
@@ -174,6 +175,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       role: authorization.value.role,
       twoFactorEnabled: status.value.twoFactorEnabled,
       twoFactorVerified: status.value.twoFactorVerified,
+      ...(authorization.value.websiteEditor ? { websiteEditor: true } : {}),
+      ...(authorization.value.websiteOnly ? { websiteOnly: true } : {}),
     });
   });
 
@@ -304,7 +307,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       organizationId,
       session?.session.id,
       session?.user.id,
-      { enforceMfa: false },
+      { enforceMfa: false, scope: "shell" },
     );
     if (!authorization.ok || !session) {
       const code = authorization.ok ? "unauthorized" : authorization.error.code;
@@ -409,7 +412,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     const rows = await context.env.CONTROL_DB.prepare(
-      `SELECT m.id, m.userId, u.email, u.name, m.profileId, m.role
+      `SELECT m.id, m.userId, u.email, u.name, m.profileId, m.role, m.websiteEditor
      FROM member m
      INNER JOIN user u ON u.id = m.userId
      WHERE m.organizationId = ?
@@ -422,8 +425,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         id: string;
         name: string;
         profileId: string | null;
-        role: "admin" | "member" | "owner";
+        role: "admin" | "member" | "owner" | "website_editor";
         userId: string;
+        websiteEditor: number;
       }>();
     const response: OrganizationMembershipsResponse = {
       memberships: rows.results.slice(0, 500).map((row) => ({
@@ -431,13 +435,88 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         id: row.id,
         name: row.name,
         profileId: row.profileId,
-        role: row.role === "admin" ? "administrator" : row.role,
+        role: row.role === "admin" ? "administrator" : row.role === "owner" ? "owner" : "member",
         userId: row.userId,
+        ...(row.websiteEditor === 1 || row.role === "website_editor"
+          ? { websiteEditor: true }
+          : {}),
+        ...(row.role === "website_editor" ? { websiteOnly: true } : {}),
       })),
       requestId: context.get("requestId"),
       truncated: rows.results.length > 500,
     };
     return context.json(response);
+  });
+
+  router.put("/api/organization/members/:membershipId/website-access", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    const requestId = context.get("requestId");
+    if (!authorization.ok) {
+      return context.json({ ...authorization, requestId }, authorization.status);
+    }
+    const target = z.string().min(1).max(128).safeParse(context.req.param("membershipId"));
+    const body = z
+      .object({ enabled: z.boolean() })
+      .safeParse(await context.req.json<unknown>().catch(() => null));
+    if (!target.success || !body.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Choose a Membership and access setting.",
+          requestId,
+        },
+        400,
+      );
+    }
+    const { organizationId, userId } = authorization;
+    const actorCheck = `EXISTS (
+      SELECT 1 FROM member WHERE organizationId = ? AND userId = ? AND role IN ('admin', 'owner')
+    )`;
+    const db = context.env.CONTROL_DB;
+    const update = db
+      .prepare(
+        `UPDATE member SET websiteEditor = ? WHERE id = ? AND organizationId = ? AND role = 'member'
+       AND ${actorCheck}`,
+      )
+      .bind(body.data.enabled ? 1 : 0, target.data, organizationId, organizationId, userId);
+    const change = body.data.enabled
+      ? update
+      : db
+          .prepare(
+            `DELETE FROM member WHERE id = ? AND organizationId = ? AND role = 'website_editor'
+       AND ${actorCheck}`,
+          )
+          .bind(target.data, organizationId, organizationId, userId);
+    const audit = db
+      .prepare(
+        `INSERT INTO platform_audit_events
+        (id, actor_user_id, organization_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       SELECT ?, ?, ?, 'organization.website_access.updated', 'organization_membership', ?, ?, ?, ?
+       WHERE changes() > 0`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        userId,
+        organizationId,
+        target.data,
+        requestId,
+        JSON.stringify({ enabled: body.data.enabled }),
+        new Date().toISOString(),
+      );
+    const [result] = await db.batch(
+      body.data.enabled ? [change, audit] : [change, audit, update, audit],
+    );
+    if (result?.meta.changes === 0 && body.data.enabled) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "The editable Organization Membership was not found.",
+          requestId,
+        },
+        404,
+      );
+    }
+    return context.json({ requestId });
   });
 
   router.put("/api/organization/members/:membershipId/profile", async (context) => {

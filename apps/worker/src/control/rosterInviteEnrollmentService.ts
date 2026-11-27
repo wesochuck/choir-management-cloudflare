@@ -425,6 +425,15 @@ export async function redeemRosterInvite(
     .bind(input.organizationId, input.actorUserId)
     .first<{ id: string; profileId: string | null; role: string }>();
 
+  if (existingMembership?.role === "website_editor") {
+    return {
+      code: "conflict",
+      message: "Website-only access cannot be linked to a roster Profile.",
+      ok: false,
+      status: 409,
+    };
+  }
+
   if (existingMembership?.profileId) {
     const existingEnrollment = await env.CONTROL_DB.prepare(
       `SELECT id FROM organization_roster_invite_enrollments

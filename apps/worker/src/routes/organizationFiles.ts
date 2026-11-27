@@ -23,6 +23,22 @@ import {
   privateFileDownloadResponse,
 } from "./helpers";
 
+const websiteUploadTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+function canReadScopedPrivateFile(
+  stub: ReturnType<typeof organizationStoreStub>,
+  input: Parameters<typeof stub.canWebsiteEditorReadFile>[0],
+  websiteOnly: boolean | undefined,
+): Promise<boolean> {
+  return websiteOnly ? stub.canWebsiteEditorReadFile(input) : stub.canMemberReadPrivateFile(input);
+}
+
 function formatPrivateFileUploadError(
   error: unknown,
   requestId: string,
@@ -75,11 +91,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       },
     });
     const session = await auth.api.getSession({ headers: context.req.raw.headers });
+    const websiteUpload = context.req.query("scope") === "website";
     const authorization = await authorizeOrganizationMember(
       context.env.CONTROL_DB,
       organizationId,
       session?.session.id,
       session?.user.id,
+      websiteUpload ? { scope: "website" } : undefined,
     );
     if (!authorization.ok) {
       return context.json(
@@ -98,6 +116,20 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           code: "validation_failed",
           message:
             "A valid encoded file name, content type, and bounded content length are required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    if (
+      websiteUpload &&
+      (!websiteUploadTypes.has(uploadHeaders.contentType) ||
+        uploadHeaders.sizeBytes > 5 * 1024 * 1024)
+    ) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Website uploads must be a JPEG, PNG, WebP, PDF, or Word document up to 5 MB.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         400,
@@ -123,6 +155,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         organizationId,
         requestId: context.get("requestId"),
         sizeBytes: uploadHeaders.sizeBytes,
+        websiteUpload,
       });
       const response: PrivateFileResponse = {
         ...uploaded,
@@ -163,6 +196,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       organizationId,
       session?.session.id,
       session?.user.id,
+      { scope: "shell" },
     );
     if (!authorization.ok) {
       return context.json(
@@ -177,11 +211,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       if (authorization.value.role === "member") {
         const stub = organizationStoreStub(context.env, organizationId);
-        const allowed = await stub.canMemberReadPrivateFile({
+        const input = {
           actorUserId: authorization.value.userId,
           fileId: fileId.data,
           organizationId,
-        });
+        };
+        const allowed = await canReadScopedPrivateFile(
+          stub,
+          input,
+          authorization.value.websiteOnly,
+        );
         if (!allowed) {
           return context.json(
             {
@@ -227,7 +266,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.delete("/api/organization/files/:fileId", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, true);
+    const websiteCleanup = context.req.query("scope") === "website";
+    const authorization = await authorizeCalendarRoute(
+      context,
+      !websiteCleanup,
+      websiteCleanup ? "website" : undefined,
+    );
     const fileId = privateFileIdSchema.safeParse(context.req.param("fileId"));
     if (!authorization.ok) {
       return context.json(
@@ -251,6 +295,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         fileId: fileId.data,
         organizationId: authorization.organizationId,
         requestId: context.get("requestId"),
+        websiteEditorOnly: authorization.role === "member",
       });
       return reclaimed
         ? context.json({

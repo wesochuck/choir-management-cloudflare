@@ -33,6 +33,8 @@ function roleLabel(role: OrganizationInvitationDetails["role"]): string {
       return "Organization Member";
     case "owner":
       return "Organization Owner";
+    case "website_editor":
+      return "Website Editor";
   }
 }
 
@@ -174,13 +176,15 @@ export function AcceptInvitationView({ invitationId }: { readonly invitationId: 
           </h1>
           <p className="notice notice--success" role="status">
             {accepted
-              ? state.profileLinkStatus === "linked"
-                ? "Your Membership is ready, and your existing roster Profile is connected. Your Profile and history are preserved."
-                : state.profileLinkStatus === "review_required"
-                  ? "Your Membership is ready. An Organization administrator needs to review the roster Profile before it can be connected."
-                  : state.profileLinkStatus === "pending"
-                    ? "Your Membership is ready. The Profile connection is still finishing. Retry below to complete it."
-                    : "Your Organization Membership is ready. An Organization administrator can link your roster Profile if needed."
+              ? state.invitation.role === "website_editor"
+                ? "Your Website Editor access is ready."
+                : state.profileLinkStatus === "linked"
+                  ? "Your Membership is ready, and your existing roster Profile is connected. Your Profile and history are preserved."
+                  : state.profileLinkStatus === "review_required"
+                    ? "Your Membership is ready. An Organization administrator needs to review the roster Profile before it can be connected."
+                    : state.profileLinkStatus === "pending"
+                      ? "Your Membership is ready. The Profile connection is still finishing. Retry below to complete it."
+                      : "Your Organization Membership is ready. An Organization administrator can link your roster Profile if needed."
               : `You did not join ${state.organizationName}.`}
           </p>
           {accepted && state.profileLinkStatus === "pending" ? (
@@ -195,8 +199,15 @@ export function AcceptInvitationView({ invitationId }: { readonly invitationId: 
               {busy ? "Retrying profile connection…" : "Retry profile connection"}
             </button>
           ) : null}
-          <a className="button button--primary" href="/account">
-            Open your account
+          <a
+            className="button button--primary"
+            href={
+              accepted && state.invitation.role === "website_editor" ? "/admin/website" : "/account"
+            }
+          >
+            {accepted && state.invitation.role === "website_editor"
+              ? "Open Public website"
+              : "Open your account"}
           </a>
         </section>
       </main>

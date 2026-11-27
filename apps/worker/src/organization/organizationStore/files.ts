@@ -38,8 +38,8 @@ export async function reservePrivateFile(
     storage.sql.exec(
       `INSERT INTO private_files
         (id, storage_key, file_name, content_type, size_bytes, status,
-         uploaded_by, request_id, created_at)
-       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+         uploaded_by, request_id, created_at, website_upload)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
       parsed.data.fileId,
       storageKey,
       parsed.data.fileName,
@@ -48,6 +48,7 @@ export async function reservePrivateFile(
       parsed.data.actorUserId,
       parsed.data.requestId,
       new Date().toISOString(),
+      parsed.data.websiteUpload ? 1 : 0,
     );
     return Response.json({ reserved: true, storageKey });
   } catch {
@@ -222,11 +223,14 @@ export async function claimPrivateFileReclamation(
     return (
       storage.sql.exec(
         `UPDATE private_files SET status = 'pending', uploaded_by = ?, request_id = ?
-       WHERE id = ? AND storage_key = ? AND status = 'ready'`,
+       WHERE id = ? AND storage_key = ? AND status = 'ready'
+         AND (? = 0 OR (website_upload = 1 AND uploaded_by = ?))`,
         parsed.data.actorUserId,
         parsed.data.requestId,
         parsed.data.fileId,
         storageKey,
+        parsed.data.websiteEditorOnly ? 1 : 0,
+        parsed.data.actorUserId,
       ).rowsWritten === 1
     );
   });

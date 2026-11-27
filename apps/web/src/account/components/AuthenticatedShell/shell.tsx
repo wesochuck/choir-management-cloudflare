@@ -140,11 +140,16 @@ function AuthenticatedOrganizationShell({
   });
 
   const workspace = workspaceForPath(route.pathname);
+  const websiteEditorWorkspace =
+    access.status === "ready" &&
+    access.context.role === "member" &&
+    access.context.websiteEditor === true;
   const mobileWorkspaceChooser = (
     <MobileWorkspaceChooser
       options={workspaceOptions}
       selected={selectedWorkspace}
       onSwitch={switchWorkspace}
+      websiteEditor={websiteEditorWorkspace}
     />
   );
 
@@ -223,7 +228,9 @@ function AuthenticatedOrganizationShell({
                 variant="header"
               />
             ) : null}
-            {access.status === "ready" && selectedWorkspace !== "platform" ? (
+            {access.status === "ready" &&
+            !access.context.websiteOnly &&
+            selectedWorkspace !== "platform" ? (
               <NotificationBell
                 onNavigate={(href) => {
                   void navigate(href);
@@ -243,7 +250,7 @@ function AuthenticatedOrganizationShell({
               >
                 {workspaceOptions.map((item) => (
                   <option key={item} value={item}>
-                    {workspaceLabel(item)}
+                    {workspaceLabel(item, websiteEditorWorkspace)}
                   </option>
                 ))}
               </select>
@@ -254,6 +261,7 @@ function AuthenticatedOrganizationShell({
                 options={workspaceOptions}
                 selected={selectedWorkspace}
                 onSwitch={switchWorkspace}
+                websiteEditor={websiteEditorWorkspace}
               />
             ) : null}
             <button
@@ -331,7 +339,9 @@ function AuthenticatedOrganizationShell({
           <aside className="signed-in-sidebar" onClick={isCompact ? handleRailClick : undefined}>
             <div className="sidebar-header">
               {selectedWorkspace !== "organization" && !isCompact ? (
-                <SidebarWorkspaceHeading workspaceName={workspaceLabel(selectedWorkspace)} />
+                <SidebarWorkspaceHeading
+                  workspaceName={workspaceLabel(selectedWorkspace, websiteEditorWorkspace)}
+                />
               ) : null}
               {isCollapsibleWorkspace ? (
                 <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
@@ -515,7 +525,9 @@ function AuthenticatedOrganizationShell({
             {selectedWorkspace === "organization" ? (
               <h2 className="organization-nav__drawer-title">Organization Admin</h2>
             ) : (
-              <SidebarWorkspaceHeading workspaceName={workspaceLabel(selectedWorkspace)} />
+              <SidebarWorkspaceHeading
+                workspaceName={workspaceLabel(selectedWorkspace, websiteEditorWorkspace)}
+              />
             )}
           </div>
           <div

@@ -181,6 +181,22 @@ describe("isKnownAuthenticatedRoute & isPrivilegedRoute", () => {
 });
 
 describe("determinePostSignInPath", () => {
+  it("lands a website-only invitee in the website editor even with an unrelated return path", async () => {
+    await expect(
+      determinePostSignInPath({
+        currentPathname: "/login",
+        getAuthStatus: async () => ({
+          ...(await mockAuthStatus("member")()),
+          profileLinked: false,
+          websiteEditor: true,
+          websiteOnly: true,
+        }),
+        hostname: "alpha.example.test",
+        search: "?returnTo=%2Fadmin%2Froster",
+      }),
+    ).resolves.toBe("/admin/website");
+  });
+
   it("routes an organization administrator to /admin when logging in from /login", async () => {
     const nextPath = await determinePostSignInPath({
       currentPathname: "/login",

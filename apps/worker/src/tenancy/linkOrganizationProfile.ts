@@ -37,7 +37,7 @@ export async function linkOrganizationProfile(
 
   const membership = await env.CONTROL_DB.prepare(
     `SELECT profileId FROM member
-     WHERE id = ? AND organizationId = ?
+     WHERE id = ? AND organizationId = ? AND role <> 'website_editor'
      LIMIT 1`,
   )
     .bind(input.membershipId, input.organizationId)
@@ -112,7 +112,7 @@ export async function linkOrganizationProfile(
     const results = await env.CONTROL_DB.batch([
       env.CONTROL_DB.prepare(
         `UPDATE member SET profileId = ?
-         WHERE id = ? AND organizationId = ? ${input.requireUnlinked ? "AND profileId IS NULL" : ""}${automaticLinkGuard}`,
+         WHERE id = ? AND organizationId = ? AND role <> 'website_editor' ${input.requireUnlinked ? "AND profileId IS NULL" : ""}${automaticLinkGuard}`,
       ).bind(
         input.profileId,
         input.membershipId,

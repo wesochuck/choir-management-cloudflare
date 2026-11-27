@@ -342,7 +342,26 @@ function RestoreWebsitePreview({
   );
 }
 
-export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean }) {
+function WebsiteEditorTabList({ canManageTracking }: { readonly canManageTracking: boolean }) {
+  return (
+    <TabsList aria-label="Public website sections" as="nav" className="ticketing-tabs">
+      <TabsTrigger value="pages">Pages</TabsTrigger>
+      <TabsTrigger value="appearance">Appearance</TabsTrigger>
+      <TabsTrigger value="navigation">Labels &amp; navigation</TabsTrigger>
+      {canManageTracking ? <TabsTrigger value="tracking">Tracking</TabsTrigger> : null}
+      <TabsTrigger value="footer">Footer</TabsTrigger>
+      <TabsTrigger value="documents">Documents</TabsTrigger>
+    </TabsList>
+  );
+}
+
+export function PublicWebsiteManager({
+  enabled,
+  canManageTracking = true,
+}: {
+  readonly enabled: boolean;
+  readonly canManageTracking?: boolean;
+}) {
   const { confirm, confirmationDialog } = useConfirmation();
   const coordinator = useOptionalSaveCoordinator();
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
@@ -461,8 +480,12 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     const logoFileSnapshot = logoFile;
     try {
       const [heroUpload, logoUpload] = await Promise.all([
-        heroFileSnapshot ? uploadPrivateOrganizationFile(heroFileSnapshot) : null,
-        logoFileSnapshot ? uploadPrivateOrganizationFile(logoFileSnapshot) : null,
+        heroFileSnapshot
+          ? uploadPrivateOrganizationFile(heroFileSnapshot, heroFileSnapshot.name, "website")
+          : null,
+        logoFileSnapshot
+          ? uploadPrivateOrganizationFile(logoFileSnapshot, logoFileSnapshot.name, "website")
+          : null,
       ]);
       if (heroUpload) uploadedIds.push(heroUpload.id);
       if (logoUpload) uploadedIds.push(logoUpload.id);
@@ -480,9 +503,9 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
           fileId !== saved.logoFileId &&
           !retainedImageIds.has(fileId),
       );
-      await Promise.all(oldIds.map((fileId) => deletePrivateOrganizationFile(fileId))).catch(
-        () => undefined,
-      );
+      await Promise.all(
+        oldIds.map((fileId) => deletePrivateOrganizationFile(fileId, "website")),
+      ).catch(() => undefined);
       setLoadState({ settings: saved, status: "ready" });
       if (draftRevisionRef.current === saveRevision) {
         setDraft(requestFrom(saved));
@@ -509,9 +532,9 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
         setSuccess("Draft saved; newer edits remain unsaved.");
       }
     } catch (failure: unknown) {
-      await Promise.all(uploadedIds.map((fileId) => deletePrivateOrganizationFile(fileId))).catch(
-        () => undefined,
-      );
+      await Promise.all(
+        uploadedIds.map((fileId) => deletePrivateOrganizationFile(fileId, "website")),
+      ).catch(() => undefined);
       setError(errorMessage(failure));
       return false;
     } finally {
@@ -650,14 +673,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
       />
 
       <Tabs onValueChange={handleTabChange} value={activeTab}>
-        <TabsList aria-label="Public website sections" as="nav" className="ticketing-tabs">
-          <TabsTrigger value="pages">Pages</TabsTrigger>
-          <TabsTrigger value="appearance">Appearance</TabsTrigger>
-          <TabsTrigger value="navigation">Labels &amp; navigation</TabsTrigger>
-          <TabsTrigger value="tracking">Tracking</TabsTrigger>
-          <TabsTrigger value="footer">Footer</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-        </TabsList>
+        <WebsiteEditorTabList canManageTracking={canManageTracking} />
 
         {!isDocumentsTab ? (
           <WebsiteEditorViewToggle
@@ -736,41 +752,43 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
               />
             </TabsContent>
 
-            <TabsContent value="tracking">
-              <section className="surface-card">
-                <h2>Google Ads tracking</h2>
-                <label className="field">
-                  <span>Google Ads tag ID</span>
-                  <input
-                    disabled={busy}
-                    value={draft.googleAdsTagId ?? ""}
-                    placeholder="AW-123456789"
-                    maxLength={32}
-                    onChange={(event) => {
-                      change("googleAdsTagId", event.target.value);
-                    }}
-                    aria-describedby="google-ads-help"
-                  />
-                </label>
-                <label className="field">
-                  <span>Ticket purchase conversion label (optional)</span>
-                  <input
-                    disabled={busy}
-                    value={draft.googleAdsConversionLabel ?? ""}
-                    maxLength={100}
-                    onChange={(event) => {
-                      change("googleAdsConversionLabel", event.target.value);
-                    }}
-                  />
-                </label>
-                <p id="google-ads-help">
-                  Enter your AW- ID, then save and publish to enable Google Ads on public website
-                  pages and ticket pages. Leave blank and publish to disable. Add a conversion label
-                  to report confirmed ticket purchases, including bundles. Preview, account, and
-                  recovery pages are excluded.
-                </p>
-              </section>
-            </TabsContent>
+            {canManageTracking ? (
+              <TabsContent value="tracking">
+                <section className="surface-card">
+                  <h2>Google Ads tracking</h2>
+                  <label className="field">
+                    <span>Google Ads tag ID</span>
+                    <input
+                      disabled={busy}
+                      value={draft.googleAdsTagId ?? ""}
+                      placeholder="AW-123456789"
+                      maxLength={32}
+                      onChange={(event) => {
+                        change("googleAdsTagId", event.target.value);
+                      }}
+                      aria-describedby="google-ads-help"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Ticket purchase conversion label (optional)</span>
+                    <input
+                      disabled={busy}
+                      value={draft.googleAdsConversionLabel ?? ""}
+                      maxLength={100}
+                      onChange={(event) => {
+                        change("googleAdsConversionLabel", event.target.value);
+                      }}
+                    />
+                  </label>
+                  <p id="google-ads-help">
+                    Enter your AW- ID, then save and publish to enable Google Ads on public website
+                    pages and ticket pages. Leave blank and publish to disable. Add a conversion
+                    label to report confirmed ticket purchases, including bundles. Preview, account,
+                    and recovery pages are excluded.
+                  </p>
+                </section>
+              </TabsContent>
+            ) : null}
             <TabsContent value="footer">
               <FooterTabContent busy={busy} draft={draft} onChange={change} />
             </TabsContent>

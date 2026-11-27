@@ -47,7 +47,9 @@ async function invitationProfileMatchStatus(
   organizationId: string,
   email: string,
   userId: string,
+  role?: string | null,
 ): Promise<{ readonly profileId: string | null; readonly status: InvitationProfileMatchStatus }> {
+  if (role === "website_editor") return { profileId: null, status: "no_match" };
   const existingMembership = await env.CONTROL_DB.prepare(
     `SELECT profileId FROM member WHERE organizationId = ? AND userId = ? LIMIT 1`,
   )
@@ -511,6 +513,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         organizationId,
         invitationRow.email,
         session.user.id,
+        invitationRow.role,
       );
       const response: OrganizationInvitationDetails = {
         email: invitationRow.email,
@@ -556,6 +559,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       organizationId,
       invitation.email,
       session.user.id,
+      role,
     );
     const response: OrganizationInvitationDetails = {
       email: invitation.email,
@@ -660,6 +664,29 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         organizationId,
         requestId: context.get("requestId"),
       });
+    }
+
+    if (invitation.role === "website_editor") {
+      const membership = await context.env.CONTROL_DB.prepare(
+        "SELECT id FROM member WHERE organizationId = ? AND userId = ? AND role = 'website_editor' LIMIT 1",
+      )
+        .bind(organizationId, session.user.id)
+        .first();
+      if (!membership) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "Website Editor access is unavailable.",
+            requestId: context.get("requestId"),
+          },
+          404,
+        );
+      }
+      return context.json({
+        id: invitationId,
+        requestId: context.get("requestId"),
+        status: "accepted",
+      } satisfies OrganizationInvitationActionResponse);
     }
 
     let profileLinkStatus: "linked" | "no_match" | "review_required" | "pending" = "no_match";

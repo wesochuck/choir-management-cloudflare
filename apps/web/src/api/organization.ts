@@ -433,3 +433,12 @@ export async function completeComplianceTask(
   );
   return nonprofitComplianceSettingsResponseSchema.parse(await response.json());
 }
+export async function updateOrganizationWebsiteAccess(
+  membershipId: string,
+  enabled: boolean,
+): Promise<void> {
+  await request(`/api/organization/members/${encodeURIComponent(membershipId)}/website-access`, {
+    body: JSON.stringify({ enabled }),
+    method: "PUT",
+  });
+}

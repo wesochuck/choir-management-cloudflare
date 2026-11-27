@@ -64,6 +64,29 @@ function canOpenCommandPalette(selectedWorkspace: Workspace, access: AccessState
   );
 }
 
+function resolveWorkspacePermissions(
+  access: AccessState,
+  canManage: boolean,
+  platformAvailable: boolean,
+  selectedWorkspace: Workspace,
+) {
+  const websiteOnly = access.status === "ready" && access.context.websiteOnly === true;
+  const websiteEditor = access.status === "ready" && access.context.websiteEditor === true;
+  const websiteNavigationOnly = websiteEditor && !canManage;
+  const workspaces = availableWorkspaces(canManage || websiteEditor, platformAvailable);
+  return {
+    websiteNavigationOnly,
+    memberEnabled: !websiteOnly && isOrganizationAccessEnabled(access),
+    workspaceOptions: websiteOnly
+      ? workspaces.filter((workspace) => workspace !== "member")
+      : workspaces,
+    canAccessPalette:
+      !websiteOnly &&
+      !(websiteNavigationOnly && selectedWorkspace === "organization") &&
+      canOpenCommandPalette(selectedWorkspace, access),
+  };
+}
+
 function resolveEffectiveAccess(access: AccessState, modules: readonly ModuleState[]): AccessState {
   return access.status === "ready" || access.status === "platform-scoped"
     ? { ...access, modules }
@@ -481,7 +504,8 @@ export function useOrganizationShellBootstrap({
 
   const scopedPlatformOverview = useMemo(() => isScopedPlatformOverview(access), [access]);
   const canManage = canManageOrganization(access, scopedPlatformOverview);
-  const memberEnabled = isOrganizationAccessEnabled(access);
+  const { websiteNavigationOnly, memberEnabled, workspaceOptions, canAccessPalette } =
+    resolveWorkspacePermissions(access, canManage, platformAvailable, selectedWorkspace);
   const modules = moduleController.snapshot.modules;
   const terminology = useMemo(
     () => normalizeOrganizationTerminology(organizationPerformerLabel, rosterStructure),
@@ -496,18 +520,20 @@ export function useOrganizationShellBootstrap({
     }),
     [terminology, modules, moduleController.snapshot.status, scopedPlatformOverview],
   );
-  const visibleOrganizationGroups = useMemo(
-    () => getOrganizationSidebarGroups(featureContext),
-    [featureContext],
-  );
+  const visibleOrganizationGroups = useMemo(() => {
+    const groups = getOrganizationSidebarGroups(featureContext);
+    if (!websiteNavigationOnly) return groups;
+    return groups.flatMap((group) => {
+      const items = group.items.filter((item) => item.href === "/admin/website");
+      return items.length ? [{ ...group, items }] : [];
+    });
+  }, [featureContext, websiteNavigationOnly]);
   const effectiveAccess = useMemo(() => resolveEffectiveAccess(access, modules), [access, modules]);
   const visibleMemberGroups = useMemo(
     () => visibleMemberNavigationGroups(moduleController.snapshot.status, modules),
     [moduleController.snapshot.status, modules],
   );
 
-  const workspaceOptions = availableWorkspaces(canManage, platformAvailable);
-  const canAccessPalette = canOpenCommandPalette(selectedWorkspace, access);
   const organizationName = organizationDisplayName(access, currentSession);
   const activeOrgName = resolveActiveOrgName(branding, access);
 

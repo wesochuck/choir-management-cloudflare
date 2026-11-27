@@ -9,6 +9,7 @@ export const accountOrganizationSchema = z.object({
   profileId: z.uuid().nullable(),
   role: z.enum(["owner", "administrator", "member"]),
   slug: z.string().min(1).max(63),
+  websiteOnly: z.boolean().optional(),
 });
 
 export const accountOrganizationsResponseSchema = z.object({
@@ -158,6 +159,8 @@ export const organizationAuthStatusResponseSchema = z.preprocess(
     role: z.enum(["owner", "administrator", "member"]),
     twoFactorEnabled: z.boolean(),
     twoFactorVerified: z.boolean(),
+    websiteEditor: z.boolean().optional(),
+    websiteOnly: z.boolean().optional(),
   }),
 );
 
@@ -181,10 +184,13 @@ export type OrganizationMfaVerificationResponse = z.infer<
 >;
 
 export const organizationInvitationRoleSchema = z.enum(["owner", "administrator", "member"]);
+const invitedOrganizationRoleSchema = organizationInvitationRoleSchema.or(
+  z.literal("website_editor"),
+);
 
 export const organizationInvitationRequestSchema = z.object({
   email: z.email().max(320),
-  role: organizationInvitationRoleSchema,
+  role: invitedOrganizationRoleSchema,
 });
 
 export const organizationInvitationResponseSchema = z.object({
@@ -207,7 +213,7 @@ export const organizationInvitationDetailsSchema = z.object({
     .enum(["will_link", "no_match", "review_required"])
     .optional()
     .default("no_match"),
-  role: organizationInvitationRoleSchema,
+  role: invitedOrganizationRoleSchema,
   status: z.enum(["accepted", "pending"]),
 });
 
@@ -216,7 +222,7 @@ export const organizationInvitationSummarySchema = z.object({
   email: z.email(),
   expiresAt: z.iso.datetime(),
   id: z.string().min(1).max(128),
-  role: organizationInvitationRoleSchema,
+  role: invitedOrganizationRoleSchema,
   status: z.literal("pending"),
 });
 
@@ -260,6 +266,8 @@ export const organizationMembershipSummarySchema = z.object({
   profileId: z.uuid().nullable(),
   role: organizationInvitationRoleSchema,
   userId: z.string().min(1).max(128).optional(),
+  websiteEditor: z.boolean().optional(),
+  websiteOnly: z.boolean().optional(),
 });
 
 export const organizationMembershipsResponseSchema = z.object({

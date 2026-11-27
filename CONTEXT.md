@@ -62,6 +62,12 @@ status, Section or Part assignment, section leadership, and notification respons
 profile attributes rather than Organization Membership roles, and a profile may exist without login
 access. _Avoid_: Singer as an authorization role
 
+## Website Editor
+
+Organization-scoped access to edit and publish the public website and manage its public documents.
+An existing Organization Member can hold this grant alongside their member access. A website-only
+invitation creates a Membership dedicated to website editing, independent of the roster.
+
 ## Organization Member Dashboard
 
 The member-facing home for an Organization Membership, combining the next relevant events with

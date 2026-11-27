@@ -248,7 +248,7 @@ export function useShellNavigationChrome({
         } catch {
           // Restricted storage should not prevent switching workspaces.
         }
-        void navigate(workspaceHome(next));
+        void navigate(workspaceEntry(next));
         setMobileNavOpen(false);
       },
       reason: "workspace-switch",
@@ -355,7 +355,17 @@ export function useShellNavigationChrome({
     visibleOrganizationGroups,
     visibleMemberGroups,
   );
-  const selectedWorkspaceHome = workspaceHome(selectedWorkspace);
+  function workspaceEntry(workspace: Workspace): string {
+    if (
+      workspace === "organization" &&
+      access.status === "ready" &&
+      access.context.role === "member" &&
+      access.context.websiteEditor
+    )
+      return "/admin/website";
+    return workspaceHome(workspace);
+  }
+  const selectedWorkspaceHome = workspaceEntry(selectedWorkspace);
 
   useEffect(() => {
     const org =

@@ -7,7 +7,7 @@ import {
   type OrganizationProfile,
 } from "@choir/contracts";
 import { allowedRoleOptionsForActor } from "@choir/domain";
-import { Dialog, DialogClose } from "@choir/ui";
+import { Dialog, DialogClose, useConfirmation } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import {
@@ -19,6 +19,7 @@ import {
   updateOrganizationMemberRole,
 } from "../auth/api";
 import { createOrganizationProfile } from "../api/profiles";
+import { updateOrganizationWebsiteAccess } from "../api/organization";
 import { ResolveDuplicateDialog } from "./ResolveDuplicateDialog";
 
 function roleLabel(role: OrganizationInvitationRole): string {
@@ -236,6 +237,78 @@ function ChangeMemberRoleDialog({
   );
 }
 
+function MembershipProfileActions({
+  membership,
+  profiles,
+  profileMembership,
+  selectedProfile,
+  busyMembershipId,
+  onSelectedProfile,
+  onLink,
+}: {
+  readonly membership: OrganizationMembershipSummary;
+  readonly profiles: readonly OrganizationProfile[];
+  readonly profileMembership: ReadonlyMap<string, string>;
+  readonly selectedProfile: string | undefined;
+  readonly busyMembershipId: string | null;
+  readonly onSelectedProfile: (membershipId: string, profileId: string) => void;
+  readonly onLink: (membership: OrganizationMembershipSummary) => void;
+}) {
+  if (membership.websiteOnly) return null;
+  return (
+    <>
+      <label className="field">
+        Organization Profile
+        <select
+          value={selectedProfile ?? ""}
+          onChange={(event) => {
+            onSelectedProfile(membership.id, event.target.value);
+          }}
+        >
+          <option value="">Choose a Profile</option>
+          {profiles.map((profile) => {
+            const linkedMembershipId = profileMembership.get(profile.id);
+            return (
+              <option
+                disabled={linkedMembershipId !== undefined && linkedMembershipId !== membership.id}
+                key={profile.id}
+                value={profile.id}
+              >
+                {profile.displayName}
+                {linkedMembershipId === membership.id ? " (linked)" : ""}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+      <button
+        className="button button--secondary button--control-height"
+        disabled={
+          busyMembershipId !== null || !selectedProfile || selectedProfile === membership.profileId
+        }
+        onClick={() => {
+          onLink(membership);
+        }}
+        type="button"
+      >
+        {busyMembershipId === membership.id ? "Linking…" : "Link Profile"}
+      </button>
+    </>
+  );
+}
+
+function MembershipRole({ membership }: { readonly membership: OrganizationMembershipSummary }) {
+  if (membership.websiteOnly) return <p>Website Editor</p>;
+  return (
+    <>
+      <p>{roleLabel(membership.role)}</p>
+      {membership.websiteEditor && membership.role === "member" ? (
+        <p>Website Editor access</p>
+      ) : null}
+    </>
+  );
+}
+
 function MembershipProfileLinkList({
   actorRole,
   busyMembershipId,
@@ -246,6 +319,7 @@ function MembershipProfileLinkList({
   onOpenResolveDuplicate,
   onOpenRoleChange,
   onSelectedProfile,
+  onWebsiteAccess,
   selectedProfiles,
   state,
 }: {
@@ -258,6 +332,7 @@ function MembershipProfileLinkList({
   readonly onOpenResolveDuplicate?: (membership: OrganizationMembershipSummary) => void;
   readonly onOpenRoleChange: (membership: OrganizationMembershipSummary) => void;
   readonly onSelectedProfile: (membershipId: string, profileId: string) => void;
+  readonly onWebsiteAccess: (membership: OrganizationMembershipSummary) => void;
   readonly selectedProfiles: Readonly<Record<string, string>>;
   readonly state: Extract<MembershipLinkState, { status: "ready" }>;
 }) {
@@ -302,14 +377,14 @@ function MembershipProfileLinkList({
         {state.memberships.map((membership) => {
           const isSelf = isSelfMembership(membership, currentUserId, currentUserEmail);
           const allowedOptions = allowedRoleOptionsForActor(actorRole, membership.role, isSelf);
-          const canChangeRole = allowedOptions.length > 0;
+          const canChangeRole = !membership.websiteOnly && allowedOptions.length > 0;
 
           return (
             <li aria-label={`Membership: ${membership.email}`} key={membership.id}>
               <div>
                 <h4>{membership.name}</h4>
                 <p>{membership.email}</p>
-                <p>{roleLabel(membership.role)}</p>
+                <MembershipRole membership={membership} />
               </div>
               <div className="form-actions">
                 {canChangeRole ? (
@@ -353,46 +428,27 @@ function MembershipProfileLinkList({
                     {busyMembershipId === membership.id ? "Creating…" : "Create and link"}
                   </button>
                 ) : null}
-                <label className="field">
-                  Organization Profile
-                  <select
-                    value={selectedProfiles[membership.id] ?? ""}
-                    onChange={(event) => {
-                      onSelectedProfile(membership.id, event.target.value);
+                {membership.role === "member" ? (
+                  <button
+                    className="button button--secondary button--control-height"
+                    disabled={busyMembershipId !== null}
+                    onClick={() => {
+                      onWebsiteAccess(membership);
                     }}
+                    type="button"
                   >
-                    <option value="">Choose a Profile</option>
-                    {state.profiles.map((profile) => {
-                      const linkedMembershipId = profileMembership.get(profile.id);
-                      return (
-                        <option
-                          disabled={
-                            linkedMembershipId !== undefined && linkedMembershipId !== membership.id
-                          }
-                          key={profile.id}
-                          value={profile.id}
-                        >
-                          {profile.displayName}
-                          {linkedMembershipId === membership.id ? " (linked)" : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </label>
-                <button
-                  className="button button--secondary button--control-height"
-                  disabled={
-                    busyMembershipId !== null ||
-                    !selectedProfiles[membership.id] ||
-                    selectedProfiles[membership.id] === membership.profileId
-                  }
-                  onClick={() => {
-                    onLink(membership);
-                  }}
-                  type="button"
-                >
-                  {busyMembershipId === membership.id ? "Linking…" : "Link Profile"}
-                </button>
+                    {membership.websiteEditor ? "Remove website access" : "Grant website access"}
+                  </button>
+                ) : null}
+                <MembershipProfileActions
+                  membership={membership}
+                  profiles={state.profiles}
+                  profileMembership={profileMembership}
+                  selectedProfile={selectedProfiles[membership.id]}
+                  busyMembershipId={busyMembershipId}
+                  onSelectedProfile={onSelectedProfile}
+                  onLink={onLink}
+                />
               </div>
             </li>
           );
@@ -423,6 +479,32 @@ export function MembershipProfileLinks({
   const [resolveDuplicateMembership, setResolveDuplicateMembership] =
     useState<OrganizationMembershipSummary | null>(null);
   const mfaBlocked = context.mfaRequired && !context.mfaSatisfied;
+  const { confirm, confirmationDialog } = useConfirmation();
+
+  async function changeWebsiteAccess(membership: OrganizationMembershipSummary) {
+    const enabled = membership.websiteEditor !== true;
+    if (
+      membership.websiteOnly &&
+      !(await confirm({
+        title: `Remove website access for ${membership.name}?`,
+        description: "This removes their website-only Organization Membership.",
+        confirmLabel: "Remove access",
+        destructive: true,
+      }))
+    )
+      return;
+    setBusyMembershipId(membership.id);
+    setMessage(null);
+    try {
+      await updateOrganizationWebsiteAccess(membership.id, enabled);
+      await reloadMembershipLinks();
+      setMessage(enabled ? "Website Editor access granted." : "Website Editor access removed.");
+    } catch {
+      setMessage("Website Editor access could not be updated.");
+    } finally {
+      setBusyMembershipId(null);
+    }
+  }
 
   async function reloadMembershipLinks() {
     try {
@@ -594,6 +676,7 @@ export function MembershipProfileLinks({
       {message ? <p role="status">{message}</p> : null}
       {state.status === "ready" ? (
         <>
+          {confirmationDialog}
           <MembershipProfileLinkList
             actorRole={context.role}
             busyMembershipId={busyMembershipId}
@@ -614,6 +697,7 @@ export function MembershipProfileLinks({
             onSelectedProfile={(membershipId, profileId) => {
               setSelectedProfiles((current) => ({ ...current, [membershipId]: profileId }));
             }}
+            onWebsiteAccess={(membership) => void changeWebsiteAccess(membership)}
             selectedProfiles={selectedProfiles}
             state={state}
           />

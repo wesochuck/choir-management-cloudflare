@@ -357,6 +357,7 @@ export type CalendarAuthorization =
       readonly email: string;
       readonly sessionId?: string | undefined;
       readonly userId: string;
+      readonly websiteOnly?: boolean | undefined;
     }
   | {
       readonly code: string;
@@ -441,6 +442,7 @@ export function auditionSettingsStoreMessage(code: string, status: number): stri
 export async function authorizeCalendarRoute(
   context: Context<WorkerHonoEnvironment>,
   managerOnly: boolean,
+  scope?: "shell" | "website",
 ): Promise<CalendarAuthorization> {
   validateStartupConfig(context.env);
   const requestUrl = new URL(context.req.url);
@@ -466,6 +468,7 @@ export async function authorizeCalendarRoute(
     organizationId,
     session?.session.id,
     session?.user.id,
+    scope ? { scope } : undefined,
   );
   if (!authorization.ok) {
     return {
@@ -490,6 +493,7 @@ export async function authorizeCalendarRoute(
     role: authorization.value.role,
     sessionId: session?.session.id,
     userId: authorization.value.userId,
+    ...(authorization.value.websiteOnly ? { websiteOnly: true } : {}),
   };
 }
 

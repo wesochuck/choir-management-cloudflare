@@ -4,8 +4,11 @@ import {
   organizationInvitationsResponseSchema,
   organizationInvitationResponseSchema,
   organizationProfileResponseSchema,
+  publicWebsiteDocumentResponseSchema,
+  publicWebsiteSettingsResponseSchema,
 } from "@choir/contracts";
 import { runInDurableObject } from "cloudflare:test";
+import { organizationRequest } from "@choir/testkit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   setupAuthIntegration,
@@ -32,6 +35,146 @@ async function seedInvitationOrganizations(): Promise<void> {
 }
 
 describe("Organization invitations", () => {
+  it("invites a website-only editor and confines uploads, edits, and publication to the website", async () => {
+    await seedInvitedUser();
+    await seedInvitationOrganizations();
+    const adminCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    const email = "external.website.editor@example.test";
+    const call = (
+      path: string,
+      cookie: string,
+      method = "GET",
+      body?: unknown,
+      origin = ALPHA_AUTH_ORIGIN,
+    ) =>
+      fetchWorker(
+        authRequest(
+          path,
+          {
+            headers: { cookie },
+            method,
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          },
+          origin,
+        ),
+      );
+    const invited = await call("/api/organization/invitations", adminCookie, "POST", {
+      email,
+      role: "website_editor",
+    });
+    expect(invited.status).toBe(201);
+    const { id } = organizationInvitationResponseSchema.parse(await invited.json());
+    const cookie = await signInEmail(email, ALPHA_AUTH_ORIGIN);
+    expect((await call(`/api/organization/invitations/${id}/accept`, cookie, "POST")).status).toBe(
+      200,
+    );
+    const membership = await testEnv.CONTROL_DB.prepare(
+      "SELECT m.id, m.role, m.profileId FROM member m JOIN user u ON u.id = m.userId WHERE u.email = ?",
+    )
+      .bind(email)
+      .first<{ id: string; role: string; profileId: string | null }>();
+    expect(membership).toMatchObject({ role: "website_editor", profileId: null });
+    if (!membership) throw new Error("Website Editor Membership was not created");
+    const status = await call("/api/organization/auth-status", cookie);
+    expect(await status.json()).toMatchObject({ websiteEditor: true, websiteOnly: true });
+    const setMfa = (required: boolean) =>
+      testEnv.CONTROL_DB.prepare("UPDATE organizations SET mfa_required = ? WHERE id = ?")
+        .bind(required ? 1 : 0, "organization-alpha")
+        .run();
+    await setMfa(true);
+    expect((await call("/api/organization/website", cookie)).status).toBe(401);
+    await setMfa(false);
+    for (const path of [
+      "/api/organization/events",
+      "/api/organization/invitations",
+      "/api/organization/members",
+    ]) {
+      expect((await call(path, cookie)).status, path).toBe(403);
+    }
+    expect(
+      (await call("/api/organization/website", cookie, "GET", undefined, "http://bravo.localhost"))
+        .status,
+    ).toBe(403);
+    const website = await call("/api/organization/website", cookie);
+    expect(website.status).toBe(200);
+    const settings = publicWebsiteSettingsResponseSchema.parse(await website.json());
+    const draft = {
+      ...settings,
+      expectedDraftRevision: settings.draftRevision,
+      heroHeadline: "Updated website",
+    };
+    expect(
+      (
+        await call("/api/organization/website", cookie, "PUT", {
+          ...draft,
+          googleAdsTagId: "AW-123456789",
+        })
+      ).status,
+    ).toBe(403);
+    expect((await call("/api/organization/website", cookie, "PUT", draft)).status).toBe(200);
+    expect((await call("/api/organization/website/publish", cookie, "POST")).status).toBe(200);
+
+    const upload = (fileId: string, session: string, scope = "") => {
+      const bytes = new TextEncoder().encode("%PDF-1.4 website editor test");
+      return fetchWorker(
+        organizationRequest(
+          "alpha.localhost",
+          `/api/organization/files/${fileId}${scope}`,
+          session,
+          {
+            body: bytes,
+            headers: {
+              "content-length": String(bytes.length),
+              "content-type": "application/pdf",
+              "x-file-name": "program.pdf",
+            },
+            method: "PUT",
+          },
+        ),
+      );
+    };
+    const privateFileId = crypto.randomUUID();
+    const websiteFileId = crypto.randomUUID();
+    expect((await upload(privateFileId, adminCookie)).status).toBe(201);
+    expect((await upload(websiteFileId, cookie)).status).toBe(403);
+    expect((await call(`/api/organization/files/${privateFileId}`, cookie)).status).toBe(404);
+    expect(
+      (
+        await call("/api/organization/website/documents", cookie, "POST", {
+          fileId: privateFileId,
+          title: "Private file",
+        })
+      ).status,
+    ).toBe(404);
+    expect((await upload(websiteFileId, cookie, "?scope=website")).status).toBe(201);
+    const document = await call("/api/organization/website/documents", cookie, "POST", {
+      fileId: websiteFileId,
+      title: "Concert program",
+    });
+    expect(document.status).toBe(201);
+    const { id: documentId } = publicWebsiteDocumentResponseSchema.parse(await document.json());
+    const documentPath = `/api/organization/website/documents/${documentId}`;
+    const replacementFile = crypto.randomUUID();
+    expect((await upload(replacementFile, cookie, "?scope=website")).status).toBe(201);
+    const update = await call(documentPath, cookie, "PUT", {
+      fileId: replacementFile,
+      title: "Updated program",
+    });
+    expect(update.status).toBe(200);
+    expect(publicWebsiteDocumentResponseSchema.parse(await update.json())).toMatchObject({
+      fileId: replacementFile,
+      title: "Updated program",
+    });
+    expect((await call(documentPath, cookie, "DELETE")).status).toBe(200);
+    const accessPath = `/api/organization/members/${membership.id}/website-access`;
+    expect((await call(accessPath, cookie, "PUT", { enabled: true })).status).toBe(403);
+    expect((await call(accessPath, adminCookie, "PUT", { enabled: false })).status).toBe(200);
+    expect((await call("/api/organization/website", cookie)).status).toBe(403);
+    expect((await call(`/api/organization/invitations/${id}/accept`, cookie, "POST")).status).toBe(
+      404,
+    );
+  });
+
   it("excludes expired invitations before pagination for ISO and numeric dates", async () => {
     await seedInvitedUser();
     await seedInvitationOrganizations();
@@ -213,6 +356,34 @@ describe("Organization invitations", () => {
         .bind("organization-alpha", pendingUser?.id)
         .first(),
     ).resolves.toEqual({ role: "member" });
+    const membership = await testEnv.CONTROL_DB.prepare(
+      "SELECT id FROM member WHERE organizationId = ? AND userId = ?",
+    )
+      .bind("organization-alpha", pendingUser?.id)
+      .first<{ id: string }>();
+    if (!membership) throw new Error("Member Membership was not created");
+    const get = (path: string) =>
+      fetchWorker(authRequest(path, { headers: { cookie: invitedCookie } }, ALPHA_AUTH_ORIGIN));
+    const grant = (enabled: boolean) =>
+      fetchWorker(
+        authRequest(
+          `/api/organization/members/${membership.id}/website-access`,
+          { body: JSON.stringify({ enabled }), headers: { cookie: inviterCookie }, method: "PUT" },
+          ALPHA_AUTH_ORIGIN,
+        ),
+      );
+    expect((await get("/api/organization/website")).status).toBe(403);
+    expect((await grant(true)).status).toBe(200);
+    expect((await get("/api/organization/website")).status).toBe(200);
+    expect((await get("/api/organization/events")).status).toBe(200);
+    expect((await get("/api/organization/members")).status).toBe(403);
+    expect(await (await get("/api/organization/auth-status")).json()).toMatchObject({
+      role: "member",
+      websiteEditor: true,
+    });
+    expect((await grant(false)).status).toBe(200);
+    expect((await get("/api/organization/events")).status).toBe(200);
+    expect((await get("/api/organization/website")).status).toBe(403);
     await expect(
       testEnv.CONTROL_DB.prepare(
         `SELECT action FROM platform_audit_events

@@ -32,6 +32,7 @@ export function normalizeInvitationRole(
     case "admin":
       return "administrator";
     case "member":
+    case "website_editor":
     case "owner":
       return role;
     default:

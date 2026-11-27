@@ -36,7 +36,7 @@ interface AdministratorRecoveryIdentity {
   readonly createdUser: boolean;
   readonly email: string;
   readonly membershipId: string;
-  readonly upgradedMembership: boolean;
+  readonly previousRole: "admin" | "member" | "owner" | "website_editor" | null;
   readonly userId: string;
 }
 
@@ -172,7 +172,7 @@ async function recoverAdministratorIdentity(
     "SELECT id, role FROM member WHERE organizationId = ? AND userId = ? LIMIT 1",
   )
     .bind(organizationId, userId)
-    .first<{ id: string; role: "owner" | "admin" | "member" }>();
+    .first<{ id: string; role: AdministratorRecoveryIdentity["previousRole"] }>();
   const membershipId = existingMembership?.id ?? crypto.randomUUID();
   const statements = [
     context.env.CONTROL_DB.prepare(
@@ -204,7 +204,7 @@ async function recoverAdministratorIdentity(
     createdUser: existingUser === null,
     email: request.email,
     membershipId,
-    upgradedMembership: existingMembership?.role === "member",
+    previousRole: existingMembership?.role ?? null,
     userId,
   };
 }
@@ -241,11 +241,11 @@ async function createAdministratorRecoveryProfile(
             "DELETE FROM member WHERE id = ? AND organizationId = ? AND userId = ?",
           ).bind(identity.membershipId, organizationId, identity.userId),
         ]
-      : identity.upgradedMembership
+      : identity.previousRole
         ? [
             context.env.CONTROL_DB.prepare(
-              "UPDATE member SET role = 'member' WHERE id = ? AND organizationId = ? AND userId = ?",
-            ).bind(identity.membershipId, organizationId, identity.userId),
+              "UPDATE member SET role = ? WHERE id = ? AND organizationId = ? AND userId = ?",
+            ).bind(identity.previousRole, identity.membershipId, organizationId, identity.userId),
           ]
         : [];
     if (identity.createdUser)

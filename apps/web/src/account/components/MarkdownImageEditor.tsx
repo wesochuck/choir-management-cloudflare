@@ -21,7 +21,11 @@ function initialFields(initial: WebsiteContentImage | null, selectedText: string
   };
 }
 async function imageReference(file: File | null, initial: WebsiteContentImage | null) {
-  if (file) return { id: (await uploadPrivateOrganizationFile(file)).id, uploaded: true };
+  if (file)
+    return {
+      id: (await uploadPrivateOrganizationFile(file, file.name, "website")).id,
+      uploaded: true,
+    };
   if (initial) return { id: initial.fileId, uploaded: false };
   throw new Error("Choose an image first.");
 }
@@ -79,7 +83,8 @@ export function MarkdownImageEditor({
       const accepted =
         active.current &&
         onApply({ fileId: reference.id, alt: alt.trim(), caption: caption.trim() });
-      if (!accepted && reference.uploaded) await deletePrivateOrganizationFile(reference.id);
+      if (!accepted && reference.uploaded)
+        await deletePrivateOrganizationFile(reference.id, "website");
       if (active.current && !accepted) setError(changedTextError);
     } catch (failure: unknown) {
       if (active.current)

@@ -53,6 +53,7 @@ import {
   managePublicWebsiteOperationInStore,
   readPublicWebsiteSettingsFromStore,
   type publicWebsiteOperationSchema,
+  canWebsiteEditorReadFileFromStore,
 } from "./publicWebsiteStore";
 import {
   startLoudness,
@@ -276,6 +277,12 @@ export class OrganizationStore extends DurableObject {
     input: Parameters<typeof canMemberReadPrivateFileFromStore>[1],
   ): boolean {
     return canMemberReadPrivateFileFromStore(this.ctx.storage, input);
+  }
+
+  canWebsiteEditorReadFile(
+    input: Parameters<typeof canWebsiteEditorReadFileFromStore>[1],
+  ): boolean {
+    return canWebsiteEditorReadFileFromStore(this.ctx.storage, input);
   }
 
   readVerifiedOrganizationLogo(organizationId: string) {
@@ -986,6 +993,7 @@ export class OrganizationStore extends DurableObject {
     readonly organizationId: string;
     readonly requestId: string;
     readonly title: string;
+    readonly websiteEditorOnly?: boolean;
   }) {
     return createPublicWebsiteDocumentInStore(this.ctx.storage, input);
   }
@@ -997,6 +1005,7 @@ export class OrganizationStore extends DurableObject {
     readonly organizationId: string;
     readonly requestId: string;
     readonly title: string;
+    readonly websiteEditorOnly?: boolean;
   }) {
     return updatePublicWebsiteDocumentInStore(this.ctx.storage, input);
   }

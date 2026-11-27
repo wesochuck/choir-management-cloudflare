@@ -413,6 +413,16 @@ async function determineTenantLanding(
   return resolveMemberLanding(deps, authStatus, options, warmedModules);
 }
 
+function websiteEditorLanding(
+  auth: OrganizationAuthStatusResponse,
+  returnTo: string | null,
+): PostSignInLanding | null {
+  return auth.websiteOnly ||
+    (auth.websiteEditor && returnTo && pathOf(returnTo) === "/admin/website")
+    ? { kind: "navigate", path: "/admin/website" }
+    : null;
+}
+
 interface PlatformStatusMemo {
   readonly get: (signal?: AbortSignal) => Promise<PlatformMfaStatusResponse>;
   readonly current: () => PlatformMfaStatusResponse | null;
@@ -510,7 +520,8 @@ export async function resolvePostSignInResolution(
   }
   const { authStatus } = attempt;
   const [landing, modules] = await Promise.all([
-    determineTenantLanding(deps, options, authStatus, returnTo, settledModules),
+    websiteEditorLanding(authStatus, returnTo) ??
+      determineTenantLanding(deps, options, authStatus, returnTo, settledModules),
     settledModules ?? Promise.resolve(null),
   ]);
   const bootstrap = createPostSignInBootstrap(isTenantHost, options, authStatus, modules);

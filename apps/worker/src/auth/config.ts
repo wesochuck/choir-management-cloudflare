@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
 import { emailOTP, organization, twoFactor } from "better-auth/plugins";
 import { passkey } from "@better-auth/passkey";
+import { defaultAc, defaultRoles } from "better-auth/plugins/organization/access";
 
 import type { Env } from "../env";
 import {
@@ -206,6 +207,7 @@ export function createAuth(context: AuthRequestContext) {
         storeOTP: "hashed",
       }),
       organization({
+        roles: { ...defaultRoles, website_editor: defaultAc.newRole({}) },
         allowUserToCreateOrganization: false,
         cancelPendingInvitationsOnReInvite: true,
         disableOrganizationDeletion: true,

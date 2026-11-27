@@ -3,6 +3,47 @@ import { publicWebsiteSettingsResponseSchema } from "@choir/contracts";
 import { expect, test } from "@playwright/test";
 import { installOrganizationApi } from "./fixtures/apiMocks";
 
+for (const websiteOnly of [true, false]) {
+  test(`opens the Website Editor workspace with ${websiteOnly ? "website-only" : "existing member"} access`, async ({
+    page,
+  }) => {
+    const api = await installOrganizationApi(page, {
+      modules: websiteOnly ? ["public_website"] : ["public_website", "events", "roster"],
+      role: "member",
+    });
+    api.organization.authStatus.update({ websiteEditor: true, websiteOnly });
+    const settings = publicWebsiteSettingsResponseSchema.parse({
+      organizationName: "Example Chorus",
+      publicationVersion: 0,
+      draftRevision: 0,
+      publishedAt: null,
+      updatedAt: "2026-10-31T12:00:00Z",
+      requestId: "11111111-1111-4111-8111-111111111111",
+    });
+    await page.route("**/api/organization/website", (route) => route.fulfill({ json: settings }));
+    await page.route("**/api/organization/website/documents", (route) =>
+      route.fulfill({ json: { documents: [], requestId: settings.requestId } }),
+    );
+
+    await page.goto("/admin/website");
+    await expect(page.getByRole("tab", { name: "Pages", exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Tracking", exact: true })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Publish saved draft", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("tab", { name: "Documents", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Hosted documents" })).toBeVisible();
+    await page.goto("/admin/roster");
+    await expect(page.getByRole("heading", { name: /do not have access/ })).toBeVisible();
+    await page.goto("/schedule");
+    if (websiteOnly) {
+      await expect(page.getByRole("heading", { name: /do not have access/ })).toBeVisible();
+    } else {
+      await expect(page.getByRole("heading", { name: /my schedule/i })).toBeVisible();
+    }
+  });
+}
+
 for (const theme of ["light", "dark"] as const) {
   test(`creates, links, saves, and publishes a content page in ${theme}`, async ({
     page,

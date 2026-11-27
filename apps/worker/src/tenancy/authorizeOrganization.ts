@@ -13,6 +13,7 @@ interface BetterAuthMemberRow {
   readonly role: string;
   readonly sessionAssuranceMethod: string | null;
   readonly userId: string;
+  readonly websiteEditor: number;
 }
 
 export interface OrganizationAuthorizationContext {
@@ -22,6 +23,8 @@ export interface OrganizationAuthorizationContext {
   readonly profileLinked: boolean;
   readonly role: OrganizationRole;
   readonly userId: string;
+  readonly websiteEditor?: boolean;
+  readonly websiteOnly?: boolean;
 }
 
 export function authorizeOrganization(
@@ -47,6 +50,26 @@ function normalizeBetterAuthRole(role: string): OrganizationRole | null {
     default:
       return null;
   }
+}
+
+function scopedMemberRole(
+  row: BetterAuthMemberRow,
+  scope: "shell" | "website" | undefined,
+): DomainResult<Pick<OrganizationAuthorizationContext, "role" | "websiteEditor" | "websiteOnly">> {
+  if (row.role === "website_editor" && scope) {
+    return success({ role: "member", websiteEditor: true, websiteOnly: true });
+  }
+  const role = normalizeBetterAuthRole(row.role);
+  if (!role)
+    return failure(
+      "forbidden",
+      "This identity is not an active member of the requested Organization.",
+    );
+  if (row.websiteEditor === 1) return success({ role, websiteEditor: true });
+  if (scope === "website" && role === "member") {
+    return failure("forbidden", "Website Editor access is required.");
+  }
+  return success({ role });
 }
 
 export interface OrganizationAuthDatabase {
@@ -93,6 +116,7 @@ export async function authorizeOrganizationMember(
     readonly enforceMfa?: boolean;
     readonly now?: Date;
     readonly recordActivity?: boolean;
+    readonly scope?: "shell" | "website";
   } = {},
 ): Promise<DomainResult<OrganizationAuthorizationContext>> {
   if (!sessionId || !userId) {
@@ -101,7 +125,7 @@ export async function authorizeOrganizationMember(
 
   const row = await database
     .prepare(
-      `SELECT m.lastActiveAt, m.organizationId, m.profileId, m.role, m.userId,
+      `SELECT m.lastActiveAt, m.organizationId, m.profileId, m.role, m.userId, m.websiteEditor,
         o.mfa_required AS mfaRequired,
         oma.expires_at AS assertionExpiresAt,
         saa.method AS sessionAssuranceMethod
@@ -119,13 +143,14 @@ export async function authorizeOrganizationMember(
     )
     .bind(sessionId, sessionId, resolvedOrganizationId, userId)
     .first<BetterAuthMemberRow>();
-  const role = row ? normalizeBetterAuthRole(row.role) : null;
-  if (!row || !role) {
+  if (!row) {
     return failure(
       "forbidden",
       "This identity is not an active member of the requested Organization.",
     );
   }
+  const scopedRole = scopedMemberRole(row, options.scope);
+  if (!scopedRole.ok) return scopedRole;
   const mfaRequired = row.mfaRequired === 1;
   const nowTime = (options.now ?? new Date()).getTime();
   const mfaSatisfied =
@@ -140,8 +165,8 @@ export async function authorizeOrganizationMember(
     mfaRequired,
     organizationId: row.organizationId,
     profileLinked: Boolean(row.profileId),
-    role,
     userId: row.userId,
+    ...scopedRole.value,
   });
 
   if (result.ok) {

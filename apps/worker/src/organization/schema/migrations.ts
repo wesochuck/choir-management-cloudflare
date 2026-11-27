@@ -2633,6 +2633,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE profiles ADD COLUMN receive_all_communications INTEGER NOT NULL DEFAULT 0 CHECK (receive_all_communications IN (0, 1))",
     ],
   },
+  {
+    version: 150,
+    statements: [
+      "ALTER TABLE private_files ADD COLUMN website_upload INTEGER NOT NULL DEFAULT 0 CHECK (website_upload IN (0, 1))",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

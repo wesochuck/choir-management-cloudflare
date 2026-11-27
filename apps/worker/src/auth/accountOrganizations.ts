@@ -18,6 +18,8 @@ function normalizeRole(role: string): AccountOrganization["role"] | null {
     case "member":
     case "owner":
       return role;
+    case "website_editor":
+      return "member";
     default:
       return null;
   }
@@ -52,6 +54,8 @@ export async function listAccountOrganizations(
 
   return rows.results.flatMap((row) => {
     const role = normalizeRole(row.role);
-    return role ? [{ ...row, role }] : [];
+    return role
+      ? [{ ...row, role, ...(row.role === "website_editor" ? { websiteOnly: true } : {}) }]
+      : [];
   });
 }

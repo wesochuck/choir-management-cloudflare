@@ -19,12 +19,14 @@ export interface MobileWorkspaceChooserProps {
   readonly options: readonly Workspace[];
   readonly selected: Workspace;
   readonly onSwitch: (workspace: Workspace) => void;
+  readonly websiteEditor?: boolean;
 }
 
 export function MobileWorkspaceChooser({
   options,
   selected,
   onSwitch,
+  websiteEditor = false,
 }: MobileWorkspaceChooserProps) {
   const headingId = useId();
   const displayOrder: readonly Workspace[] = ["organization", "member", "account", "platform"];
@@ -49,9 +51,13 @@ export function MobileWorkspaceChooser({
                 iconId={workspaceDetails[workspace].icon}
               />
               <span className="mobile-workspace-chooser__copy">
-                <span className="mobile-workspace-chooser__label">{workspaceLabel(workspace)}</span>
+                <span className="mobile-workspace-chooser__label">
+                  {workspaceLabel(workspace, websiteEditor)}
+                </span>
                 <span className="mobile-workspace-chooser__description">
-                  {workspaceDetails[workspace].description}
+                  {workspace === "organization" && websiteEditor
+                    ? "Manage the public website"
+                    : workspaceDetails[workspace].description}
                 </span>
               </span>
               {workspace === selected ? (

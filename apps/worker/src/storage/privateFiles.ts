@@ -40,6 +40,7 @@ export const privateFileReservationSchema = z.object({
   organizationId: organizationIdSchema,
   requestId: z.uuid(),
   sizeBytes: z.number().int().positive().max(MAX_PRIVATE_FILE_BYTES),
+  websiteUpload: z.boolean().optional(),
 });
 
 export const privateFileTransitionSchema = z.object({
@@ -56,6 +57,7 @@ export const privateFileReclamationSchema = z.object({
   fileId: privateFileIdSchema,
   organizationId: organizationIdSchema,
   requestId: z.uuid(),
+  websiteEditorOnly: z.boolean().optional(),
 });
 
 const privateFileMetadataSchema = z.object({

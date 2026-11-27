@@ -140,7 +140,7 @@ describe("website image toolbar", () => {
     await user.click(dialog.getByRole("button", { name: "Insert image" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("page text changed");
     expect(onChange).not.toHaveBeenCalled();
-    expect(api.deletePrivateOrganizationFile).toHaveBeenCalledWith(fileId);
+    expect(api.deletePrivateOrganizationFile).toHaveBeenCalledWith(fileId, "website");
   });
   it("uses the current change callback when an upload finishes after other page fields changed", async () => {
     const user = userEvent.setup();

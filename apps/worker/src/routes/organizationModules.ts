@@ -9,7 +9,7 @@ import { authorizeCalendarRoute, authorizePlatformScopedRead } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/module-state", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, false);
+    const authorization = await authorizeCalendarRoute(context, false, "shell");
     // Module IDs/enabled flags are low-sensitivity layout metadata used by
     // both member and admin navigation. Verified Platform scoped reads may
     // also load it (issue #147).
@@ -25,7 +25,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     if (!organizationId) throw new Error("Authorized Organization ID is missing.");
     try {
       const modules = await getModuleState(context.env, organizationId);
-      return context.json({ modules });
+      return context.json({
+        modules:
+          authorization.ok && authorization.websiteOnly
+            ? modules.filter((module) => module.id === "public_website")
+            : modules,
+      });
     } catch {
       return context.json(
         {

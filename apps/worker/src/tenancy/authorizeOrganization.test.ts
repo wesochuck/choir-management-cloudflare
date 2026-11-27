@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
@@ -24,17 +24,11 @@ function createControlD1Harness(): {
   readonly raw: DatabaseSync;
 } {
   const raw = new DatabaseSync(":memory:");
-  for (const file of [
-    "0001_initial.sql",
-    "0002_better_auth.sql",
-    "0003_provisioning.sql",
-    "0004_organization_mfa.sql",
-    "0005_profile_link.sql",
-    "0008_integer_timestamps.sql",
-    "0018_passkey_authentication.sql",
-    "0026_member_last_active_at.sql",
-  ]) {
-    raw.exec(readFileSync(new URL(`../control/migrations/${file}`, import.meta.url), "utf8"));
+  const directory = new URL("../control/migrations/", import.meta.url);
+  for (const file of readdirSync(directory)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()) {
+    raw.exec(readFileSync(new URL(file, directory), "utf8"));
   }
 
   const database: OrganizationAuthDatabase = {

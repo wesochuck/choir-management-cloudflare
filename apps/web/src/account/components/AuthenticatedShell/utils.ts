@@ -132,10 +132,10 @@ export function workspaceForPath(pathname: string): Workspace {
   return "member";
 }
 
-export function workspaceLabel(workspace: Workspace): string {
+export function workspaceLabel(workspace: Workspace, websiteEditor = false): string {
   switch (workspace) {
     case "organization":
-      return "Organization Admin";
+      return websiteEditor ? "Website Editor" : "Organization Admin";
     case "platform":
       return "Platform Admin";
     case "account":

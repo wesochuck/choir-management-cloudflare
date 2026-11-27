@@ -1,3 +1,4 @@
+import { isOwnedWebsiteUpload } from "./websiteFileEligibility";
 import {
   publicDocumentContentTypeSchema,
   publicWebsiteDocumentSchema,
@@ -109,6 +110,7 @@ function assertOrganization(storage: DurableObjectStorage, organizationId: strin
 function validateFile(
   storage: DurableObjectStorage,
   fileId: string,
+  websiteUploader?: string,
 ): {
   readonly contentType: PublicDocumentContentType;
   readonly fileName: string;
@@ -122,7 +124,10 @@ function validateFile(
     .toArray()
     .at(0);
 
-  if (row?.status !== "ready") {
+  if (
+    row?.status !== "ready" ||
+    (websiteUploader && !isOwnedWebsiteUpload(storage, fileId, websiteUploader))
+  ) {
     throw new PublicDocumentStoreError(
       "document_file_not_found",
       "Backing private file was not found or is not ready.",
@@ -207,6 +212,7 @@ export function createPublicWebsiteDocumentInStore(
     readonly organizationId: string;
     readonly requestId: string;
     readonly title: string;
+    readonly websiteEditorOnly?: boolean;
   },
 ): PublicWebsiteDocument {
   assertOrganization(storage, input.organizationId);
@@ -236,7 +242,11 @@ export function createPublicWebsiteDocumentInStore(
       );
     }
 
-    const file = validateFile(storage, input.fileId);
+    const file = validateFile(
+      storage,
+      input.fileId,
+      input.websiteEditorOnly ? input.actorUserId : undefined,
+    );
 
     const base = publicDocumentSlugBase(cleanTitle);
     const slugSuffixRow = storage.sql
@@ -326,6 +336,7 @@ export function updatePublicWebsiteDocumentInStore(
     readonly organizationId: string;
     readonly requestId: string;
     readonly title: string;
+    readonly websiteEditorOnly?: boolean;
   },
 ): { readonly document: PublicWebsiteDocument; readonly previousFileId: string | null } {
   assertOrganization(storage, input.organizationId);
@@ -354,7 +365,11 @@ export function updatePublicWebsiteDocumentInStore(
       throw new PublicDocumentStoreError("document_not_found", "Public document not found.");
     }
 
-    const file = validateFile(storage, input.fileId);
+    const file = validateFile(
+      storage,
+      input.fileId,
+      input.websiteEditorOnly && existing.fileId !== input.fileId ? input.actorUserId : undefined,
+    );
     const now = new Date().toISOString();
     const previousFileId = existing.fileId !== input.fileId ? existing.fileId : null;
 

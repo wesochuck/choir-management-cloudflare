@@ -66,6 +66,10 @@ export const probePlan = new Map([
   ["POST /api/organization/rsvp-tokens", { expected: 400, kind: "validation" }],
   ["POST /api/organization/tickets/scan", { expected: 400, kind: "validation" }],
   ["PUT /api/organization/audition-settings", { expected: 400, kind: "validation" }],
+  [
+    "PUT /api/organization/members/:membershipId/website-access",
+    { expected: 400, kind: "validation" },
+  ],
   ["POST /api/public/audition-details", { expected: 400, kind: "validation" }],
   ["POST /api/public/audition-inquiry", { expected: 400, kind: "validation" }],
   ["POST /api/public/audition-submit", { expected: 400, kind: "validation" }],

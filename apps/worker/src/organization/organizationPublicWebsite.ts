@@ -47,7 +47,7 @@ const publicationCompleteSchema = z.object({
 
 export class PublicWebsiteError extends Error {
   constructor(
-    readonly status: 400 | 404 | 409 | 503,
+    readonly status: 400 | 403 | 404 | 409 | 503,
     message: string,
     readonly code = "public_website_error",
   ) {
@@ -103,40 +103,49 @@ function throwWebsiteImageError(code: string) {
   }
 }
 
+function throwWebsiteUpdateError(code: string) {
+  if (code === "website_editor_tracking_forbidden") {
+    throw new PublicWebsiteError(
+      403,
+      "Only Organization Owners and Administrators can change Tracking.",
+      code,
+    );
+  }
+  if (code === "website_draft_conflict" || code === "website_page_url_locked") {
+    throw new PublicWebsiteError(
+      409,
+      code === "website_draft_conflict"
+        ? "This draft changed in another tab. Your edits are preserved; reload to review the latest saved draft before saving again."
+        : "Saved page URLs cannot be changed.",
+      code,
+    );
+  }
+  if (code === "website_settings_too_large") {
+    throw new PublicWebsiteError(
+      400,
+      "Website settings, including compatible History content, must be 500,000 UTF-8 bytes or smaller.",
+      code,
+    );
+  }
+  throwWebsiteImageError(code);
+}
+
 export async function updateOrganizationPublicWebsiteSettings(
   env: Pick<Env, "ORGANIZATION_STORE">,
   context: WebsiteContext,
   settings: PublicWebsiteSettingsRequest,
+  websiteEditorOnly = false,
 ) {
   const validatedContext = contextSchema.parse(context);
   const validatedSettings = publicWebsiteSettingsRequestSchema.parse(settings);
   const response = await runWebsiteOperation(env, validatedContext, {
     action: "update",
     settings: validatedSettings,
+    websiteEditorOnly,
   });
   const responseBody: unknown = await response.json().catch(() => null);
   const problem = z.object({ code: z.string() }).safeParse(responseBody);
-  if (
-    !response.ok &&
-    problem.success &&
-    ["website_draft_conflict", "website_page_url_locked"].includes(problem.data.code)
-  ) {
-    throw new PublicWebsiteError(
-      409,
-      problem.data.code === "website_draft_conflict"
-        ? "This draft changed in another tab. Your edits are preserved; reload to review the latest saved draft before saving again."
-        : "Saved page URLs cannot be changed.",
-      problem.data.code,
-    );
-  }
-  if (!response.ok && problem.success && problem.data.code === "website_settings_too_large") {
-    throw new PublicWebsiteError(
-      400,
-      "Website settings, including compatible History content, must be 500,000 UTF-8 bytes or smaller.",
-      problem.data.code,
-    );
-  }
-  if (!response.ok && problem.success) throwWebsiteImageError(problem.data.code);
+  if (!response.ok && problem.success) throwWebsiteUpdateError(problem.data.code);
   const parsed = publicWebsiteSettingsSchema.safeParse(responseBody);
   if (!response.ok || !parsed.success) {
     throw new PublicWebsiteError(

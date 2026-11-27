@@ -140,7 +140,7 @@ export function PublicWebsiteDocumentsEditor() {
     let uploadedFileId: string | null = null;
     try {
       if (file) {
-        const uploaded = await uploadPrivateOrganizationFile(file);
+        const uploaded = await uploadPrivateOrganizationFile(file, file.name, "website");
         uploadedFileId = uploaded.id;
       }
 
@@ -170,7 +170,7 @@ export function PublicWebsiteDocumentsEditor() {
       closeDialog();
     } catch (failure: unknown) {
       if (uploadedFileId) {
-        void deletePrivateOrganizationFile(uploadedFileId).catch(() => undefined);
+        void deletePrivateOrganizationFile(uploadedFileId, "website").catch(() => undefined);
       }
       setDialogError(errorMessage(failure));
     } finally {

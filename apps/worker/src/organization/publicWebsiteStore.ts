@@ -10,6 +10,7 @@ import {
 import { z } from "zod";
 
 import { rosterConfigurationFromStore } from "./calendarManagementStore/shared";
+import { isOwnedWebsiteUpload } from "./websiteFileEligibility";
 
 const actorSchema = z.object({
   actorUserId: z.string().min(1).max(128),
@@ -21,6 +22,7 @@ export const publicWebsiteOperationSchema = z.discriminatedUnion("action", [
   actorSchema.extend({
     action: z.literal("update"),
     settings: publicWebsiteSettingsRequestSchema,
+    websiteEditorOnly: z.boolean().optional(),
   }),
   actorSchema.extend({
     action: z.literal("begin_publication"),
@@ -175,6 +177,20 @@ export function websiteContentImageIsReferenced(
 ): boolean {
   return websiteContentImageIds(parsedSettings(settingsRow(storage), "Organization")).includes(
     fileId,
+  );
+}
+
+export function canWebsiteEditorReadFileFromStore(
+  storage: DurableObjectStorage,
+  input: { readonly actorUserId: string; readonly fileId: string; readonly organizationId: string },
+): boolean {
+  if (identity(storage)?.organizationId !== input.organizationId) return false;
+  const row = settingsRow(storage);
+  return (
+    row.heroFileId === input.fileId ||
+    row.logoFileId === input.fileId ||
+    websiteContentImageIsReferenced(storage, input.fileId) ||
+    isOwnedWebsiteUpload(storage, input.fileId, input.actorUserId)
   );
 }
 
@@ -337,25 +353,54 @@ function validateContentImages(
   const ids = websiteContentImageIds(settings);
   if (ids.length > 50)
     return Response.json({ code: "website_image_limit_exceeded" }, { status: 409 });
-  for (const id of ids)
-    if (!validPublicImage(mediaFile(storage, id))) {
+  for (const id of [...ids, settings.heroFileId, settings.logoFileId])
+    if (id && !validPublicImage(mediaFile(storage, id))) {
       return Response.json({ code: "invalid_public_website_image" }, { status: 409 });
     }
   return null;
 }
 
+type WebsiteUpdate = Extract<
+  z.infer<typeof publicWebsiteOperationSchema>,
+  { readonly action: "update" }
+>;
+
+function validateWebsiteEditorUpdate(
+  storage: DurableObjectStorage,
+  operation: WebsiteUpdate,
+  current: ReturnType<typeof parsedSettings>,
+): Response | null {
+  if (!operation.websiteEditorOnly) return null;
+  if (
+    (operation.settings.googleAdsTagId ?? "") !== (current.googleAdsTagId ?? "") ||
+    (operation.settings.googleAdsConversionLabel ?? "") !== (current.googleAdsConversionLabel ?? "")
+  )
+    return Response.json({ code: "website_editor_tracking_forbidden" }, { status: 403 });
+  const prior = new Set([
+    current.heroFileId,
+    current.logoFileId,
+    ...websiteContentImageIds(current),
+  ]);
+  const next = [
+    operation.settings.heroFileId,
+    operation.settings.logoFileId,
+    ...websiteContentImageIds(operation.settings),
+  ];
+  if (
+    next.some(
+      (id) => id && !prior.has(id) && !isOwnedWebsiteUpload(storage, id, operation.actorUserId),
+    )
+  ) {
+    return Response.json({ code: "invalid_public_website_image" }, { status: 409 });
+  }
+  return null;
+}
+
 function updateSettings(
   storage: DurableObjectStorage,
-  operation: Extract<z.infer<typeof publicWebsiteOperationSchema>, { readonly action: "update" }>,
+  operation: WebsiteUpdate,
   organization: IdentityRow,
 ): Response {
-  const contentImageError = validateContentImages(storage, operation.settings);
-  if (contentImageError) return contentImageError;
-  for (const fileId of [operation.settings.heroFileId, operation.settings.logoFileId]) {
-    if (fileId && !validPublicImage(mediaFile(storage, fileId))) {
-      return Response.json({ code: "invalid_public_website_image" }, { status: 409 });
-    }
-  }
   const current = parsedSettings(settingsRow(storage), organization.name);
   if (
     (operation.settings.pages !== undefined &&
@@ -366,6 +411,10 @@ function updateSettings(
   ) {
     return Response.json({ code: "website_draft_conflict" }, { status: 409 });
   }
+  const editorError = validateWebsiteEditorUpdate(storage, operation, current);
+  if (editorError) return editorError;
+  const imageError = validateContentImages(storage, operation.settings);
+  if (imageError) return imageError;
   const pages = operation.settings.pages ?? normalizedPublicWebsitePages(operation.settings);
   const previousPages = new Map(
     normalizedPublicWebsitePages(current).map((page) => [page.id, page]),

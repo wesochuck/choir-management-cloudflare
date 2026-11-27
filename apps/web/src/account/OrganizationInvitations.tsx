@@ -1,7 +1,7 @@
 import {
   organizationInvitationRequestSchema,
   type OrganizationAuthStatusResponse,
-  type OrganizationInvitationRole,
+  type OrganizationInvitationRequest,
   type OrganizationInvitationSummary,
 } from "@choir/contracts";
 import { useEffect, useState } from "react";
@@ -22,7 +22,7 @@ function displayDate(value: string): string {
   );
 }
 
-function roleLabel(role: OrganizationInvitationRole): string {
+function roleLabel(role: OrganizationInvitationRequest["role"]): string {
   switch (role) {
     case "administrator":
       return "Organization Administrator";
@@ -30,11 +30,13 @@ function roleLabel(role: OrganizationInvitationRole): string {
       return "Organization Member";
     case "owner":
       return "Organization Owner";
+    case "website_editor":
+      return "Website Editor";
   }
 }
 
-function parseInvitationRole(value: string): OrganizationInvitationRole {
-  if (value === "owner" || value === "administrator") {
+function parseInvitationRole(value: string): OrganizationInvitationRequest["role"] {
+  if (value === "owner" || value === "administrator" || value === "website_editor") {
     return value;
   }
   return "member";
@@ -161,7 +163,7 @@ export function OrganizationInvitations({
   const [invitations, setInvitations] = useState<readonly OrganizationInvitationSummary[]>([]);
   const [listError, setListError] = useState(false);
   const [listLoading, setListLoading] = useState(true);
-  const [role, setRole] = useState<"administrator" | "member" | "owner">("member");
+  const [role, setRole] = useState<OrganizationInvitationRequest["role"]>("member");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);
   const mfaBlocked = context.mfaRequired && !context.mfaSatisfied;
@@ -323,6 +325,7 @@ export function OrganizationInvitations({
                 value={role}
               >
                 <option value="member">Organization Member</option>
+                <option value="website_editor">Website Editor (website only)</option>
                 <option value="administrator">Organization Administrator</option>
                 {context.role === "owner" ? (
                   <option value="owner">Organization Owner</option>
@@ -330,10 +333,11 @@ export function OrganizationInvitations({
               </select>
               <p className="field-help" id="organization-invitation-role-help">
                 These are Organization Membership roles, not Profile roles. Members can use
-                member-facing features. Administrators can manage the Organization&apos;s
-                operational data, Profiles, Memberships, and invitations. Owners have Administrator
-                access plus owner-only controls such as Organization MFA, Public Website domains,
-                and Owner invitations.
+                member-facing features. Website Editors invited here have website-only access. Grant
+                website access from an existing Membership to keep its member access. Administrators
+                can manage the Organization&apos;s operational data, Profiles, Memberships, and
+                invitations. Owners have Administrator access plus owner-only controls such as
+                Organization MFA, Public Website domains, and Owner invitations.
               </p>
             </div>
             <button className="button button--primary" disabled={busy || mfaBlocked} type="submit">

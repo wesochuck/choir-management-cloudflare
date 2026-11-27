@@ -106,7 +106,7 @@ function publicDocumentProblem(
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/website/documents", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, true);
+    const authorization = await authorizeCalendarRoute(context, false, "website");
     if (!authorization.ok) {
       return context.json(
         { ...authorization, requestId: context.get("requestId") },
@@ -136,7 +136,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/organization/website/documents", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, true);
+    const authorization = await authorizeCalendarRoute(context, false, "website");
     if (!authorization.ok) {
       return context.json(
         { ...authorization, requestId: context.get("requestId") },
@@ -168,6 +168,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         organizationId: authorization.organizationId,
         requestId: context.get("requestId"),
         title: body.data.title,
+        websiteEditorOnly: authorization.role === "member",
       });
 
       const response: PublicWebsiteDocumentResponse = {
@@ -186,7 +187,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.put("/api/organization/website/documents/:documentId", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, true);
+    const authorization = await authorizeCalendarRoute(context, false, "website");
     if (!authorization.ok) {
       return context.json(
         { ...authorization, requestId: context.get("requestId") },
@@ -218,6 +219,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         organizationId: authorization.organizationId,
         requestId: context.get("requestId"),
         title: body.data.title,
+        websiteEditorOnly: authorization.role === "member",
       });
 
       if (result.previousFileId && result.previousFileId !== result.document.fileId) {
@@ -245,7 +247,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.delete("/api/organization/website/documents/:documentId", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, true);
+    const authorization = await authorizeCalendarRoute(context, false, "website");
     if (!authorization.ok) {
       return context.json(
         { ...authorization, requestId: context.get("requestId") },
