@@ -451,7 +451,10 @@ test("opens an attendee email with the event and Yes response selected", async (
   await eventPicker.selectOption({ label: "No event selected" });
   await expect(rsvpPicker).toBeHidden();
   await eventPicker.selectOption(eventId);
-  await expect(rsvpPicker).toHaveValue("All");
+  await expect(rsvpPicker).toHaveValue("Yes");
+  await expect
+    .poll(() => previewBodies.at(-1))
+    .toMatchObject({ audience: { eventId, rsvp: "Yes" } });
 });
 
 test("preserves all selected audiences and automatically computes reach preview", async ({
@@ -531,6 +534,7 @@ test("reviews and queues an event-specific ticket-holder service notice", async 
     .toMatchObject({
       audience: {
         eventId,
+        rsvp: "All",
         targetAudiences: ["Ticket Buyers"],
         ticketBuyerMode: "ticket_service",
       },
@@ -1289,6 +1293,23 @@ test("opens an automation template directly from its settings link", async ({ pa
   await expect(dialog.getByRole("button", { name: "Reset to system default" })).toBeVisible();
 });
 
+test("opens the sender editor from Communications settings", async ({ page }) => {
+  await page.route("**/api/**", (route) => handleRoute(route, []));
+
+  await page.goto("/admin/communications?tab=settings");
+  const senderDetails = page.getByRole("group", { name: "Sender details" });
+  await expect(
+    page.getByRole("heading", { name: "Configuring sender & reply-to details" }),
+  ).toHaveCount(0);
+  const editSender = senderDetails.getByRole("link", { name: "Edit sender settings" });
+  await editSender.focus();
+  await editSender.press("Enter");
+
+  await expect(page).toHaveURL("/admin/settings?tab=email");
+  await expect(page.getByRole("tab", { name: "Email", selected: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Sender Display Name" })).toBeEditable();
+});
+
 test("hides delivery mode notice banner in production", async ({ page }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
@@ -1556,6 +1577,45 @@ test("filters communication messages by separate Status and Type controls", asyn
   await statusSelect.selectOption("failed");
   await expect(page.getByText("Failed Member Blast")).toBeVisible();
   await expect(page.getByText("Sent Rehearsal Update")).toHaveCount(0);
+});
+
+test("keeps automatic message settings links beside desktop rows and below mobile descriptions", async ({
+  page,
+}, testInfo) => {
+  const mobile = testInfo.project.use.isMobile;
+  if (!mobile) await page.setViewportSize({ width: 951, height: 862 });
+  await page.route("**/api/**", (route) => handleRoute(route, []));
+  await page.goto("/admin/communications?tab=automations");
+
+  const directory = page.getByRole("region", { name: "Automatic messages" });
+  const rows = directory.getByRole("listitem");
+  await expect(rows).toHaveCount(4);
+  await expect(directory.getByText(/These messages run from settings/)).toHaveCount(0);
+  await page.addStyleTag({
+    content: "*, *::before, *::after { transition: none !important; animation: none !important; }",
+  });
+
+  for (const theme of ["light", "dark"]) {
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await toggle.count()) await toggle.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    for (const row of await rows.all()) {
+      const description = await row.locator("p").boundingBox();
+      const link = await row.getByRole("link").boundingBox();
+      if (!description || !link) throw new Error("Automation description and link must be visible");
+      expect(link.height).toBeGreaterThanOrEqual(40);
+      if (mobile) {
+        expect(link.y).toBeGreaterThanOrEqual(description.y + description.height);
+      } else {
+        expect(link.x).toBeGreaterThanOrEqual(description.x + description.width);
+        expect(link.y).toBeLessThan(description.y + description.height);
+      }
+    }
+    expect(
+      (await new AxeBuilder({ page }).include(".communication-automation-directory").analyze())
+        .violations,
+    ).toEqual([]);
+  }
 });
 
 test("shows upcoming automation previews in both themes without viewport overflow", async ({

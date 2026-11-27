@@ -254,7 +254,7 @@ function EventSelector({
           onUpdateAudience((current) => ({
             ...current,
             eventId,
-            rsvp: eventId ? current.rsvp : "All",
+            rsvp: eventId && current.targetAudiences.includes("Members") ? "Yes" : "All",
           }));
         }}
         value={audience.eventId ?? ""}

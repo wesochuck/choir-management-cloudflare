@@ -1,4 +1,4 @@
-/* Communication sender setup, test-send controls, and provider status cards.
+/* Communication sender details, test-send controls, and provider status cards.
  * Communications workspace styles continue in communications.css.
  */
 @layer components {
@@ -49,50 +49,6 @@
 
   .communication-sender-details dd {
     margin: var(--spacing-2xs) 0 0;
-    overflow-wrap: anywhere;
-  }
-
-  .communication-sender-setup {
-    display: grid;
-    gap: var(--spacing-sm);
-    margin: var(--spacing-md) 0;
-    padding: var(--spacing-sm);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
-    background: var(--color-surface-muted);
-  }
-
-  .communication-sender-setup h3,
-  .communication-sender-setup p {
-    margin: 0;
-  }
-
-  .communication-sender-setup h3 {
-    font-size: var(--font-size-base);
-  }
-
-  .communication-sender-setup dl {
-    display: grid;
-    gap: var(--spacing-xs);
-    margin: 0;
-  }
-
-  .communication-sender-setup dl > div {
-    display: grid;
-    grid-template-columns: minmax(6rem, 0.35fr) minmax(0, 1fr);
-    gap: var(--spacing-sm);
-    align-items: baseline;
-  }
-
-  .communication-sender-setup dt {
-    color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-bold);
-    text-transform: uppercase;
-  }
-
-  .communication-sender-setup dd {
-    margin: 0;
     overflow-wrap: anywhere;
   }
 

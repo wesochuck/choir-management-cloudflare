@@ -45,14 +45,11 @@ export function CommunicationAutomationDirectory({
   readonly compact?: boolean;
 }) {
   return (
-    <section aria-label="Automatic messages" className="communication-overview__panel">
+    <section
+      aria-label="Automatic messages"
+      className={`communication-overview__panel${compact ? "" : " communication-automation-directory"}`}
+    >
       <h2>Automatic messages</h2>
-      {!compact ? (
-        <p className="field-help">
-          These messages run from settings in other parts of the app. Open the relevant area to
-          review its rules and wording.
-        </p>
-      ) : null}
       <ul className="communication-overview__rows">
         {(compact ? groups.slice(0, 2) : groups).map((group) => (
           <li key={group.title} className="communication-overview__row">

@@ -29,12 +29,7 @@ export function CommunicationSettingsPanel({
   return (
     <div className="communication-settings-panel">
       <div className="communication-settings-panel__header">
-        <div>
-          <h2>Communication settings</h2>
-          <p className="field-help">
-            Overview of outbound email sender configuration, delivery domains, and provider status.
-          </p>
-        </div>
+        <h2>Communication settings</h2>
       </div>
 
       <fieldset className="communication-sender-details-card">
@@ -57,23 +52,10 @@ export function CommunicationSettingsPanel({
             <dd>{sendingDomain}</dd>
           </div>
         </dl>
+        <a className="button button--secondary" href="/admin/settings?tab=email">
+          Edit sender settings
+        </a>
       </fieldset>
-
-      <section
-        aria-labelledby="communication-sender-setup-title"
-        className="communication-sender-setup"
-      >
-        <h3 id="communication-sender-setup-title">Configuring sender &amp; reply-to details</h3>
-        <p>
-          Organization Administrators can customize the sender display name, reply-to address, and
-          custom sending domain in{" "}
-          <a href="/admin/settings/email-settings">Email &amp; Sender Settings</a>.
-        </p>
-        <p className="field-help">
-          If custom values are not configured, messages automatically use the verified platform
-          default sender.
-        </p>
-      </section>
     </div>
   );
 }
