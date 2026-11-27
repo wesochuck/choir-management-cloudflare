@@ -2,14 +2,17 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import type { ReactNode } from "react";
 
 interface DropdownMenuItem {
+  readonly current?: boolean;
   readonly disabled?: boolean;
   readonly href?: string;
+  readonly id?: string;
   readonly label: string;
   readonly onSelect?: () => void;
 }
 
 interface DropdownMenuProps {
   readonly accessibleLabel: string;
+  readonly contentClassName?: string;
   /**
    * Render menu content inline instead of portalling to `document.body`.
    * Required when the trigger lives inside a modal Dialog: a body-level
@@ -22,16 +25,22 @@ interface DropdownMenuProps {
 
 export function DropdownMenu({
   accessibleLabel,
+  contentClassName,
   disablePortal = false,
   items,
   trigger,
 }: DropdownMenuProps) {
   const content = (
-    <DropdownMenuPrimitive.Content align="end" className="dropdown-menu" sideOffset={8}>
+    <DropdownMenuPrimitive.Content
+      align="end"
+      className={contentClassName ? `dropdown-menu ${contentClassName}` : "dropdown-menu"}
+      sideOffset={8}
+    >
       {items.map((item) => (
         <DropdownMenuPrimitive.Item
+          aria-current={item.current}
           asChild
-          key={item.label}
+          key={item.id ?? item.label}
           {...(item.disabled === undefined ? {} : { disabled: item.disabled })}
         >
           {item.href ? (

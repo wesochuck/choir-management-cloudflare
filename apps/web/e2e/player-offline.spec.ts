@@ -72,7 +72,12 @@ test.beforeEach(async ({ page }) => {
             pieceId: "piece-set-1",
             title: "Gloria in Excelsis",
             trackFileIds: {
+              alto: "file-alto-1",
+              b1: "file-bass-1",
+              b2: "file-bass-2",
               soprano: "file-soprano-1",
+              t1: "file-tenor-1",
+              t2: "file-tenor-2",
               tutti: "file-tutti-1",
             },
           },
@@ -223,7 +228,9 @@ test("explains offline state when visiting an un-cached player link while offlin
   ).toBeVisible();
 });
 
-test("supports offline reload and playback for set-list player mode", async ({ page }) => {
+test("supports offline reload and playback for set-list player mode", async ({
+  page,
+}, testInfo) => {
   await page.goto("/player?mode=set-list&token=set-list-token");
   await expect(page.getByRole("heading", { name: "Winter Concert Set List" })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
@@ -231,6 +238,58 @@ test("supports offline reload and playback for set-list player mode", async ({ p
   // Transparent auto-cache stores default track while online.
   const cachedPill = page.locator(".public-player__desktop-panel .public-player__offline-pill");
   await expect(cachedPill.first()).toBeAttached();
+
+  if (!testInfo.project.use.isMobile) {
+    const row = page.locator(
+      ".public-player__desktop-panel .public-player__queue-list li.is-active",
+    );
+    const badge = row.getByText("Now Playing", { exact: true });
+    const picker = row.getByRole("button", { name: /Choose track for this song/ });
+    const download = row.getByRole("link", { name: "Download Gloria in Excelsis" });
+    const remove = row.getByRole("button", { name: "Remove" });
+    for (const width of [800, 951, 1280]) {
+      await page.setViewportSize({ height: 862, width });
+      const bounds = await row.boundingBox();
+      if (!bounds) throw new Error("The active set-list row must be visible");
+      const controls = [badge, picker, download, cachedPill.first(), remove];
+      const boxes = await Promise.all(controls.map((control) => control.boundingBox()));
+      for (const [index, box] of boxes.entries()) {
+        if (!box) throw new Error("The active set-list controls must be visible");
+        expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+        for (const other of boxes.slice(index + 1)) {
+          if (!other) throw new Error("The active set-list controls must be visible");
+          expect(
+            box.x < other.x + other.width &&
+              other.x < box.x + box.width &&
+              box.y < other.y + other.height &&
+              other.y < box.y + box.height,
+          ).toBe(false);
+        }
+      }
+    }
+    for (const width of [800, 951]) {
+      await page.setViewportSize({ height: 862, width });
+      await picker.focus();
+      const controls = [row, picker, download, remove];
+      const closedLayout = await Promise.all(controls.map((control) => control.boundingBox()));
+      await page.keyboard.press("Enter");
+      const menu = page.getByRole("menu", { name: /Choose track for this song/ });
+      await expect(menu).toBeInViewport({ ratio: 1 });
+      await expect(menu.getByRole("menuitem", { name: /Follow default/ })).toBeFocused();
+      expect(await Promise.all(controls.map((control) => control.boundingBox()))).toEqual(
+        closedLayout,
+      );
+      await page.keyboard.press("Escape");
+      await expect(menu).toBeHidden();
+      await expect(picker).toBeFocused();
+      await expect(picker).toHaveAttribute("aria-expanded", "false");
+    }
+    await picker.click();
+    await expect(page.getByRole("menu")).toBeVisible();
+    await page.getByRole("heading", { name: "Winter Concert Set List" }).click();
+    await expect(page.getByRole("menu")).toBeHidden();
+  }
 
   // Reloading the set-list page while offline serves the cached shell and enables offline playback.
   await page.context().setOffline(true);

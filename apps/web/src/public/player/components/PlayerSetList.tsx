@@ -1,9 +1,11 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { DropdownMenu } from "@choir/ui";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { displayTrackName, sortVoiceParts } from "../../playerVoiceParts";
 import { formatTrackKey, resolveEffectiveTrack } from "../format";
 import type { PracticeTrackSource } from "../source";
 import type { PlayerPlaylistItem, ResolvedTrack } from "../types";
+import { PlayerPinIcon } from "./PlayerPinIcon";
 
 function PlayerSetListActions({
   item,
@@ -74,6 +76,7 @@ function PlayerPieceTrackPicker({
   activeTrackKey,
   availableKeys,
   item,
+  mobilePicker,
   onPinPieceTrack,
   track,
   trackLabels,
@@ -81,13 +84,11 @@ function PlayerPieceTrackPicker({
   readonly activeTrackKey: string;
   readonly availableKeys: readonly string[];
   readonly item: PlayerPlaylistItem;
+  readonly mobilePicker: boolean;
   readonly onPinPieceTrack: (pieceId: string, trackKey: string | null) => void;
   readonly track: ResolvedTrack;
   readonly trackLabels?: Readonly<Record<string, string>> | undefined;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const optionsId = useId();
   const pieceId = item.pieceId;
   if (!pieceId) return null;
 
@@ -100,64 +101,39 @@ function PlayerPieceTrackPicker({
       ? `${formatTrackKey(track.key)} fallback`
       : formatTrackKey(track.key);
 
-  const closePicker = () => {
-    setIsOpen(false);
-    triggerRef.current?.focus();
-  };
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Escape" || !isOpen) return;
-    event.preventDefault();
-    closePicker();
-  };
-
   return (
-    <div className="public-player__piece-track-picker" onKeyDown={handleKeyDown}>
-      <button
-        aria-controls={optionsId}
-        aria-expanded={isOpen}
-        aria-label={`${track.pinned ? `Pinned to ${displayTrackName(track.key, trackLabels)}` : `Following default, ${trackLabel}`} for ${item.title}. Choose track for this song`}
-        className={`public-player__item-track public-player__piece-track-picker-trigger${track.pinned ? " public-player__item-track--pinned" : ""}`}
-        onClick={() => {
-          setIsOpen((open) => !open);
-        }}
-        ref={triggerRef}
-        type="button"
-      >
-        {track.pinned ? <span aria-hidden="true">📌 </span> : null}
-        {trackLabel}
-      </button>
-      <div
-        aria-label={`Choose track for ${item.title}`}
-        className="public-player__piece-track-picker-options"
-        hidden={!isOpen}
-        id={optionsId}
-        role="group"
-      >
-        <button
-          aria-pressed={!track.pinned}
-          onClick={() => {
+    <DropdownMenu
+      accessibleLabel={`${track.pinned ? `Pinned to ${displayTrackName(track.key, trackLabels)}` : `Following default, ${trackLabel}`} for ${item.title}. Choose track for this song`}
+      contentClassName="public-player__piece-track-picker-options"
+      disablePortal={mobilePicker}
+      items={[
+        {
+          current: !track.pinned,
+          id: "default",
+          label: `Follow default (${defaultTrackLabel})`,
+          onSelect: () => {
             onPinPieceTrack(pieceId, null);
-            closePicker();
-          }}
+          },
+        },
+        ...availableKeys.map((key) => ({
+          current: track.pinned === true && track.key === key,
+          id: `track:${key}`,
+          label: displayTrackName(key, trackLabels),
+          onSelect: () => {
+            onPinPieceTrack(pieceId, key);
+          },
+        })),
+      ]}
+      trigger={
+        <button
+          className={`public-player__item-track public-player__piece-track-picker-trigger${track.pinned ? " public-player__item-track--pinned" : ""}`}
           type="button"
         >
-          Follow default ({defaultTrackLabel})
+          {track.pinned ? <PlayerPinIcon /> : null}
+          {trackLabel}
         </button>
-        {availableKeys.map((key) => (
-          <button
-            aria-pressed={track.pinned && track.key === key}
-            key={key}
-            onClick={() => {
-              onPinPieceTrack(pieceId, key);
-              closePicker();
-            }}
-            type="button"
-          >
-            {displayTrackName(key, trackLabels)}
-          </button>
-        ))}
-      </div>
-    </div>
+      }
+    />
   );
 }
 
@@ -176,7 +152,11 @@ function PlayerSetListItemStatus({
       <span
         className={`public-player__item-track${track.pinned ? " public-player__item-track--pinned" : ""}`}
       >
-        {track.pinned ? <span aria-hidden="true">📌 </span> : null}
+        {track.pinned ? (
+          <>
+            <PlayerPinIcon />{" "}
+          </>
+        ) : null}
         {track.fallback && !track.pinned
           ? `${formatTrackKey(track.key)} fallback`
           : formatTrackKey(track.key)}
@@ -228,6 +208,7 @@ function PlayerSetListTrackStatus({
   activeTrackKey,
   availableKeys,
   item,
+  mobilePicker,
   onPinPieceTrack,
   track,
   trackLabels,
@@ -235,6 +216,7 @@ function PlayerSetListTrackStatus({
   readonly activeTrackKey: string;
   readonly availableKeys: readonly string[];
   readonly item: PlayerPlaylistItem;
+  readonly mobilePicker: boolean;
   readonly onPinPieceTrack?: ((pieceId: string, trackKey: string | null) => void) | undefined;
   readonly track: ResolvedTrack | null;
   readonly trackLabels?: Readonly<Record<string, string>> | undefined;
@@ -246,6 +228,7 @@ function PlayerSetListTrackStatus({
         activeTrackKey={activeTrackKey}
         availableKeys={availableKeys}
         item={item}
+        mobilePicker={mobilePicker}
         onPinPieceTrack={onPinPieceTrack}
         track={track}
         trackLabels={trackLabels}
@@ -339,6 +322,7 @@ function PlayerSetListRow({
         activeTrackKey={activeTrackKey}
         availableKeys={availableKeys}
         item={item}
+        mobilePicker={mobilePicker}
         onPinPieceTrack={onPinPieceTrack}
         track={track}
         trackLabels={trackLabels}

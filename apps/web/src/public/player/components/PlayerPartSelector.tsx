@@ -11,6 +11,7 @@ import {
   type SelectionScope,
   type TrackLabels,
 } from "./PlayerPartSheet";
+import { PlayerPinIcon } from "./PlayerPinIcon";
 import { PlayerVoicePartHintPointer, PlayerVoicePartHintRow } from "./PlayerVoicePartHint";
 
 interface SelectRef {
@@ -49,8 +50,7 @@ function TrackSelectorValue({
   if (!pinnedTrackKey) return <>{displayTrackName(activeTrackKey, trackLabels)}</>;
   return (
     <>
-      <span aria-hidden="true">📌 </span>
-      {displayTrackName(pinnedTrackKey, trackLabels)} (Default:{" "}
+      <PlayerPinIcon /> {displayTrackName(pinnedTrackKey, trackLabels)} (Default:{" "}
       {displayTrackName(activeTrackKey, trackLabels)})
     </>
   );

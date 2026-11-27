@@ -3,6 +3,7 @@ import { useState } from "react";
 import { displayTrackName } from "../../playerVoiceParts";
 import { formatTrackKey } from "../format";
 import type { PlayerPlaylistItem, ResolvedTrack } from "../types";
+import { PlayerPinIcon } from "./PlayerPinIcon";
 
 export function PlayerArtwork({
   artworkUrl,
@@ -69,7 +70,11 @@ function PlayerTrackBadge({
   const className = `public-player__track-badge${currentTrack.pinned ? " public-player__track-badge--pinned" : ""}`;
   const content = (
     <>
-      {currentTrack.pinned ? <span aria-hidden="true">📌 </span> : null}
+      {currentTrack.pinned ? (
+        <>
+          <PlayerPinIcon />{" "}
+        </>
+      ) : null}
       {formatTrackKey(currentTrack.key)}
     </>
   );

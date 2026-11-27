@@ -676,16 +676,24 @@ test("mobile track options pin one song independently and can follow default aga
   await second.getByText("Track options", { exact: true }).click();
   await expect(first.locator("button[aria-current=true]")).toBeVisible();
   await second.getByRole("button", { name: /Choose track for this song/ }).click();
-  await second.getByRole("button", { name: "Tenor 2", exact: true }).click();
-  await expect(second.getByRole("button", { name: /Pinned to Tenor 2/ })).toBeVisible();
+  await sheet.getByRole("menuitem", { name: "Tenor 2", exact: true }).click();
+  const pinnedPicker = second.getByRole("button", { name: /Pinned to Tenor 2/ });
+  const pin = pinnedPicker.locator("svg.public-player__pin-icon");
+  await expect(pin).toBeVisible();
+  await expect(pin).toHaveCSS("fill", "rgb(15, 23, 42)");
+  await expect(pin).toHaveAttribute("aria-hidden", "true");
   await expect(first.getByRole("button", { name: /Following default/ })).toBeVisible();
   await expect(second.getByRole("link", { name: "Download Reindeer On The Roof" })).toHaveAttribute(
     "href",
     /reindeer-t2/,
   );
   await expect(first.locator("button[aria-current=true]")).toBeVisible();
-  await second.getByRole("button", { name: /Pinned to Tenor 2/ }).click();
-  await second.getByRole("button", { name: /Follow default/ }).click();
+  await pinnedPicker.click();
+  await expect(sheet.getByRole("menuitem", { name: "Tenor 2", exact: true })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await sheet.getByRole("menuitem", { name: /Follow default/ }).click();
   await expect(second.getByRole("button", { name: /Following default/ })).toBeVisible();
   await second.getByText("Track options", { exact: true }).click();
   // Enable an audio response only for the explicit save; the shared artwork fixture is a PNG.

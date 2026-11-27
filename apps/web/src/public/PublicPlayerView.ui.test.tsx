@@ -908,11 +908,12 @@ describe("PublicPracticePlayer per-song track pins", () => {
     expect(trackPill.tagName).toBe("BUTTON");
     expect(trackPill.closest(".public-player__set-list-item")).toBeNull();
     await user.click(trackPill);
-    const picker = trackPill.closest(".public-player__piece-track-picker");
-    if (!(picker instanceof HTMLElement)) {
-      throw new Error("Set-list track picker disclosure was not rendered");
-    }
-    await user.click(within(picker).getByRole("button", { name: "Tenor 2" }));
+    const picker = await screen.findByRole("menu");
+    expect(within(picker).getByRole("menuitem", { name: /Follow default/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    await user.click(within(picker).getByRole("menuitem", { name: "Tenor 2" }));
 
     expect(await screen.findByText("Pinned to Tenor 2 for this song")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Voice Part" })).toHaveValue("t1");
