@@ -7,6 +7,8 @@ export const SeatingAttendanceContext = createContext<
   ReadonlyMap<string, SeatingAttendanceWarning>
 >(new Map());
 
+export const accessibleSeatingRequestLabel = "Accessible seating requested";
+
 export function describeSeatingAttendanceWarning(
   warning: SeatingAttendanceWarning | undefined,
 ): string | undefined {
@@ -21,6 +23,9 @@ export function seatingSeatAccessibleLabel(
   warnings: ReadonlyMap<string, SeatingAttendanceWarning>,
 ): string {
   const name = `${label}${profile ? `, assigned to ${profile.displayName}` : ", empty"}`;
+  const seatingRequest = profile?.accessibleSeatingRequested
+    ? `, ${accessibleSeatingRequestLabel}`
+    : "";
   const description = describeSeatingAttendanceWarning(warnings.get(profile?.id ?? ""));
-  return description ? `${name}, ${description}` : name;
+  return `${name}${seatingRequest}${description ? `, ${description}` : ""}`;
 }

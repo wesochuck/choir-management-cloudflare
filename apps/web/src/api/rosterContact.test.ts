@@ -54,6 +54,28 @@ it("returns actual import outcomes and actionable conflicting rows", async () =>
     await importOrganizationProfilesCsv("Name,Email\nPerson,person@example.test"),
   ).toMatchObject({ emailsPersisted: 1, conflicts: [{ row: 3 }] });
 });
+
+it("round trips a seating request and sends an explicit clear", async () => {
+  const fetchMock = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(
+      Response.json({ ...profile, accessibleSeatingRequested: true, requestId }),
+    )
+    .mockResolvedValueOnce(
+      Response.json({ ...profile, accessibleSeatingRequested: false, requestId }),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  for (const [index, value] of [true, false].entries()) {
+    const updated = await updateOrganizationProfile(profile.id, {
+      ...organizationProfileRequestSchema.parse(profile),
+      accessibleSeatingRequested: value,
+    });
+    expect(updated.accessibleSeatingRequested).toBe(value);
+    expect(fetchMock.mock.calls[index]?.[1]?.body).toContain(
+      `"accessibleSeatingRequested":${String(value)}`,
+    );
+  }
+});
 it.each([400, 401, 403])("preserves validation and authorization failures (%s)", async (status) => {
   vi.stubGlobal(
     "fetch",

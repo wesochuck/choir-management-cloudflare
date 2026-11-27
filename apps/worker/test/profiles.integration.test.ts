@@ -65,6 +65,70 @@ afterEach(async () => {
 });
 
 describe("Organization Profiles", () => {
+  it("keeps accessible seating requests in the administrator roster", async () => {
+    const cookie = await signIn();
+    const create = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", cookie, {
+        body: JSON.stringify({ displayName: "Seating Singer" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(create.status).toBe(201);
+    const profile = organizationProfileResponseSchema.parse(await create.json());
+    expect(profile.accessibleSeatingRequested).toBe(false);
+    const path = `/api/organization/profiles/${profile.id}`;
+    const update = (details: Record<string, unknown>) =>
+      exports.default.fetch(
+        apiRequest("alpha.localhost", path, cookie, {
+          body: JSON.stringify({ displayName: "Seating Singer", ...details }),
+          headers: { "content-type": "application/json" },
+          method: "PUT",
+        }),
+      );
+    for (const [details, expected] of [
+      [{ accessibleSeatingRequested: true }, true],
+      [{ phone: "555-1234" }, true],
+      [{ accessibleSeatingRequested: false }, false],
+      [{ accessibleSeatingRequested: true }, true],
+    ] as const) {
+      const result = await update(details);
+      expect(result.status).toBe(200);
+      expect(organizationProfileResponseSchema.parse(await result.json())).toMatchObject({
+        accessibleSeatingRequested: expected,
+      });
+    }
+    expect((await update({ accessibleSeatingRequested: "yes" })).status).toBe(400);
+    const roster = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", cookie),
+    );
+    expect(organizationProfilesResponseSchema.parse(await roster.json()).profiles).toMatchObject([
+      { id: profile.id, accessibleSeatingRequested: true },
+    ]);
+
+    await controlDatabase
+      .prepare(
+        "UPDATE member SET role = 'member', profileId = ? WHERE organizationId = 'organization-alpha' AND userId = 'profile-manager'",
+      )
+      .bind(profile.id)
+      .run();
+    expect((await update({ accessibleSeatingRequested: false })).status).toBe(403);
+    expect(
+      (
+        await exports.default.fetch(
+          apiRequest("alpha.localhost", "/api/organization/profiles", cookie),
+        )
+      ).status,
+    ).toBe(403);
+    for (const memberPath of ["/api/singer/profile", "/api/singer/directory"]) {
+      const response = await exports.default.fetch(
+        apiRequest("alpha.localhost", memberPath, cookie),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).not.toContain("accessibleSeatingRequested");
+    }
+  });
+
   it("rejects suppressed email recipients before Profile creation or CSV import", async () => {
     await controlDatabase
       .prepare(

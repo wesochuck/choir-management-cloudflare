@@ -22,7 +22,11 @@ import {
   updateOrganizationProfile,
   updateOrganizationProfileFolderNumber,
 } from "../../../auth/api";
-import { emptyProfile, getModifiedFolderNumbers, profileRequestFrom } from "../RosterPage/utils";
+import {
+  emptyProfile,
+  getModifiedFolderNumbers,
+  profileEditorRequestFrom,
+} from "../RosterPage/utils";
 import type {
   PerformanceHistoryState,
   ProfileActivityState,
@@ -93,7 +97,7 @@ export function useProfileEditor({
   function openProfile(record: OrganizationProfile) {
     setEditingId(record.id);
     setEditingProfileRecord(record);
-    setProfile(profileRequestFrom(record));
+    setProfile(profileEditorRequestFrom(record));
     setProfilePhotoFileId(record.photoFileId);
     setProfileEmail(emailByProfileId.get(record.id) ?? "");
     setPhotoPending(false);

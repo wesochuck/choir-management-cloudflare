@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { SeatingImportDialog } from "./SeatingImportDialog";
 import { SavedSeatingTemplates } from "./SavedSeatingTemplates";
-import { ChartList } from "./chartParts";
+import { AccessibleSeatingLegend, ChartList } from "./chartParts";
 import { SeatingCanvasView } from "./SeatingCanvasView";
 import { SeatingDialogs } from "./SeatingDialogs";
 import { SeatingToolbar } from "./SeatingToolbar";
@@ -207,6 +207,7 @@ export function SeatingChartPanel({
           </button>
         </div>
       ) : null}
+      <AccessibleSeatingLegend assignments={chart.assignments} profilesById={profilesById} />
       {isListView ? (
         <>
           <p className="seating-mode-hint no-print">

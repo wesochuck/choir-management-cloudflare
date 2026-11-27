@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { PerformanceHistory } from "../RosterPage/shared";
 import { ProfileDues, ProfileFolderNumbers, ProfileMessages } from "../RosterPage/profileDetails";
-import { areFolderNumbersDirty, emptyProfile, profileRequestFrom } from "../RosterPage/utils";
+import { areFolderNumbersDirty, emptyProfile, profileEditorRequestFrom } from "../RosterPage/utils";
 import { ProfileEditorFooter } from "./ProfileEditorFooter";
 import { ProfileEditorHeader } from "./ProfileEditorHeader";
 import { ProfileEditorNav } from "./ProfileEditorNav";
@@ -28,6 +28,7 @@ function hasProfileInfoChanged(
     current.statusIsManual !== baseline.statusIsManual ||
     current.notes !== baseline.notes ||
     current.showInDirectory !== baseline.showInDirectory ||
+    Boolean(current.accessibleSeatingRequested) !== Boolean(baseline.accessibleSeatingRequested) ||
     current.isSectionLeader !== baseline.isSectionLeader ||
     current.hidden !== baseline.hidden
   );
@@ -113,7 +114,7 @@ export function ProfileEditorDialog({
   };
 
   const baselineProfile = useMemo(() => {
-    return editingProfileRecord ? profileRequestFrom(editingProfileRecord) : emptyProfile;
+    return editingProfileRecord ? profileEditorRequestFrom(editingProfileRecord) : emptyProfile;
   }, [editingProfileRecord]);
 
   const linkedProfileEmail = editingId

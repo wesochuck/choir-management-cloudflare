@@ -121,6 +121,42 @@ describe("Seating name presentation consistency", () => {
     expect(seat).toHaveAttribute("data-name-presentation", "full");
   });
 
+  it("adds a compact, announced marker only to a singer with a seating request", () => {
+    const { rerender } = render(
+      <SeatTile
+        assigned={{ ...sampleProfile, accessibleSeatingRequested: true }}
+        label="Seat 1"
+        mismatch={false}
+        onActivate={() => undefined}
+        onDrop={() => undefined}
+        onRemove={() => undefined}
+        presentation="initials"
+        seatKey="0-0"
+        suggestion={undefined}
+      />,
+    );
+    const seat = screen.getByRole("button", {
+      name: "Seat 1, assigned to Ashley Cooper, Accessible seating requested",
+    });
+    expect(seat.querySelector(".seating-seat__name .seating-accessibility-icon")).toHaveClass(
+      "no-print",
+    );
+    rerender(
+      <SeatTile
+        assigned={sampleProfile}
+        label="Seat 1"
+        mismatch={false}
+        onActivate={() => undefined}
+        onDrop={() => undefined}
+        onRemove={() => undefined}
+        presentation="initials"
+        seatKey="0-0"
+        suggestion={undefined}
+      />,
+    );
+    expect(seat.querySelector(".seating-accessibility-icon")).toBeNull();
+  });
+
   it("dynamically resolves initials when seat width is narrow (<= 5.25rem)", () => {
     const dummyChart: OrganizationSeatingChartRequest = {
       assignments: { "0-0": sampleProfile.id },

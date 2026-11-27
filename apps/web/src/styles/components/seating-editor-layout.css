@@ -1027,6 +1027,27 @@
     display: none;
   }
 
+  .seating-accessibility-icon {
+    display: inline-block;
+    flex: none;
+    width: 0.9rem;
+    height: 0.9rem;
+    color: var(--color-success-text);
+    vertical-align: -0.125em;
+  }
+
+  .seating-seat__name--marked {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3xs);
+  }
+
+  .seating-seat__name--marked .seating-seat__name-full {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .seating-seat--assigned[data-name-presentation="initials"] .seating-seat__name-full,
   .seating-row[data-name-presentation="initials"] .seating-seat--assigned .seating-seat__name-full {
     display: none;

@@ -1,5 +1,9 @@
 import { hasAttendanceWarning } from "@choir/domain";
-import { SeatingAttendanceContext, seatingSeatAccessibleLabel } from "./attendanceContext";
+import {
+  accessibleSeatingRequestLabel,
+  SeatingAttendanceContext,
+  seatingSeatAccessibleLabel,
+} from "./attendanceContext";
 import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
 import { seatingEmptyMessage } from "./utils";
 import type {
@@ -28,13 +32,63 @@ export function SeatSuggestion({
   return <span className="seating-seat__suggestion">{suggestion ?? "Open"}</span>;
 }
 
-export function SeatName({ displayName }: { readonly displayName: string | undefined }) {
+export function AccessibleSeatingMarker({ decorative = false }: { readonly decorative?: boolean }) {
   return (
-    <strong className="seating-seat__name">
+    <svg
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : accessibleSeatingRequestLabel}
+      className="seating-accessibility-icon no-print"
+      fill="none"
+      role={decorative ? undefined : "img"}
+      viewBox="0 0 24 24"
+    >
+      <circle cx="12" cy="4" r="2.5" fill="currentColor" />
+      <path
+        d="M4 9h16M12 9v5m0 0-4 7m4-7 4 7"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2.5"
+      />
+    </svg>
+  );
+}
+
+export function AccessibleSeatingLegend({
+  assignments,
+  profilesById,
+}: {
+  readonly assignments: OrganizationSeatingChartRequest["assignments"];
+  readonly profilesById: ReadonlyMap<string, OrganizationProfile>;
+}) {
+  if (!Object.values(assignments).some((id) => profilesById.get(id)?.accessibleSeatingRequested)) {
+    return null;
+  }
+  return (
+    <p className="field-help no-print">
+      <AccessibleSeatingMarker decorative /> {accessibleSeatingRequestLabel}
+    </p>
+  );
+}
+
+export function SeatName({ profile }: { readonly profile: OrganizationProfile | undefined }) {
+  const displayName = profile?.displayName;
+  return (
+    <strong
+      className={
+        profile?.accessibleSeatingRequested
+          ? "seating-seat__name seating-seat__name--marked"
+          : "seating-seat__name"
+      }
+    >
       <span className="seating-seat__name-full">{displayName ?? "Empty"}</span>
       <span aria-hidden="true" className="seating-seat__name-initials">
         {getInitials(displayName ?? "")}
       </span>
+      {profile?.accessibleSeatingRequested ? (
+        <span title={accessibleSeatingRequestLabel} className="no-print">
+          <AccessibleSeatingMarker decorative />
+        </span>
+      ) : null}
     </strong>
   );
 }
@@ -104,7 +158,7 @@ export function SeatTile({
           {label}
         </span>
         <SeatSuggestion occupied={Boolean(assigned)} suggestion={suggestion} />
-        <SeatName displayName={assigned?.displayName} />
+        <SeatName profile={assigned} />
         {assigned ? (
           <span className="seating-seat__metadata">
             <span className="seating-seat__voice">{assigned.voicePart}</span>
@@ -403,6 +457,7 @@ export function ChartList({
                     ", ",
                     " ",
                   )}
+                  {profile.accessibleSeatingRequested ? <AccessibleSeatingMarker /> : null}
                   <AttendanceWarningBadge profileId={profile.id} />
                 </strong>
                 <span className="seating-name-index__location">
@@ -452,6 +507,7 @@ export function ChartList({
                       ", ",
                       " ",
                     )}
+                    {profile.accessibleSeatingRequested ? <AccessibleSeatingMarker /> : null}
                     <AttendanceWarningBadge profileId={profile.id} />
                   </strong>
                   {showVoiceParts && profile.voicePart ? (

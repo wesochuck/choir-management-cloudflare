@@ -260,6 +260,26 @@ export function ProfileInfoPanel({
       <div className="field-group">
         <label className="checkbox-row">
           <input
+            aria-describedby="roster-accessible-seating-help"
+            checked={profile.accessibleSeatingRequested ?? false}
+            onChange={(event) => {
+              setProfile((current) => ({
+                ...current,
+                accessibleSeatingRequested: event.target.checked,
+              }));
+            }}
+            type="checkbox"
+          />
+          Accessible seating requested
+        </label>
+        <p className="field-help" id="roster-accessible-seating-help">
+          Shows an indicator for seating editors.
+        </p>
+      </div>
+
+      <div className="field-group">
+        <label className="checkbox-row">
+          <input
             checked={profile.showInDirectory}
             onChange={(event) => {
               setProfile((current) => ({

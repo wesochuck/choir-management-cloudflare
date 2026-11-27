@@ -42,10 +42,15 @@ test("seat fisheye supports hover, focus, themes, print, and the mobile read-onl
 }, testInfo) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
   const chart = buildSeatingChart({ rowCounts: [16] });
+  api.profiles.set([buildOrganizationProfile({ accessibleSeatingRequested: true })]);
   api.seatingCharts.set([chart]);
   await page.goto(`/admin/seating?eventId=${chart.eventId}&chartId=${chart.id}`);
   const seat = page.locator('[data-seat-key="0-0"].seating-seat--assigned');
   await expect(seat).toBeVisible();
+  const marker = seat.locator(".seating-seat__name .seating-accessibility-icon");
+  await expect(marker).toBeVisible();
+  await expect(seat).toHaveAccessibleName(/Accessible seating requested$/u);
+  await expect(page.getByText("Accessible seating requested", { exact: true })).toBeVisible();
   if ((page.viewportSize()?.width ?? 1000) <= 700) {
     await expect(page.locator(".seating-editor-canvas")).toHaveClass(/--readonly/);
   }
@@ -88,6 +93,8 @@ test("seat fisheye supports hover, focus, themes, print, and the mobile read-onl
     await page.screenshot({ path: testInfo.outputPath(`seat-fisheye-${theme}.png`) });
     await page.emulateMedia({ media: "print" });
     await expect(seat.locator(".seating-seat__name-initials")).toBeVisible();
+    await expect(marker).toBeHidden();
+    await expect(page.getByText("Accessible seating requested", { exact: true })).toBeHidden();
     await page.emulateMedia({ media: "screen" });
     await page.keyboard.press("Escape");
     await expect(seat).not.toHaveAttribute("data-magnified");

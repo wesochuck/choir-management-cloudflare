@@ -64,6 +64,31 @@ const populatedUpgrades = [
       ).toBe(1);
     },
   },
+  {
+    version: 151,
+    exercise: (sql: SqlStorage, upgrade: () => void) => {
+      const insertProfile = (id: string) =>
+        sql.exec(
+          "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, 'Singer', '2026-01-01', '2026-01-01')",
+          id,
+        );
+      insertProfile("existing-profile");
+      upgrade();
+      expect(sql.exec("SELECT accessible_seating_requested FROM profiles").one()).toEqual({
+        accessible_seating_requested: 0,
+      });
+      insertProfile("prior-client-profile");
+      sql.exec(
+        "UPDATE profiles SET accessible_seating_requested = 1 WHERE id = 'existing-profile'",
+      );
+      expect(
+        sql.exec("SELECT id, accessible_seating_requested FROM profiles ORDER BY id").toArray(),
+      ).toEqual([
+        { id: "existing-profile", accessible_seating_requested: 1 },
+        { id: "prior-client-profile", accessible_seating_requested: 0 },
+      ]);
+    },
+  },
 ];
 
 afterEach(async () => {

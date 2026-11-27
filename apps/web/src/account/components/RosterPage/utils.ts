@@ -117,6 +117,13 @@ export function profileRequestFrom(profile: OrganizationProfile): OrganizationPr
   };
 }
 
+export function profileEditorRequestFrom(profile: OrganizationProfile): OrganizationProfileRequest {
+  return {
+    ...profileRequestFrom(profile),
+    accessibleSeatingRequested: profile.accessibleSeatingRequested ?? false,
+  };
+}
+
 export function statusLabel(status: OrganizationProfile["globalStatus"]): string {
   return status === "Idle" ? "On Break" : status;
 }

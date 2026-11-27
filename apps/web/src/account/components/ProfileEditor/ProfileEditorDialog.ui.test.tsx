@@ -143,6 +143,21 @@ describe("ProfileEditorDialog photo save coordination", () => {
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
   });
 
+  it("saves the seating request when it is the only change", async () => {
+    const user = userEvent.setup();
+    render(<ProfileEditorHarness />);
+    await user.click(screen.getByRole("button", { name: "Open Editor" }));
+    const request = screen.getByRole("checkbox", { name: "Accessible seating requested" });
+    expect(request).not.toBeChecked();
+    await user.click(request);
+    await user.click(screen.getByRole("button", { name: "Save Profile" }));
+    expect(api.updateOrganizationProfile).toHaveBeenCalledWith(
+      sampleProfile.id,
+      expect.objectContaining({ accessibleSeatingRequested: true }),
+      undefined,
+    );
+  });
+
   it("marks only changed sections, keeps markers across navigation, and clears reverted edits", async () => {
     const user = userEvent.setup();
     render(<ProfileEditorHarness />);

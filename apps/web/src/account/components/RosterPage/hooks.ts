@@ -44,6 +44,7 @@ import {
   emptyProfile,
   getModifiedFolderNumbers,
   profileMatchesVoiceFilters,
+  profileEditorRequestFrom,
   profileRequestFrom,
 } from "./utils";
 
@@ -153,7 +154,7 @@ export function useRosterPageController({
     if (openedProfileFromRoute.current === routeKey) return;
     openedProfileFromRoute.current = routeKey;
     setEditingId(candidate.id);
-    setProfile(profileRequestFrom(candidate));
+    setProfile(profileEditorRequestFrom(candidate));
     setProfilePhotoFileId(candidate.photoFileId);
     setProfileEmail(candidate.email);
     setProfileTab(initialProfileTab);
@@ -447,7 +448,7 @@ export function useRosterPageController({
     setProfileFolderNumbers({ status: "idle" });
     setBaselineFolderNumbers([]);
     setProfileDeliveries({ status: "idle" });
-    setProfile(profileRequestFrom(candidate));
+    setProfile(profileEditorRequestFrom(candidate));
     setProfilePhotoFileId(candidate.photoFileId);
     setPhotoPending(false);
     photoSaveFnRef.current = null;

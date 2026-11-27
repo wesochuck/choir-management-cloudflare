@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { emailAddressSchema, requestIdSchema } from "./primitives";
 export const organizationProfileRequestSchema = z.object({
+  accessibleSeatingRequested: z.boolean().optional(),
   email: z.union([z.literal(""), emailAddressSchema]).optional(),
   doNotEmail: z.boolean().default(false),
   displayName: z.string().trim().min(1).max(200),

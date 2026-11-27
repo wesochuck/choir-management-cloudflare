@@ -77,6 +77,7 @@ describe("Organization seating", () => {
     const attending = organizationProfileResponseSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          accessibleSeatingRequested: true,
           displayName: "Seated Singer",
           voicePart: "S1",
         })
@@ -333,13 +334,12 @@ describe("Organization seating", () => {
       ),
     ).toMatchObject({ status: 403 });
 
-    const singerSeating = singerSeatingResponseSchema.parse(
-      await (
-        await exports.default.fetch(
-          api("alpha.localhost", `/api/singer/events/${performance.id}/seating`, cookie),
-        )
-      ).json(),
+    const singerSeatingResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${performance.id}/seating`, cookie),
     );
+    const singerSeatingBody = await singerSeatingResponse.text();
+    expect(singerSeatingBody).not.toContain("accessibleSeatingRequested");
+    const singerSeating = singerSeatingResponseSchema.parse(JSON.parse(singerSeatingBody));
     expect(singerSeating).toMatchObject({
       charts: [{ id: created.id, name: "Updated Chart" }],
       profiles: [{ displayName: "Seated Singer", id: attending.id, voicePart: "S1" }],
@@ -353,6 +353,9 @@ describe("Organization seating", () => {
       ),
     );
     expect(compatibilityResponse.status).toBe(200);
+    await expect(compatibilityResponse.clone().text()).resolves.not.toContain(
+      "accessibleSeatingRequested",
+    );
     await expect(compatibilityResponse.json()).resolves.toMatchObject({
       profiles: [{ id: attending.id, name: "Seated Singer", voicePart: "S1" }],
     });

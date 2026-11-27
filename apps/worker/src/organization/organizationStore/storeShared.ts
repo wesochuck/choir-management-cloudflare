@@ -140,6 +140,7 @@ export interface CalendarProfileRow {
 
 export interface OrganizationProfileRow {
   readonly [column: string]: SqlStorageValue;
+  readonly accessibleSeatingRequested: number;
   readonly createdAt: string;
   readonly displayName: string;
   readonly doNotEmail: number;
@@ -174,6 +175,7 @@ export interface OrganizationProfileRow {
 
 export function profileResult(row: OrganizationProfileRow, onBreakInactiveAt: string | null) {
   return {
+    accessibleSeatingRequested: row.accessibleSeatingRequested === 1,
     email: typeof row.email === "string" ? row.email : "",
     createdAt: row.createdAt,
     displayName: row.displayName,

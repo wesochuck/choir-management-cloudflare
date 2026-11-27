@@ -204,6 +204,7 @@ export function SeatingGridCanvas({
                     data-magnified={seatKey === magnifiedSeat || undefined}
                     data-magnified-neighbor={magnifiedNeighbor ? true : undefined}
                     key={seatKey}
+                    role={profile ? "group" : undefined}
                     tabIndex={profile ? 0 : undefined}
                   >
                     <div className="seating-seat__surface">
@@ -214,7 +215,7 @@ export function SeatingGridCanvas({
                         Seat {seatIndex + 1}
                       </span>
                       <SeatSuggestion occupied={Boolean(profile)} suggestion={suggestion} />
-                      <SeatName displayName={profile?.displayName} />
+                      <SeatName profile={profile} />
                       {profile ? (
                         <span className="seating-seat__metadata">
                           <span className="seating-seat__voice">{profile.voicePart}</span>

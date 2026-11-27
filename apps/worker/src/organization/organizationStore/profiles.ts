@@ -31,6 +31,7 @@ import {
 
 const PROFILE_SELECT_COLUMNS = `p.id, (SELECT c.email FROM contacts c WHERE c.id = ${primaryRosterContactSql}) AS email, display_name AS displayName, phone, voice_part AS voicePart,
           global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
+          accessible_seating_requested AS accessibleSeatingRequested,
           show_email_in_directory AS showEmailInDirectory,
           show_phone_in_directory AS showPhoneInDirectory,
           do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
@@ -251,8 +252,9 @@ function insertProfileRow(
        receive_admin_notifications, receive_all_communications, receive_audition_notifications, receive_financial_alerts, is_section_leader,
        receive_rehearsal_reminders, receive_performance_reminders,
        receive_other_event_reminders,
-       status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden,
+       accessible_seating_requested)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     profileId,
     profile.displayName,
     profile.phone,
@@ -277,6 +279,7 @@ function insertProfileRow(
     occurredAt,
     occurredAt,
     profile.hidden ? 1 : 0,
+    toSqlBit(profile.accessibleSeatingRequested === true),
   );
   saveRosterContact(storage, { ...context, profileId }, profile);
   storage.sql.exec(
@@ -499,7 +502,8 @@ export async function updateProfile(
       `UPDATE profiles SET display_name = ?, phone = ?, voice_part = ?, global_status = ?, status_is_manual = ?,
          notes = ?, show_in_directory = ?, do_not_email = ?, receive_attendance_reports = ?,
          receive_rsvp_decline_notices = ?, receive_admin_notifications = ?,
-         receive_financial_alerts = ?, is_section_leader = ?, hidden = ?, updated_at = ?${
+         receive_financial_alerts = ?, is_section_leader = ?, hidden = ?,
+         accessible_seating_requested = COALESCE(?, accessible_seating_requested), updated_at = ?${
            preferenceUpdates.length > 0 ? `, ${preferenceUpdates.join(", ")}` : ""
          } WHERE id = ?`,
       profile.displayName,
@@ -516,6 +520,9 @@ export async function updateProfile(
       toSqlBit(profile.receiveFinancialAlerts),
       toSqlBit(profile.isSectionLeader),
       toSqlBit(profile.hidden),
+      profile.accessibleSeatingRequested === undefined
+        ? null
+        : toSqlBit(profile.accessibleSeatingRequested),
       occurredAt,
       ...preferenceBindings,
       parsed.data.profileId,
