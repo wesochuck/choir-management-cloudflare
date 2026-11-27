@@ -357,6 +357,45 @@ test("filters donations by thank-you status and payment source", async ({ page }
   await expect(visibleRegister.getByText("Marcus Meadows")).toBeVisible();
 });
 
+test("keeps the populated donations register inside the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 951, height: 862 });
+  await page.goto("/admin/donations");
+  const register = page.getByRole("group", { name: "Donations register" });
+  await expect(register.getByRole("table").getByText("Dana Donor")).toBeVisible();
+
+  for (const width of [390, 951, 1180]) {
+    await page.setViewportSize({ width, height: 862 });
+    const layout = await register.evaluate((panel) => {
+      const panelBounds = panel.getBoundingClientRect();
+      const elements = panel.querySelectorAll(
+        ".ticket-dashboard__section-heading :is(button, a, .field-help), .donation-dashboard__filters :is(input, select), .table-scroll",
+      );
+      return {
+        viewport: document.documentElement.clientWidth,
+        pageWidth: document.documentElement.scrollWidth,
+        controlOverflow: [...elements].some((element) => {
+          const bounds = element.getBoundingClientRect();
+          return bounds.left < panelBounds.left || bounds.right > panelBounds.right;
+        }),
+      };
+    });
+    expect(layout.pageWidth, `Page width at ${String(width)}px`).toBeLessThanOrEqual(
+      layout.viewport,
+    );
+    expect(layout.controlOverflow, `Register controls at ${String(width)}px`).toBe(false);
+  }
+
+  await page.setViewportSize({ width: 951, height: 862 });
+  await expect
+    .poll(() =>
+      register.locator(".table-scroll").evaluate((table) => {
+        table.scrollLeft = table.scrollWidth;
+        return table.scrollLeft;
+      }),
+    )
+    .toBeGreaterThan(0);
+});
+
 test("hides refunded donations by default without changing summary totals or the full CSV", async ({
   page,
 }) => {

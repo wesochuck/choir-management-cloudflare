@@ -22,6 +22,18 @@
     margin-top: 0;
   }
 
+  .donation-register {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .donation-register .ticket-dashboard__section-heading {
+    flex-wrap: wrap;
+  }
+
+  .donation-register .form-actions {
+    min-width: 0;
+  }
+
   .ticket-dashboard__metrics.donation-dashboard__metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -31,17 +43,14 @@
   }
 
   .ticket-dashboard__filters.donation-dashboard__filters {
-    grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(8rem, 1fr)) repeat(
-        2,
-        minmax(11rem, 1fr)
-      );
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
   }
   /* The pinned navigation leaves a narrower content column at tablet and
    * narrow desktop widths. Keep each donation filter readable instead of
-   * compressing all five controls into one row. */
+   * compressing the controls into one row. */
   @media (max-width: 64rem) {
     .ticket-dashboard__filters.donation-dashboard__filters {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
   .donation-level-grid {
@@ -601,9 +610,6 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .ticket-dashboard__filters.donation-dashboard__filters {
-      grid-template-columns: 1fr;
-    }
     .public-donation-form .donation-level-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
