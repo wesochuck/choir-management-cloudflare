@@ -9,6 +9,15 @@ Durable Objects, and D1. Legacy parity tracking has been retired (ADR 0049); con
 code, contracts, tests, and ADRs are authoritative. The active deployment target is permanent
 staging. Do not launch production without explicit authorization and an updated goal contract.
 
+## Authorized Production Promotion
+
+On November 27, 2026, the user approved promoting the existing staging release
+`61e996c7014a2383439325040f92923d2676ab82` to the existing production environment. This approval
+covers that release only and is subject to the production runbook's qualification and preflight
+requirements. Use the retained staging artifact and lockfile, independently verify production
+resources and secrets, retain the prior Worker version for rollback, and verify production health,
+readiness, and the deployed build version. Permanent staging remains the default deployment target.
+
 ## Required Execution
 
 1. Read `AGENTS.md`, this goal contract, `docs/goal/READINESS.md`, `CONTEXT.md`, and accepted ADRs
@@ -36,7 +45,7 @@ staging. Do not launch production without explicit authorization and an updated 
   external effects, secret redaction, accessibility, responsive behavior, and tenant-isolation
   testing are mandatory.
 - Staging and production are isolated. Production promotion requires the identical staging-qualified
-  commit and lockfile, but production deployment is outside this goal.
+  commit and lockfile and explicit approval for the release.
 
 ## Completion Criteria
 
@@ -44,8 +53,7 @@ Operating criteria are satisfied when: permanent staging is healthy on real Clou
 and provider sandbox/test modes; supported scale, tenant isolation, custom-domain behavior, platform
 email, queues/dead letters, Stripe/Brevo webhooks, exports, schedulers, observability, migrations,
 security checks, dependency audit, and qualification suites (`npm run qualify:staging:all`) pass; no
-unresolved critical/high security finding remains; and production resources remain isolated and
-unlaunched.
+unresolved critical/high security finding remains; and production resources remain isolated.
 
 ## Goal Invocation
 
@@ -53,4 +61,4 @@ Use a short persistent objective that points here:
 
 > Execute `docs/goal/GOAL.md`. Treat its outcome, constraints, and criteria as the persistent
 > definition of done. Keep `docs/goal/READINESS.md` current, continue autonomously through safe
-> work, and do not launch production.
+> work, and limit production actions to explicitly authorized releases.
