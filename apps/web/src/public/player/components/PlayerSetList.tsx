@@ -235,26 +235,31 @@ function PlayerSetListItemStatus({
 
 function PlayerSetListRowStatus({
   active,
+  hasPartPicker,
   item,
-  savedOffline = false,
-  saving = false,
-  showTrackLabel,
+  mobilePicker,
+  offlineIds,
+  pendingOfflineIds,
   track,
 }: {
   readonly active: boolean;
+  readonly hasPartPicker: boolean;
   readonly item: PlayerPlaylistItem;
-  readonly savedOffline?: boolean;
-  readonly saving?: boolean;
-  readonly showTrackLabel: boolean;
+  readonly mobilePicker: boolean;
+  readonly offlineIds: ReadonlySet<string>;
+  readonly pendingOfflineIds: ReadonlySet<string>;
   readonly track: ResolvedTrack | null;
 }) {
+  const fileId = mobilePicker ? track?.fileId : undefined;
+  const showTrackLabel = !hasPartPicker || (mobilePicker && track?.fallback === true);
+
   return (
     <span className="public-player__set-list-item-status">
       {active ? <span className="public-player__now-playing-pill">Now Playing</span> : null}
       <PlayerSetListItemStatus item={item} showTrackLabel={showTrackLabel} track={track} />
-      {savedOffline ? (
+      {fileId && offlineIds.has(fileId) ? (
         <span className="public-player__song-offline-status">Saved offline</span>
-      ) : saving ? (
+      ) : fileId && pendingOfflineIds.has(fileId) ? (
         <span className="public-player__song-offline-status" role="status">
           Saving…
         </span>
@@ -340,10 +345,11 @@ function PlayerSetListRow({
         </span>
         <PlayerSetListRowStatus
           active={active}
+          hasPartPicker={Boolean(partPicker)}
           item={item}
-          savedOffline={mobilePicker && track !== null && offlineIds.has(track.fileId)}
-          saving={mobilePicker && track !== null && pendingOfflineIds.has(track.fileId)}
-          showTrackLabel={!partPicker || (mobilePicker && track?.fallback === true)}
+          mobilePicker={mobilePicker}
+          offlineIds={offlineIds}
+          pendingOfflineIds={pendingOfflineIds}
           track={track}
         />
       </button>
