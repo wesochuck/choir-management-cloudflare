@@ -1,5 +1,9 @@
 import { activeRosterInviteSummarySchema, loudnessByFileIdSchema } from "@choir/contracts";
-import { getPublicPlayerDetails, getPublicPlayerPlaylist } from "../../api";
+import {
+  getPublicPlayerDetails,
+  getPublicPlayerPlaylist,
+  redeemPublicPracticeShare,
+} from "../../api";
 import { getCachedPlayerMetadata, saveCachedPlayerMetadata } from "../../offline/mediaStore";
 import { isPlayerDetails, isPlayerPlaylistItem, isRecord } from "./guards";
 import type { ActiveRosterInviteSummary, PlayerDetails, PlayerPlaylistItem } from "./types";
@@ -175,4 +179,28 @@ export async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDe
     if (cached) return cached;
     throw classifyPlayerError(error);
   }
+}
+
+export async function fetchSharedPracticePlayer(
+  slug: string,
+  code: string,
+): Promise<{ readonly details: PlayerDetails; readonly mediaToken: string }> {
+  const scope = window.location.host;
+  const input = new TextEncoder().encode(`${slug}#${code}`);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", input));
+  const key = `practice-share:${Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  if (!navigator.onLine) {
+    const cached = await loadCachedMetadata(scope, key, parsePlayerDetails);
+    if (cached) return { details: cached, mediaToken: "" };
+    throw new Error("offline");
+  }
+
+  const mediaToken = await redeemPublicPracticeShare(slug, code);
+  const details = parsePublicPlaylistDetails(await getPublicPlayerPlaylist(mediaToken));
+  try {
+    await saveCachedPlayerMetadata(scope, key, details);
+  } catch (error: unknown) {
+    console.debug("Failed to cache player playlist metadata:", error);
+  }
+  return { details, mediaToken };
 }

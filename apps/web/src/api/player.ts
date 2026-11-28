@@ -1,10 +1,13 @@
-import { request } from "./client";
+import { practiceShareCodePattern, practiceSharePathSlug } from "@choir/domain";
+import { z } from "zod";
+import { request, requestJson } from "./client";
 
 export interface PublicPlayerLink {
   readonly expiresAt: number;
   readonly issuedAt: number;
   readonly token: string;
   readonly url: string;
+  readonly shareUrl?: string;
 }
 
 export interface PublicPlayerLinkStatus {
@@ -13,6 +16,18 @@ export interface PublicPlayerLinkStatus {
   readonly expiresAt: number | null;
   readonly issuedAt: number | null;
   readonly status: "none" | "active" | "expired";
+}
+
+function readPracticeShareUrl(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const [path, code, extra] = value.split("#");
+  return path &&
+    code &&
+    extra === undefined &&
+    practiceSharePathSlug(path) &&
+    practiceShareCodePattern.test(code)
+    ? value
+    : undefined;
 }
 
 async function readPublicPlayerLink(response: Response): Promise<PublicPlayerLink> {
@@ -32,7 +47,8 @@ async function readPublicPlayerLink(response: Response): Promise<PublicPlayerLin
       : "/player?mode=set-list&token=" + encodeURIComponent(body.token);
   const expiresAt = "expiresAt" in body && typeof body.expiresAt === "number" ? body.expiresAt : 0;
   const issuedAt = "issuedAt" in body && typeof body.issuedAt === "number" ? body.issuedAt : 0;
-  return { expiresAt, issuedAt, token: body.token, url };
+  const shareUrl = "shareUrl" in body ? readPracticeShareUrl(body.shareUrl) : undefined;
+  return { expiresAt, issuedAt, token: body.token, url, ...(shareUrl ? { shareUrl } : {}) };
 }
 
 export async function generatePublicPlayerToken(eventId: string): Promise<PublicPlayerLink> {
@@ -91,4 +107,13 @@ export async function getPublicPlayerDetails(token: string): Promise<unknown> {
 export async function getPublicPlayerPlaylist(token: string): Promise<unknown> {
   const response = await request(`/api/public/player/playlist?token=${encodeURIComponent(token)}`);
   return response.json();
+}
+
+export async function redeemPublicPracticeShare(slug: string, code: string): Promise<string> {
+  const { token } = await requestJson(
+    "/api/public/player/share",
+    z.object({ token: z.string().min(1).max(4_096) }),
+    { body: JSON.stringify({ slug, code }), method: "POST" },
+  );
+  return token;
 }

@@ -1,3 +1,4 @@
+import { isPracticePlayerPath } from "@choir/domain";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -14,7 +15,7 @@ if (!root) {
 
 const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
 
-if (pathname === "/player") {
+if (isPracticePlayerPath(pathname)) {
   const { PlayerApp } = await importWithRetry(() => import("./public/PlayerApp"));
   createRoot(root).render(
     <StrictMode>

@@ -89,6 +89,48 @@ const populatedUpgrades = [
       ]);
     },
   },
+  {
+    version: 152,
+    exercise: (sql: SqlStorage, upgrade: () => void) => {
+      const insertLegacyLink = (id: string, nonce: string) =>
+        sql.exec(
+          `INSERT INTO practice_player_links (event_id, nonce, issued_at, expires_at, updated_at)
+           VALUES (?, ?, 1000, 2000, '2026-01-01')`,
+          id,
+          nonce,
+        );
+      insertLegacyLink("existing-event", "existing-nonce");
+      upgrade();
+      insertLegacyLink("prior-worker-event", "new-nonce");
+      expect(
+        sql.exec("SELECT share_slug, share_code_digest FROM practice_player_links").toArray(),
+      ).toEqual([
+        { share_slug: null, share_code_digest: null },
+        { share_slug: null, share_code_digest: null },
+      ]);
+      sql.exec(
+        `UPDATE practice_player_links SET share_slug = 'winter-concert', share_code_digest = 'digest'
+         WHERE event_id = 'existing-event'`,
+      );
+      sql.exec(
+        "UPDATE practice_player_links SET nonce = 'rotated' WHERE event_id = 'existing-event'",
+      );
+      expect(
+        sql
+          .exec(
+            "SELECT nonce, expires_at FROM practice_player_links WHERE event_id = 'existing-event'",
+          )
+          .one(),
+      ).toEqual({ nonce: "rotated", expires_at: 2000 });
+      const plan = sql
+        .exec<{ detail: string }>(
+          "EXPLAIN QUERY PLAN SELECT event_id FROM practice_player_links WHERE share_code_digest = ?",
+          "digest",
+        )
+        .one();
+      expect(plan.detail).toContain("idx_practice_player_links_share_code");
+    },
+  },
 ];
 
 afterEach(async () => {

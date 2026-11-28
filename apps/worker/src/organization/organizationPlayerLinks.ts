@@ -1,6 +1,12 @@
+import { timingSafeEqual } from "node:crypto";
 import { organizationMusicLibrarySettingsRequestSchema } from "@choir/contracts";
 import { z } from "zod";
-import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
+import {
+  derivePracticeShareCode,
+  digestPracticeShareCode,
+  issueSignedLink,
+  verifySignedLinkScope,
+} from "../security/signedLinks";
 import type { Env } from "../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 import { mutateOrganizationStore, readOrganizationStore } from "./rpc/repository";
@@ -126,8 +132,13 @@ export async function generatePublicPlayerToken(
   env: Pick<Env, "ORGANIZATION_STORE" | "SIGNED_LINK_SECRET">,
   organizationId: string,
   eventId: string,
-  rotate = false,
-): Promise<{ readonly expiresAt: number; readonly issuedAt: number; readonly token: string }> {
+  options: { readonly rotate?: boolean; readonly includeShareUrl?: boolean } = {},
+): Promise<{
+  readonly expiresAt: number;
+  readonly issuedAt: number;
+  readonly token: string;
+  readonly shareUrl?: string;
+}> {
   const settingsResponse = await readOrganizationStore(
     env,
     organizationId,
@@ -150,7 +161,7 @@ export async function generatePublicPlayerToken(
       nonce: crypto.randomUUID(),
       organizationId,
       requestId: crypto.randomUUID(),
-      rotate,
+      rotate: options.rotate ?? false,
     },
   );
   if (!linkResponse.ok) {
@@ -167,20 +178,84 @@ export async function generatePublicPlayerToken(
     throw new Error("Practice player link is unavailable.");
   }
   const link = playerLinkRowSchema.parse(await linkResponse.json());
+  const shareUrl = options.includeShareUrl
+    ? await createPracticeShareUrl(env, organizationId, link)
+    : undefined;
   return {
     expiresAt: link.expiresAt,
     issuedAt: link.issuedAt,
-    token: await issueSignedLink(env.SIGNED_LINK_SECRET, {
-      algorithm: "HS256",
-      expiresAt: link.expiresAt,
-      issuedAt: link.issuedAt,
-      nonce: link.nonce,
-      organizationId,
-      purpose: "player_public",
-      resourceId: link.eventId,
-      version: 1,
-    }),
+    token: await signPublicPlayerLink(env.SIGNED_LINK_SECRET, organizationId, link),
+    ...(shareUrl ? { shareUrl } : {}),
   };
+}
+
+function signPublicPlayerLink(
+  secret: string,
+  organizationId: string,
+  link: z.infer<typeof playerLinkRowSchema>,
+): Promise<string> {
+  return issueSignedLink(secret, {
+    algorithm: "HS256",
+    expiresAt: link.expiresAt,
+    issuedAt: link.issuedAt,
+    nonce: link.nonce,
+    organizationId,
+    purpose: "player_public",
+    resourceId: link.eventId,
+    version: 1,
+  });
+}
+
+async function createPracticeShareUrl(
+  env: Pick<Env, "ORGANIZATION_STORE" | "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  link: z.infer<typeof playerLinkRowSchema>,
+): Promise<string> {
+  const { eventId, nonce } = link;
+  const code = await derivePracticeShareCode(
+    env.SIGNED_LINK_SECRET,
+    organizationId,
+    eventId,
+    nonce,
+  );
+  const stub = organizationStoreStub(env, organizationId);
+  const slug = await stub.savePracticeShare({
+    digest: await digestPracticeShareCode(code),
+    eventId,
+    nonce,
+    organizationId,
+  });
+  if (!slug) throw new Error("Practice player link changed while sharing.");
+  return `/practice/${slug}#${code}`;
+}
+
+export async function redeemPracticeShare(
+  env: Pick<Env, "ORGANIZATION_STORE" | "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  slug: string,
+  code: string,
+): Promise<string | null> {
+  const link = await organizationStoreStub(env, organizationId).readPracticeShare({
+    digest: await digestPracticeShareCode(code),
+    organizationId,
+    slug,
+  });
+  if (!link) return null;
+  // Older Worker versions can rotate the nonce without touching the share columns.
+  const expected = await derivePracticeShareCode(
+    env.SIGNED_LINK_SECRET,
+    organizationId,
+    link.eventId,
+    link.nonce,
+  );
+  const encoder = new TextEncoder();
+  if (
+    code.length !== expected.length ||
+    !timingSafeEqual(encoder.encode(expected), encoder.encode(code))
+  ) {
+    return null;
+  }
+  return signPublicPlayerLink(env.SIGNED_LINK_SECRET, organizationId, link);
 }
 
 type PlayerDetailResponse = Record<string, unknown>;

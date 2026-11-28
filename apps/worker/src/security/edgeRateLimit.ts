@@ -81,6 +81,9 @@ function getRateLimitExceededMessage(operation: string, limiterName: EdgeRateLim
   if (operation === "platform_tickets") {
     return "Too many ticket feed requests. Please try again later.";
   }
+  if (operation === "practice_share") {
+    return "Too many practice player requests. Please try again later.";
+  }
   return "Too many checkout requests. Please try again later.";
 }
 

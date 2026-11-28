@@ -75,6 +75,56 @@ test("shows not found when player token is invalid or expired", async ({ page })
   ).toBeVisible();
 });
 
+test("opens a short practice link and keeps its code in the fragment on reload", async ({
+  page,
+}) => {
+  const code = "mR4vh8TQ2Lk7Vn5sDP3Jqw";
+  const url = `/practice/winter-concert#${code}`;
+  let revoked = false;
+  await page.route("**/api/public/player/share", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().url()).not.toContain(code);
+    expect(route.request().postDataJSON()).toEqual({ code, slug: "winter-concert" });
+    await route.fulfill(
+      revoked
+        ? {
+            json: { code: "invalid_link", message: "Link expired", requestId },
+            status: 404,
+          }
+        : { json: { token: "signed-playback-token", requestId } },
+    );
+  });
+  await page.route("**/api/public/player/playlist?*", async (route) => {
+    expect(new URL(route.request().url()).searchParams.get("token")).toBe("signed-playback-token");
+    await route.fulfill({
+      json: {
+        event: { id: "event-winter", title: "Winter Concert", date: futureIsoDate({ days: 30 }) },
+        pieces: [
+          { title: "Winter Song", pieceId: "winter-song", trackFileIds: { tutti: "winter-track" } },
+        ],
+        requestId,
+      },
+    });
+  });
+
+  await page.goto("/practice/winter-concert");
+  await expect(page.getByRole("heading", { name: "Player Link Required" })).toBeVisible();
+  await page.goto(url);
+  await expect(page.getByRole("heading", { name: "Winter Concert" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/practice/winter-concert#${code}$`));
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Winter Concert" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/practice/winter-concert#${code}$`));
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  await page.context().setOffline(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Winter Concert" })).toBeVisible();
+  revoked = true;
+  await page.context().setOffline(false);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Link Not Found" })).toBeVisible();
+});
+
 test("renders practice player with artwork, track navigation, and set list @webkit-smoke", async ({
   page,
 }, testInfo) => {

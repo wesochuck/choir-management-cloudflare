@@ -104,6 +104,26 @@ async function signPayload(secret: string, purpose: string, payload: string): Pr
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, textEncoder.encode(payload)));
 }
 
+export async function derivePracticeShareCode(
+  secret: string,
+  organizationId: string,
+  eventId: string,
+  nonce: string,
+): Promise<string> {
+  const signature = await signPayload(
+    secret,
+    "practice_player_share",
+    JSON.stringify([organizationId, eventId, nonce]),
+  );
+  return encodeBase64Url(signature.subarray(0, 16));
+}
+
+export async function digestPracticeShareCode(code: string): Promise<string> {
+  return encodeBase64Url(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", textEncoder.encode(code))),
+  );
+}
+
 function fixedLengthEqual(left: Uint8Array, right: Uint8Array): boolean {
   if (left.byteLength !== SIGNATURE_BYTES || right.byteLength !== SIGNATURE_BYTES) {
     return false;

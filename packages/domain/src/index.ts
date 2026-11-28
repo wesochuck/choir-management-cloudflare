@@ -444,6 +444,12 @@ export {
 } from "./id3Metadata";
 
 export { ticketSlugBase, ticketSalesPath, isTicketEventShareable } from "./ticketLinks";
+export {
+  isPracticePlayerPath,
+  practiceShareCodePattern,
+  practiceSharePathSlug,
+  practiceShareSlug,
+} from "./practiceLinks";
 export { availableTicketBundlesForEvent } from "./ticketing";
 export { coverImageOverflow, shiftCoverImagePosition } from "./imagePosition";
 

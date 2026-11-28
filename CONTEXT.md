@@ -654,10 +654,12 @@ A signed, Organization-bound, shareable event link that lets anyone with the lin
 event practice tracks without a standard login. It exposes published event practice content only,
 not member-specific Profile details, and remains limited by its purpose, event, and expiry. An
 Organization reuses one link for the event until it expires or an administrator rotates it. The
-default lifetime is 180 days and is configurable per Organization in Music Library settings.
-Rotation immediately revokes the prior link and starts a fresh lifetime for the replacement. Access
-also re-checks event eligibility: a canceled or archived event, or an event whose approved Set List
-was unpublished, shows an unavailable state instead of serving practice audio.
+default lifetime is 180 days and is configurable per Organization in Music Library settings. The
+copied link uses the event's stable title slug and a short access code. Both formats represent the
+same active link generation. Rotation immediately revokes the prior link and starts a fresh lifetime
+for the replacement. Access also re-checks event eligibility: a canceled or archived event, or an
+event whose approved Set List was unpublished, shows an unavailable state instead of serving
+practice audio.
 
 ## Offline Copy
 

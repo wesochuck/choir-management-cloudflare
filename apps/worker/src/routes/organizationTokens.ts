@@ -161,6 +161,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         context.env,
         authorization.organizationId,
         body.data.eventId,
+        { includeShareUrl: true },
       );
       return context.json({
         ...generated,
@@ -254,7 +255,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         context.env,
         authorization.organizationId,
         eventId.data,
-        true,
+        { includeShareUrl: true, rotate: true },
       );
       return context.json({
         ...generated,

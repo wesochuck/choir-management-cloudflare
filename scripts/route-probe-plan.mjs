@@ -59,6 +59,7 @@ export const probePlan = new Map([
 
   // Empty-body validation probes (schemas require fields, so 400 precedes any side effect)
   ["GET /api/singer/seating-profiles", { expected: 400, kind: "validation" }],
+  ["POST /api/public/player/share", { expected: 400, kind: "validation" }],
   ["POST /api/organization/auditions", { expected: 400, kind: "validation" }],
   ["POST /api/organization/player-tokens", { expected: 400, kind: "validation" }],
   ["POST /api/organization/poll-tokens", { expected: 400, kind: "validation" }],

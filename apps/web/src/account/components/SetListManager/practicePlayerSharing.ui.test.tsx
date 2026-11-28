@@ -163,6 +163,7 @@ describe("SetListManager Practice Player sharing and link stability", () => {
     const activeLink = {
       expiresAt: activeExpiresAt,
       issuedAt: activeIssuedAt,
+      shareUrl: "/practice/fall-concert#mR4vh8TQ2Lk7Vn5sDP3Jqw",
       token: "token-stable-123",
       url: "/player?mode=set-list&token=token-stable-123",
     };
@@ -195,7 +196,7 @@ describe("SetListManager Practice Player sharing and link stability", () => {
     expect(api.rotatePublicPlayerToken).not.toHaveBeenCalled();
     expect(copyPlainTextUrl).toHaveBeenCalledTimes(1);
     expect(copyPlainTextUrl).toHaveBeenCalledWith(
-      "http://localhost:3000/player?mode=set-list&token=token-stable-123",
+      "http://localhost:3000/practice/fall-concert#mR4vh8TQ2Lk7Vn5sDP3Jqw",
     );
 
     // 2. Click Practice Player (open)
@@ -225,6 +226,9 @@ describe("SetListManager Practice Player sharing and link stability", () => {
     expect(screen.getAllByText(/Practice Player link expires Oct 11, 2026/i).length).toBe(2);
     const qrImage = screen.getByAltText("Practice Player QR code for Fall Concert");
     expect(qrImage).toBeInTheDocument();
+    expect(qrCodeModule.generateQRCodeDataUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: `http://localhost:3000${activeLink.shareUrl}` }),
+    );
   });
 
   it("handles expired link: shows expired helper text, disables sharing, and allows renewal", async () => {

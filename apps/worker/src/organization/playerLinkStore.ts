@@ -1,3 +1,4 @@
+import { practiceShareSlug } from "@choir/domain";
 import { z } from "zod";
 
 import type { DurableObjectStorage, SqlStorageValue } from "@cloudflare/workers-types";
@@ -58,6 +59,60 @@ function hasPublishedTrack(storage: DurableObjectStorage, eventId: string): bool
       )
       .toArray().length > 0
   );
+}
+
+export function savePracticeShareInStore(
+  storage: DurableObjectStorage,
+  input: {
+    readonly organizationId: string;
+    readonly eventId: string;
+    readonly nonce: string;
+    readonly digest: string;
+  },
+): string | null {
+  if (!identityMatches(storage, input.organizationId)) return null;
+  const event = storage.sql
+    .exec<{ readonly title: string }>("SELECT title FROM events WHERE id = ?", input.eventId)
+    .toArray()
+    .at(0);
+  if (!event) return null;
+  return (
+    storage.sql
+      .exec<{ readonly slug: string }>(
+        `UPDATE practice_player_links
+         SET share_slug = COALESCE(share_slug, ?), share_code_digest = ?
+         WHERE event_id = ? AND nonce = ? AND expires_at > ?
+         RETURNING share_slug AS slug`,
+        practiceShareSlug(event.title),
+        input.digest,
+        input.eventId,
+        input.nonce,
+        Math.floor(Date.now() / 1_000),
+      )
+      .toArray()
+      .at(0)?.slug ?? null
+  );
+}
+
+export function readPracticeShareInStore(
+  storage: DurableObjectStorage,
+  input: { readonly organizationId: string; readonly slug: string; readonly digest: string },
+): LinkRow | null {
+  if (!identityMatches(storage, input.organizationId)) return null;
+  const link = storage.sql
+    .exec<LinkRow>(
+      `SELECT l.event_id AS eventId, l.nonce, l.issued_at AS issuedAt,
+         l.expires_at AS expiresAt, l.updated_at AS updatedAt
+       FROM practice_player_links l JOIN events e ON e.id = l.event_id
+       WHERE l.share_code_digest = ? AND l.share_slug = ? AND l.expires_at > ?
+         AND e.is_archived = 0 AND e.is_canceled = 0 AND e.set_list_approved = 1`,
+      input.digest,
+      input.slug,
+      Math.floor(Date.now() / 1_000),
+    )
+    .toArray()
+    .at(0);
+  return link && hasPublishedTrack(storage, link.eventId) ? link : null;
 }
 
 export function readPracticePlayerLinkFromStore(

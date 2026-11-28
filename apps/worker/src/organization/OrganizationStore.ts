@@ -167,6 +167,7 @@ import {
   type PreviewProfileReconciliationInput,
 } from "./organizationStore/profileReconciliation";
 import { migrateOrganization } from "./migrations";
+import { readPracticeShareInStore, savePracticeShareInStore } from "./playerLinkStore";
 import {
   readPaymentFeeReconciliationStatus,
   schedulePaymentFeeReconciliationInStore,
@@ -392,6 +393,14 @@ export class OrganizationStore extends DurableObject {
   }
   readCheckoutRecoveryChoices(input: Parameters<typeof readCheckoutRecoveryChoices>[1]) {
     return readCheckoutRecoveryChoices(this.ctx.storage, input);
+  }
+
+  savePracticeShare(input: Parameters<typeof savePracticeShareInStore>[1]) {
+    return savePracticeShareInStore(this.ctx.storage, input);
+  }
+
+  readPracticeShare(input: Parameters<typeof readPracticeShareInStore>[1]) {
+    return readPracticeShareInStore(this.ctx.storage, input);
   }
 
   listDonationPublications(input: Parameters<typeof listDonationPublications>[1]) {

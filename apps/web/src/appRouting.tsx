@@ -4,6 +4,7 @@ import {
   type PlatformMfaStatusResponse,
   type PublishedOrganizationProjection,
 } from "@choir/contracts";
+import { isPracticePlayerPath } from "@choir/domain";
 import { Suspense, type ReactNode } from "react";
 
 import { AuthenticatedShell } from "./account/components/AuthenticatedShell/shell";
@@ -244,7 +245,7 @@ function isStandalonePublicRoute(pathname: string): boolean {
     pathname === "/unsubscribe" ||
     pathname === "/checkout/return" ||
     pathname === "/checkout/reminders/stop" ||
-    pathname === "/player" ||
+    isPracticePlayerPath(pathname) ||
     pathname === "/forgot-password" ||
     pathname === "/reset-password" ||
     pathname === "/confirm-email-change" ||
@@ -423,7 +424,7 @@ function renderPublicOrProductRoute(
   if (pathname === "/tickets" || pathname.startsWith("/tickets/")) {
     return <PublicTickets pathname={pathname} />;
   }
-  if (pathname === "/player") {
+  if (isPracticePlayerPath(pathname)) {
     return (
       <Suspense fallback={null}>
         <PublicPlayerView />

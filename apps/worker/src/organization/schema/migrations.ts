@@ -2645,6 +2645,16 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE profiles ADD COLUMN accessible_seating_requested INTEGER NOT NULL DEFAULT 0 CHECK (accessible_seating_requested IN (0, 1))",
     ],
   },
+  {
+    version: 152,
+    statements: [
+      "ALTER TABLE practice_player_links ADD COLUMN share_slug TEXT",
+      "ALTER TABLE practice_player_links ADD COLUMN share_code_digest TEXT",
+      // A redemption must be a point lookup even when many performances share a title.
+      `CREATE UNIQUE INDEX idx_practice_player_links_share_code
+       ON practice_player_links(share_code_digest) WHERE share_code_digest IS NOT NULL`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

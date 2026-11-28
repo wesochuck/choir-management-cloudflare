@@ -9,6 +9,7 @@ import {
 } from "@choir/testkit";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
+import { z } from "zod";
 
 import {
   clearCapturedPlatformEmailsForTest,
@@ -501,6 +502,112 @@ describe("member dashboard", () => {
       api("alpha.localhost", `/api/public/player/playlist?token=${encodeURIComponent(token)}`),
     );
     expect(oldResponse.status).toBe(404);
+  });
+
+  it("shares a readable code without disturbing existing signed links and revokes both on rotation", async () => {
+    const cookie = await signIn();
+    const original = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/practice-links/${PERFORMANCE_ID}`, cookie),
+    );
+    expect(original.status).toBe(200);
+    const oldToken = readToken(await original.json());
+    await database
+      .prepare("UPDATE member SET role = 'owner' WHERE organizationId = 'organization-alpha'")
+      .run();
+    const generate = () =>
+      exports.default.fetch(
+        api("alpha.localhost", "/api/organization/player-tokens", cookie, {
+          body: JSON.stringify({ eventId: PERFORMANCE_ID }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+    const shareLink = z.object({ expiresAt: z.number(), shareUrl: z.string(), token: z.string() });
+    const generated = await generate();
+    expect(generated.status).toBe(200);
+    const link = shareLink.parse(await generated.json());
+    expect(link.token).toBe(oldToken);
+    expect(link.shareUrl).toMatch(/^\/practice\/spring-performance#[A-Za-z0-9_-]{22}$/u);
+    const code = new URL(link.shareUrl, "http://alpha.localhost").hash.slice(1);
+    const redeem = (host: string, slug: string, code: string) =>
+      exports.default.fetch(
+        api(host, "/api/public/player/share", undefined, {
+          body: JSON.stringify({ slug, code }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+    const play = (token: string) =>
+      exports.default.fetch(
+        api("alpha.localhost", `/api/public/player/playlist?token=${encodeURIComponent(token)}`),
+      );
+    const valid = await redeem("alpha.localhost", "spring-performance", code);
+    expect(valid.status).toBe(200);
+    expect(valid.headers.get("cache-control")).toBe("no-store");
+    expect(valid.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(readToken(await valid.json())).toBe(oldToken);
+    expect((await play(oldToken)).status).toBe(200);
+    expect((await redeem("bravo.localhost", "spring-performance", code)).status).toBe(404);
+    expect((await redeem("alpha.localhost", "different-performance", code)).status).toBe(404);
+    expect((await redeem("alpha.localhost", "spring-performance", `${code}A`)).status).toBe(400);
+    const wrongCode = `${code.startsWith("A") ? "B" : "A"}${code.slice(1)}`;
+    expect((await redeem("alpha.localhost", "spring-performance", wrongCode)).status).toBe(404);
+
+    const store = stores.getByName("organization-alpha");
+    await runInDurableObject<OrganizationStore, null>(store, (_instance, state) => {
+      state.storage.sql.exec("UPDATE events SET title = 'New Title' WHERE id = ?", PERFORMANCE_ID);
+      return null;
+    });
+    expect(shareLink.parse(await (await generate()).json())).toEqual(link);
+
+    const rotated = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/player-tokens/${PERFORMANCE_ID}/rotate`, cookie, {
+        method: "POST",
+      }),
+    );
+    expect(rotated.status).toBe(200);
+    const rotatedLink = shareLink.parse(await rotated.json());
+    expect(rotatedLink.shareUrl).toMatch(/^\/practice\/spring-performance#/u);
+    expect(rotatedLink.shareUrl).not.toBe(link.shareUrl);
+    expect((await play(oldToken)).status).toBe(404);
+    expect((await redeem("alpha.localhost", "spring-performance", code)).status).toBe(404);
+    const rotatedCode = new URL(rotatedLink.shareUrl, "http://alpha.localhost").hash.slice(1);
+    expect((await redeem("alpha.localhost", "spring-performance", rotatedCode)).status).toBe(200);
+    await runInDurableObject<OrganizationStore, null>(store, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE events SET set_list_approved = 0 WHERE id = ?",
+        PERFORMANCE_ID,
+      );
+      return null;
+    });
+    expect((await redeem("alpha.localhost", "spring-performance", rotatedCode)).status).toBe(404);
+    await runInDurableObject<OrganizationStore, null>(store, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE events SET set_list_approved = 1 WHERE id = ?",
+        PERFORMANCE_ID,
+      );
+      state.storage.sql.exec(
+        "UPDATE practice_player_links SET expires_at = 1000 WHERE event_id = ?",
+        PERFORMANCE_ID,
+      );
+      return null;
+    });
+    expect((await redeem("alpha.localhost", "spring-performance", rotatedCode)).status).toBe(404);
+    expect((await play(rotatedLink.token)).status).toBe(404);
+
+    const renewed = shareLink.parse(await (await generate()).json());
+    const renewedCode = new URL(renewed.shareUrl, "http://alpha.localhost").hash.slice(1);
+    expect((await redeem("alpha.localhost", "spring-performance", renewedCode)).status).toBe(200);
+    await runInDurableObject<OrganizationStore, null>(store, (_instance, state) => {
+      // The previous Worker rotates the signed nonce without updating the code digest.
+      state.storage.sql.exec(
+        "UPDATE practice_player_links SET nonce = ? WHERE event_id = ?",
+        crypto.randomUUID(),
+        PERFORMANCE_ID,
+      );
+      return null;
+    });
+    expect((await redeem("alpha.localhost", "spring-performance", renewedCode)).status).toBe(404);
   });
 
   it("returns a useful response when the set-list player is not publishable", async () => {

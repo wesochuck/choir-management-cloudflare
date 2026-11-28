@@ -60,6 +60,15 @@ purpose ignores time expiry, including older signed ticket codes whose stored no
 Receipt reads reuse the existing credential without rotating it. Paid status, included-event checks,
 Organization binding, signature verification, and nonce matching remain required (ADR 0067).
 
+## Practice Player share URLs
+
+Shared Set List URLs use `/practice/{slug}#{code}`. An Organization-scoped, rate-limited POST
+exchanges the code for the existing `player_public` envelope without navigating. The code lookup and
+comparison bind it to the hostname-resolved Organization, slug, event, and current nonce. The
+exchange and all playback requests enforce the existing expiry and publication requirements. The
+exchange uses `no-store` and `no-referrer`. The readable shell uses `no-referrer` and `noindex`.
+Existing signed URLs still use the versioned envelope directly (ADR 0081).
+
 ## Incomplete checkout recovery and reminder opt-out
 
 `checkout_recovery` is bound to the Organization, opaque reminder resource, persisted nonce, and

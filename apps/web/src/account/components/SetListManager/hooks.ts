@@ -559,7 +559,7 @@ export function useSetListManagerController({
     try {
       const link = await ensureActiveLink();
       if (!link) return;
-      const absoluteUrl = new URL(link.url, window.location.origin).toString();
+      const absoluteUrl = new URL(link.shareUrl ?? link.url, window.location.origin).toString();
       await copyPlainTextUrl(absoluteUrl);
       setMessage("Practice player link copied.");
     } catch (caught: unknown) {
@@ -584,7 +584,7 @@ export function useSetListManagerController({
     try {
       const link = await ensureActiveLink();
       if (!link) return;
-      const absoluteUrl = new URL(link.url, window.location.origin).toString();
+      const absoluteUrl = new URL(link.shareUrl ?? link.url, window.location.origin).toString();
       setQrUrl(absoluteUrl);
       setQrDialogOpen(true);
     } catch (caught: unknown) {

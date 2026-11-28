@@ -156,6 +156,7 @@ router.use("*", async (context, next) => {
     context.res.headers,
     responsePath === "/api/calendar/feed" ||
       responsePath === "/api/public/unsubscribe" ||
+      responsePath === "/api/public/player/share" ||
       responsePath.startsWith("/api/public/checkout-reminders/") ||
       responsePath.startsWith("/checkout/")
       ? "no-referrer"

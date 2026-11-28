@@ -187,6 +187,18 @@ describe("Organization public website", () => {
     expect(response.headers.get("location")).toBeNull();
   });
 
+  it("serves the short practice-link shell on public domains and keeps member practice private", async () => {
+    const shared = await exports.default.fetch(
+      api("alpha.example.test", "/practice/spring-concert"),
+    );
+    expect(shared.status).toBe(200);
+    expect(shared.headers.get("content-type")).toContain("text/html");
+    expect(shared.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(shared.headers.get("x-robots-tag")).toBe("noindex");
+    const member = await exports.default.fetch(api("alpha.example.test", "/practice"));
+    expect(member.status).toBe(404);
+  });
+
   it("makes ticket-enabled Performances public on create and update and refreshes the live schedule without publishing website drafts", async () => {
     const cookie = await signIn();
     await uploadImage(cookie);

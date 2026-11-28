@@ -1,3 +1,4 @@
+import { practiceShareCodePattern, practiceSharePathSlug } from "@choir/domain";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -14,6 +15,7 @@ import {
   writeRosterInviteBannerDismissed,
   type PageStatus,
 } from "./player";
+import { fetchSharedPracticePlayer } from "./player/api";
 import { useRosterPartStatus } from "./player/useRosterPart";
 
 export type { PlayerDetails, PlayerPlaylistItem } from "./player";
@@ -26,19 +28,56 @@ function classifyOffline(error: unknown): boolean {
 }
 
 export function PublicPlayerView() {
+  const shareSlug = practiceSharePathSlug(
+    typeof window === "undefined" ? "" : window.location.pathname,
+  );
+  const [code, setCode] = useState(() => (shareSlug ? window.location.hash.slice(1) : ""));
+  useEffect(() => {
+    if (!shareSlug) return;
+    const updateCode = () => {
+      setCode(window.location.hash.slice(1));
+    };
+    updateCode();
+    window.addEventListener("hashchange", updateCode);
+    return () => {
+      window.removeEventListener("hashchange", updateCode);
+    };
+  }, [shareSlug]);
   const location = useMemo(
     () => new URLSearchParams(typeof window !== "undefined" ? window.location.search : ""),
     [],
   );
-  const token = location.get("token");
-  const isSetListPlayer = location.get("mode") === "set-list";
+  const token = shareSlug
+    ? practiceShareCodePattern.test(code)
+      ? code
+      : null
+    : location.get("token");
+
+  return (
+    <PlayerPage
+      isSetListPlayer={location.get("mode") === "set-list"}
+      key={shareSlug ? `${shareSlug}#${code}` : "player"}
+      shareSlug={shareSlug}
+      currentToken={token}
+    />
+  );
+}
+
+function PlayerPage({
+  currentToken,
+  isSetListPlayer,
+  shareSlug,
+}: {
+  readonly currentToken: string | null;
+  readonly isSetListPlayer: boolean;
+  readonly shareSlug: string | null;
+}) {
   const [pageStatus, setPageStatus] = useState<PageStatus>({
-    type: token ? "loading" : "no_token",
+    type: currentToken ? "loading" : "no_token",
   });
   const [rosterReloadTrigger, setRosterReloadTrigger] = useState(0);
   const rosterResolution = useRosterPartStatus(rosterReloadTrigger);
   const rosterPart = rosterResolution.status === "assigned" ? rosterResolution.voicePart : null;
-  const currentToken = token;
 
   const [retryCount, setRetryCount] = useState(0);
   const [selectedPartKey, setSelectedPartKey] = useState<string | null>(null);
@@ -53,14 +92,17 @@ export function PublicPlayerView() {
     let cancelled = false;
 
     const runFetch = () => {
-      const fetchPromise = isSetListPlayer
-        ? fetchPublicPlayerPlaylist(currentToken)
-        : fetchPlayerDetails(currentToken);
+      const fetchPromise = shareSlug
+        ? fetchSharedPracticePlayer(shareSlug, currentToken)
+        : (isSetListPlayer
+            ? fetchPublicPlayerPlaylist(currentToken)
+            : fetchPlayerDetails(currentToken)
+          ).then((details) => ({ details, mediaToken: currentToken }));
 
       fetchPromise
-        .then((details) => {
+        .then(({ details, mediaToken }) => {
           if (!cancelled) {
-            setPageStatus({ details, type: "ready" });
+            setPageStatus({ details, mediaToken, type: "ready" });
           }
         })
         .catch((error: unknown) => {
@@ -87,7 +129,7 @@ export function PublicPlayerView() {
       cancelled = true;
       window.removeEventListener("online", handleOnline);
     };
-  }, [currentToken, isSetListPlayer, retryCount]);
+  }, [currentToken, isSetListPlayer, retryCount, shareSlug]);
 
   useEffect(() => {
     if (pageStatus.type !== "ready") return;
@@ -104,7 +146,8 @@ export function PublicPlayerView() {
     };
   }, [pageStatus]);
 
-  const source = useMemo(() => createTokenTrackSource(token ?? ""), [token]);
+  const mediaToken = pageStatus.type === "ready" ? pageStatus.mediaToken : "";
+  const source = useMemo(() => createTokenTrackSource(mediaToken), [mediaToken]);
 
   if (pageStatus.type === "no_token") {
     return (

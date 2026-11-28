@@ -3,6 +3,7 @@ import {
   normalizedPublicWebsitePages,
   reservedPublicWebsiteSlugs,
 } from "@choir/contracts";
+import { practiceSharePathSlug } from "@choir/domain";
 import { resolveOrganization } from "./tenancy/resolveOrganization";
 import { readPublishedOrganization } from "./publication/publishOrganization";
 import {
@@ -37,6 +38,7 @@ function deniesPublicHostShell(url: URL, baseDomain: string): boolean {
   if (url.hostname === baseDomain || url.hostname.endsWith(`.${baseDomain}`)) return false;
   const pathname = url.pathname;
   if (pathname.startsWith("/api/") || pathname.startsWith("/assets/")) return false;
+  if (practiceSharePathSlug(pathname)) return false;
   const systemRoot = pathname.split("/")[1] ?? "";
   const publicRoots = new Set([
     "performances",
@@ -87,6 +89,7 @@ function applyAssetResponseHeaders(
   pathname: string,
   contentStatus: number | undefined,
 ): void {
+  const isPracticeShare = practiceSharePathSlug(pathname) !== null;
   if (
     !headers.has("cache-control") ||
     (headers.get("content-type") ?? "").toLowerCase().includes("text/html")
@@ -95,10 +98,13 @@ function applyAssetResponseHeaders(
   }
   setSecurityHeaders(
     headers,
-    pathname.startsWith("/checkout/") ? "no-referrer" : "strict-origin-when-cross-origin",
+    isPracticeShare || pathname.startsWith("/checkout/")
+      ? "no-referrer"
+      : "strict-origin-when-cross-origin",
     undefined,
     allowsPublicGoogleAds(pathname, contentStatus),
   );
+  if (isPracticeShare) headers.set("x-robots-tag", "noindex");
 }
 
 const worker = {

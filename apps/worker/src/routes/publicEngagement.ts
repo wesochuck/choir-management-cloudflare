@@ -1,4 +1,5 @@
 import { activeRosterInviteSummarySchema, loudnessByFileIdSchema } from "@choir/contracts";
+import { practiceShareCodePattern, practiceSharePathSlug } from "@choir/domain";
 import {
   communicationUnsubscribeRequestSchema,
   publicAuditionInquiryRequestSchema,
@@ -15,6 +16,7 @@ import {
   unsubscribeOrganizationProfile,
 } from "../organization/organizationCommunications";
 import { verifySignedLinkScope } from "../security/signedLinks";
+import { evaluateEdgeRateLimit } from "../security/edgeRateLimit";
 import {
   PrivateFileStorageError,
   privateFileIdSchema,
@@ -22,6 +24,7 @@ import {
 } from "../storage/privateFiles";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
 import {
+  redeemPracticeShare,
   resolvePlayerDetails,
   resolvePublicPlayerPlaylist,
 } from "../organization/organizationPlayerLinks";
@@ -73,6 +76,50 @@ function rangeNotSatisfiableResponse(error: PrivateFileStorageError): Response {
 }
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
+  router.post("/api/public/player/share", async (context) => {
+    validateStartupConfig(context.env);
+    const requestId = context.get("requestId");
+    const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+    const invalidLink = {
+      code: "invalid_link",
+      message: "This player link is invalid or expired.",
+      requestId,
+    } satisfies ProblemDetails;
+    if (!resolved.ok) return context.json(invalidLink, 404);
+
+    const body = z
+      .object({
+        code: z.string().length(22).regex(practiceShareCodePattern),
+        slug: z
+          .string()
+          .max(48)
+          .refine((slug) => practiceSharePathSlug(`/practice/${slug}`) === slug),
+      })
+      .safeParse(await context.req.json<unknown>().catch(() => null));
+    if (!body.success) {
+      return context.json({ ...invalidLink, code: "validation_failed" }, 400);
+    }
+
+    const organizationId = resolved.value.organizationId;
+    const limit = await evaluateEdgeRateLimit({
+      clientIp: context.req.header("cf-connecting-ip"),
+      env: context.env,
+      limiterName: "PUBLIC_READ_RATE_LIMITER",
+      operation: "practice_share",
+      organizationId,
+      requestId,
+    });
+    if (limit) return limit;
+
+    const token = await redeemPracticeShare(
+      context.env,
+      organizationId,
+      body.data.slug,
+      body.data.code,
+    );
+    return token ? context.json({ token, requestId }) : context.json(invalidLink, 404);
+  });
+
   router.post("/api/public/player-details", async (context) => {
     validateStartupConfig(context.env);
     const resolved = await resolveOrganization(new URL(context.req.url), context.env);
