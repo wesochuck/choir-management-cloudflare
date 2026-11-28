@@ -12,8 +12,8 @@ staging. Do not launch production without explicit authorization and an updated 
 ## Authorized Production Promotion
 
 On November 27, 2026, the user approved promoting the existing staging release
-`61e996c7014a2383439325040f92923d2676ab82` to the existing production environment. This approval
-covers that release only and is subject to the production runbook's qualification and preflight
+`c93afb815f02e3f400dece904c534f277f4a7e2b` to the existing production environment. This records the
+current promotion target and is subject to the production runbook's qualification and preflight
 requirements. Use the retained staging artifact and lockfile, independently verify production
 resources and secrets, retain the prior Worker version for rollback, and verify production health,
 readiness, and the deployed build version. Permanent staging remains the default deployment target.
