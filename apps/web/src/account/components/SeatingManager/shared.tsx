@@ -1,4 +1,9 @@
-import { SeatingAttendanceContext, describeSeatingAttendanceWarning } from "./attendanceContext";
+import {
+  accessibleSeatingRequestLabel,
+  SeatingAttendanceContext,
+  describeSeatingAttendanceWarning,
+} from "./attendanceContext";
+import { AccessibleSeatingMarker } from "./AccessibleSeatingMarker";
 import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
 import type {
   OrganizationProfile,
@@ -416,6 +421,15 @@ export function UnassignedProfileChip({
   readonly profile: OrganizationProfile;
 }) {
   const warning = useContext(SeatingAttendanceContext).get(profile.id);
+  const seatingRequest = profile.accessibleSeatingRequested ? accessibleSeatingRequestLabel : "";
+  const accessibleName = [
+    profile.displayName,
+    profile.voicePart,
+    seatingRequest,
+    describeSeatingAttendanceWarning(warning),
+  ]
+    .filter(Boolean)
+    .join(", ");
   const {
     attributes: dragAttributes,
     isDragging: profileIsDragging,
@@ -426,7 +440,10 @@ export function UnassignedProfileChip({
     setProfileNodeRef(node);
   };
   return (
-    <Tooltip content={profile.displayName} disabled={profileIsDragging}>
+    <Tooltip
+      content={[profile.displayName, seatingRequest].filter(Boolean).join(" · ")}
+      disabled={profileIsDragging}
+    >
       <div
         className={`seating-profile-chip${profileIsDragging ? " seating-profile-chip--dragging" : ""}`}
         draggable
@@ -434,13 +451,16 @@ export function UnassignedProfileChip({
         style={{ opacity: profileIsDragging ? 0.45 : undefined }}
         {...dragAttributes}
         {...dragListeners}
-        aria-label={`${profile.displayName}, ${profile.voicePart}${describeSeatingAttendanceWarning(warning) ? `, ${describeSeatingAttendanceWarning(warning) ?? ""}` : ""}`}
+        aria-label={accessibleName}
         onDragStart={(event) => {
           event.dataTransfer.setData("text/plain", `profile:${profile.id}`);
           event.dataTransfer.effectAllowed = "move";
         }}
       >
-        <span className="seating-profile-chip__name">{profile.displayName}</span>
+        <span className="seating-person-name seating-profile-chip__identity">
+          <span className="seating-profile-chip__name">{profile.displayName}</span>
+          <AccessibleSeatingMarker decorative visible={Boolean(seatingRequest)} />
+        </span>
         <span className="seating-profile-chip__voice">{profile.voicePart}</span>
         <AttendanceWarningBadge profileId={profile.id} />
         <button

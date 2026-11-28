@@ -1272,8 +1272,11 @@
     box-shadow: 0 0.55rem 1rem color-mix(in srgb, var(--color-text) 24%, transparent);
   }
 
-  .seating-profile-chip__name {
+  .seating-profile-chip__identity {
     flex: 1;
+  }
+
+  .seating-profile-chip__name {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;

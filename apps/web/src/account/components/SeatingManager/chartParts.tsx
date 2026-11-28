@@ -5,6 +5,7 @@ import {
   seatingSeatAccessibleLabel,
 } from "./attendanceContext";
 import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
+import { AccessibleSeatingMarker } from "./AccessibleSeatingMarker";
 import { seatingEmptyMessage } from "./utils";
 import type {
   OrganizationProfile,
@@ -32,35 +33,21 @@ export function SeatSuggestion({
   return <span className="seating-seat__suggestion">{suggestion ?? "Open"}</span>;
 }
 
-export function AccessibleSeatingMarker({ decorative = false }: { readonly decorative?: boolean }) {
-  return (
-    <svg
-      aria-hidden={decorative || undefined}
-      aria-label={decorative ? undefined : accessibleSeatingRequestLabel}
-      className="seating-accessibility-icon no-print"
-      fill="none"
-      role={decorative ? undefined : "img"}
-      viewBox="0 0 24 24"
-    >
-      <circle cx="12" cy="4" r="2.5" fill="currentColor" />
-      <path
-        d="M4 9h16M12 9v5m0 0-4 7m4-7 4 7"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="2.5"
-      />
-    </svg>
-  );
-}
-
 export function AccessibleSeatingLegend({
   assignments,
   profilesById,
+  showUnassigned,
+  unassignedProfiles,
 }: {
   readonly assignments: OrganizationSeatingChartRequest["assignments"];
   readonly profilesById: ReadonlyMap<string, OrganizationProfile>;
+  readonly showUnassigned: boolean;
+  readonly unassignedProfiles: readonly OrganizationProfile[];
 }) {
-  if (!Object.values(assignments).some((id) => profilesById.get(id)?.accessibleSeatingRequested)) {
+  if (
+    !Object.values(assignments).some((id) => profilesById.get(id)?.accessibleSeatingRequested) &&
+    !(showUnassigned && unassignedProfiles.some((profile) => profile.accessibleSeatingRequested))
+  ) {
     return null;
   }
   return (

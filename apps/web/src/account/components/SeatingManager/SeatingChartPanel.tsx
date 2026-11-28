@@ -207,7 +207,12 @@ export function SeatingChartPanel({
           </button>
         </div>
       ) : null}
-      <AccessibleSeatingLegend assignments={chart.assignments} profilesById={profilesById} />
+      <AccessibleSeatingLegend
+        assignments={chart.assignments}
+        profilesById={profilesById}
+        showUnassigned={isGridView}
+        unassignedProfiles={unassignedProfiles}
+      />
       {isListView ? (
         <>
           <p className="seating-mode-hint no-print">

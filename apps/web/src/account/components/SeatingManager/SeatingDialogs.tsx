@@ -1,4 +1,5 @@
 import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
+import { AccessibleSeatingMarker } from "./AccessibleSeatingMarker";
 import { clearSeatAssignment, moveAssignment } from "@choir/domain";
 import { NumberInput, Dialog, DialogClose } from "@choir/ui";
 import type {
@@ -407,6 +408,7 @@ function SeatDetailDialog({
   const rowIndex = Number(rowText);
   const seatIndex = Number(seatText);
   const assignedProfileId = chart.assignments[selectedSeat];
+  const assignedProfile = profilesById.get(assignedProfileId ?? "");
   const canDeleteSeat = !assignedProfileId && (chart.rowCounts[rowIndex] ?? 0) > 1;
   const suggestion = chart.sectionSuggestions[selectedSeat];
   const groups = groupSeatAssignmentProfiles(
@@ -428,8 +430,9 @@ function SeatDetailDialog({
       <div className="form-stack">
         <p>
           {assignedProfileId
-            ? `Assigned to ${profilesById.get(assignedProfileId)?.displayName ?? "Profile"}.`
+            ? `Assigned to ${assignedProfile?.displayName ?? "Profile"}.`
             : "This seat is empty."}
+          <AccessibleSeatingMarker visible={assignedProfile?.accessibleSeatingRequested === true} />
           {assignedProfileId ? <AttendanceWarningBadge profileId={assignedProfileId} /> : null}
         </p>
         <p className="seating-assignment-picker__hint">
@@ -466,6 +469,9 @@ function SeatDetailDialog({
                 >
                   <strong className="seating-person-name">
                     {profile.displayName}
+                    <AccessibleSeatingMarker
+                      visible={profilesById.get(profile.id)?.accessibleSeatingRequested === true}
+                    />
                     <AttendanceWarningBadge profileId={profile.id} />
                   </strong>
                   <span>{profile.voicePart || `No ${partLabel.toLowerCase()}`}</span>

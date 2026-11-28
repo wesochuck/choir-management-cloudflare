@@ -1,4 +1,5 @@
 import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
+import { AccessibleSeatingMarker } from "./AccessibleSeatingMarker";
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Dialog } from "@choir/ui";
 import type { OrganizationProfile } from "@choir/contracts";
@@ -120,6 +121,7 @@ export function ProfileLookupDialog({
               <div className="seating-lookup-row seating-roster-result" key={profile.id}>
                 <strong className="seating-person-name">
                   {profile.displayName}
+                  <AccessibleSeatingMarker visible={profile.accessibleSeatingRequested === true} />
                   <AttendanceWarningBadge profileId={profile.id} />
                 </strong>
                 <span>{profile.voicePart || `No ${partLabel.toLowerCase()}`}</span>

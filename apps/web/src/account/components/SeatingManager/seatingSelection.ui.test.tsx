@@ -448,6 +448,32 @@ describe("Seat assignment candidate picker", () => {
     return screen.findByRole("dialog", { name: /^Row \d+ · Seat \d+$/ });
   }
 
+  it("shows seating requests beside names while looking up and assigning unseated singers", async () => {
+    vi.mocked(api.listOrganizationProfiles).mockResolvedValue([
+      alice,
+      bob,
+      { ...carol, accessibleSeatingRequested: true },
+      dave,
+    ]);
+    render(<SeatingManager enabled />);
+    await flushLoad();
+
+    const label = "Accessible seating requested";
+    const tray = screen.getByRole("region", { name: "Unassigned Profiles" });
+    const chip = within(tray).getByRole("button", { name: `Carol Caller, S1, ${label}` });
+    expect(chip.querySelector(".seating-accessibility-icon")).toBeInTheDocument();
+
+    const dialog = await openSeat("Seat 3, empty");
+    const candidate = within(dialog).getByRole("button", { name: /Carol Caller/ });
+    expect(within(candidate).getByRole("img", { name: label })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(within(tray).getByRole("button", { name: "Lookup" }));
+    const lookup = await screen.findByRole("dialog", { name: "Profile lookup" });
+    fireEvent.change(within(lookup).getByRole("searchbox"), { target: { value: "Carol" } });
+    expect(within(lookup).getByRole("img", { name: label })).toBeInTheDocument();
+  });
+
   it("shows warnings everywhere a singer is found and hides only counts over the threshold", async () => {
     const withWarning = (
       profile: OrganizationProfile,

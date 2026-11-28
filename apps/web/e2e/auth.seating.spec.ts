@@ -1093,6 +1093,7 @@ test("attendance warnings stay inline and filter only over-threshold unassigned 
     displayName: "At Threshold Singer",
   });
   const unassigned = buildOrganizationProfile({
+    accessibleSeatingRequested: true,
     id: "88888888-8888-4888-8888-888888888888",
     displayName: "Unassigned Warning Singer",
   });
@@ -1149,6 +1150,11 @@ test("attendance warnings stay inline and filter only over-threshold unassigned 
     await page.getByRole("button", { name: "Edit chart", exact: true }).click();
   const tray = page.getByRole("region", { name: "Unassigned Profiles" });
   await expect(tray.getByText("Unassigned Warning Singer", { exact: true })).toBeVisible();
+  const chip = tray.getByRole("button", {
+    name: /Unassigned Warning Singer.*Accessible seating requested/,
+  });
+  await expect(chip.locator(".seating-accessibility-icon")).toBeVisible();
+  await expect(page.getByText("Accessible seating requested", { exact: true })).toBeVisible();
   await tray.getByRole("checkbox", { name: "Hide attendance warnings" }).check();
   await expect(tray.getByText("Unassigned Warning Singer", { exact: true })).toHaveCount(0);
   await expect(seat.locator(".seating-attendance-warning")).toBeVisible();
