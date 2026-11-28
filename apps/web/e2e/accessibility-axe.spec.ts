@@ -235,8 +235,13 @@ test("practice player has no serious accessibility violations @webkit-smoke", as
   await page.getByRole("button", { name: /Set list/i }).click();
   const setListPicker = page.getByRole("dialog", { name: "Set List" });
   await expect(setListPicker).toBeVisible();
-  const pickerDownload = setListPicker.locator(".public-player__download-btn");
-  await expect(pickerDownload).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await setListPicker.getByRole("button", { name: "Track options for Hallelujah Chorus" }).click();
+  const trackMenu = setListPicker.getByRole("menu", {
+    name: "Track options for Hallelujah Chorus",
+  });
+  const pickerDownload = trackMenu.getByRole("menuitem", { name: "Download file" });
+  await expect(pickerDownload).toBeVisible();
+  await expect(trackMenu).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await expectNoSeriousAxeViolations(
     page,
     "light mobile practice player Set List picker",
@@ -245,7 +250,7 @@ test("practice player has no serious accessibility violations @webkit-smoke", as
   await page.evaluate(() => {
     document.documentElement.setAttribute("data-theme", "dark");
   });
-  await expect(pickerDownload).toHaveCSS("background-color", "rgb(30, 41, 59)");
+  await expect(trackMenu).toHaveCSS("background-color", "rgb(51, 65, 85)");
   await expect(pickerDownload).toHaveCSS("color", "rgb(248, 250, 252)");
   await expectNoSeriousAxeViolations(
     page,

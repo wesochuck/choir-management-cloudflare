@@ -138,9 +138,10 @@ test("caches the open event offline and explains uncached parts", async ({ page 
     const pickerTrack = picker.locator(".public-player__queue-list--mobile-picker li").first();
     await expect(pickerTrack.getByText("Saved offline", { exact: true })).toBeVisible();
 
-    await pickerTrack.getByRole("button", { name: "Remove" }).click();
-    const saveButton = pickerTrack.getByRole("button", { name: "Save offline" });
-    await expect(saveButton).toBeVisible();
+    const trackOptions = pickerTrack.getByRole("button", { name: /^Track options for/ });
+    await trackOptions.click();
+    await pickerTrack.getByRole("menuitem", { name: "Remove offline copy" }).click();
+    await expect(pickerTrack.getByText("Saved offline", { exact: true })).toBeHidden();
 
     let releaseManualSave: (() => void) | undefined;
     let markManualSaveStarted: (() => void) | undefined;
@@ -162,7 +163,8 @@ test("caches the open event offline and explains uncached parts", async ({ page 
       }
       await route.fulfill({ body: pngBytes, contentType: "image/png", status: 200 });
     });
-    await saveButton.click();
+    await trackOptions.click();
+    await pickerTrack.getByRole("menuitem", { name: "Save offline" }).click();
     await manualSaveStarted;
     await expect(pickerTrack.getByRole("status")).toContainText("Saving…");
     releaseManualSave?.();

@@ -179,10 +179,10 @@ test("displays published set lists tab by default with approved performance prog
   await openSetListIfMobile(page, isMobile);
   await expect(getPlaylist(page, isMobile).locator("> li")).toHaveCount(3);
   await expect(
-    getPlaylist(page, isMobile).getByRole("button", { name: /Down by the Riverside/ }),
+    getPlaylist(page, isMobile).getByRole("button", { name: /^Down by the Riverside/ }),
   ).toBeVisible();
   await expect(
-    getPlaylist(page, isMobile).getByRole("button", { name: /Unrecorded Folk Song/ }),
+    getPlaylist(page, isMobile).getByRole("button", { name: /^Unrecorded Folk Song/ }),
   ).not.toBeVisible();
   await expect(getPlaylist(page, isMobile).getByText("Intermission")).not.toBeVisible();
 });
@@ -297,7 +297,7 @@ test("supports deep linking to approved performance and handles stale links", as
   await expect(page.getByLabel("Choose a performance")).toHaveValue(eventId);
   await openSetListIfMobile(page, isMobile);
   await expect(
-    getPlaylist(page, isMobile).getByRole("button", { name: /Gala Opener/ }),
+    getPlaylist(page, isMobile).getByRole("button", { name: /^Gala Opener/ }),
   ).toBeVisible();
 
   await closeSetListIfMobile(page, isMobile);
@@ -364,9 +364,9 @@ test("allows switching to all tracks tab with scoped search", async ({ page }, t
 
   await openSetListIfMobile(page, isMobile);
   await expect(
-    getPlaylist(page, isMobile).getByRole("button", { name: /Cantique de Jean Racine/ }),
+    getPlaylist(page, isMobile).getByRole("button", { name: /^Cantique de Jean Racine/ }),
   ).toBeVisible();
   await expect(
-    getPlaylist(page, isMobile).getByRole("button", { name: /Ave Verum Corpus/ }),
+    getPlaylist(page, isMobile).getByRole("button", { name: /^Ave Verum Corpus/ }),
   ).not.toBeVisible();
 });
