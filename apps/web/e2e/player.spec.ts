@@ -627,11 +627,11 @@ test("mobile Set List is a compact bottom picker with a revealed active track", 
   const unavailableTrack = sheet.getByRole("button", { name: /Unrecorded track/ });
   await expect(unavailableTrack).toBeDisabled();
   await expect(sheet.getByText("Unavailable")).toBeVisible();
-  const fallbackTrack = sheet.getByRole("button", { name: /Fallback track/ });
+  const fallbackTrack = sheet.getByRole("button", { name: /^Fallback track/ });
   await expect(fallbackTrack).toContainText("Fallback Composer");
   await expect(fallbackTrack.getByText("ALTO fallback", { exact: true })).toBeVisible();
 
-  await sheet.getByRole("button", { name: /Track 12/ }).click();
+  await sheet.getByRole("button", { name: /^Track 12/ }).click();
   await expect(sheet).not.toBeVisible();
   await expect(nowPlaying.getByRole("heading", { name: "Track 12" })).toBeVisible();
   await expect(trigger).toBeFocused();
@@ -639,13 +639,21 @@ test("mobile Set List is a compact bottom picker with a revealed active track", 
   await trigger.click();
   await expect(sheet).toBeVisible();
   const activeRow = sheet.locator(".public-player__queue-list--mobile-picker li.is-active");
-  const activeButton = activeRow.getByRole("button", { name: /Track 12/ });
+  const activeButton = activeRow.getByRole("button", { name: /^Track 12/ });
   await expect(activeButton).toHaveAttribute("aria-current", "true");
   await expect(activeRow.getByText("Now Playing")).toBeVisible();
   await expect(activeRow).toContainText("Composer 12");
   await expect(activeRow).toContainText("Tutti");
-  await expect(activeRow.getByRole("link", { name: "Download Track 12" })).toBeVisible();
-  await expect(activeRow.getByRole("button", { name: "Save offline" })).toBeVisible();
+  await expect(activeRow.getByRole("button", { name: /Choose track for this song/ })).toHaveCount(
+    0,
+  );
+  const trackOptions = activeRow.getByRole("button", { name: "Track options for Track 12" });
+  await expect(trackOptions).toHaveAttribute("aria-expanded", "false");
+  await trackOptions.click();
+  await expect(sheet.getByRole("menuitem", { name: "Download file" })).toBeVisible();
+  await expect(sheet.getByRole("menuitem", { name: "Save offline" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(trackOptions).toBeFocused();
   expect(await activeButton.locator("a, button, input, select").count()).toBe(0);
 
   for (const width of [320, 375, 390, 430]) {
@@ -684,7 +692,7 @@ test("mobile Set List is a compact bottom picker with a revealed active track", 
   expect(primaryBounds?.height).toBeGreaterThanOrEqual(44);
 });
 
-test("mobile track options pin one song independently and can follow default again", async ({
+test("mobile set list pins a part directly on one song and keeps file actions in its menu", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -716,37 +724,6 @@ test("mobile track options pin one song independently and can follow default aga
       },
     });
   });
-  await page.goto("/player?token=mobile-song-pins");
-  await page.getByRole("button", { name: "Set list (3 tracks)" }).click();
-  const sheet = page.getByRole("dialog", { name: "Set List", exact: true });
-  const rows = sheet.locator("ol > li");
-  const first = rows.nth(0);
-  const second = rows.nth(1);
-  await expect(second.locator("details")).not.toHaveAttribute("open");
-  await second.getByText("Track options", { exact: true }).click();
-  await expect(first.locator("button[aria-current=true]")).toBeVisible();
-  await second.getByRole("button", { name: /Choose track for this song/ }).click();
-  await sheet.getByRole("menuitem", { name: "Tenor 2", exact: true }).click();
-  const pinnedPicker = second.getByRole("button", { name: /Pinned to Tenor 2/ });
-  const pin = pinnedPicker.locator("svg.public-player__pin-icon");
-  await expect(pin).toBeVisible();
-  await expect(pin).toHaveCSS("fill", "rgb(15, 23, 42)");
-  await expect(pin).toHaveAttribute("aria-hidden", "true");
-  await expect(first.getByRole("button", { name: /Following default/ })).toBeVisible();
-  await expect(second.getByRole("link", { name: "Download Reindeer On The Roof" })).toHaveAttribute(
-    "href",
-    /reindeer-t2/,
-  );
-  await expect(first.locator("button[aria-current=true]")).toBeVisible();
-  await pinnedPicker.click();
-  await expect(sheet.getByRole("menuitem", { name: "Tenor 2", exact: true })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-  await sheet.getByRole("menuitem", { name: /Follow default/ }).click();
-  await expect(second.getByRole("button", { name: /Following default/ })).toBeVisible();
-  await second.getByText("Track options", { exact: true }).click();
-  // Enable an audio response only for the explicit save; the shared artwork fixture is a PNG.
   await page.route("**/api/public/player/media/medley-tutti?*", async (route) => {
     const wave = Buffer.alloc(46);
     wave.write("RIFF", 0);
@@ -763,9 +740,61 @@ test("mobile track options pin one song independently and can follow default aga
     wave.writeUInt32LE(2, 40);
     await route.fulfill({ body: wave, contentType: "audio/wav" });
   });
-  await first.getByRole("button", { name: "Save offline", exact: true }).click();
+  await page.goto("/player?token=mobile-song-pins");
+  await page.getByRole("button", { name: "Set list (3 tracks)" }).click();
+  const sheet = page.getByRole("dialog", { name: "Set List", exact: true });
+  const rows = sheet.locator("ol > li");
+  const first = rows.nth(0);
+  const second = rows.nth(1);
+  const secondOptions = second.getByRole("button", {
+    name: "Track options for Reindeer On The Roof",
+  });
+  await expect(secondOptions).toHaveAttribute("aria-expanded", "false");
+  await expect(first.locator("button[aria-current=true]")).toBeVisible();
+  const partPicker = second.getByRole("button", { name: /Choose track for this song/ });
+  await expect(partPicker).toBeVisible();
+  expect((await partPicker.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  expect((await secondOptions.boundingBox())?.width).toBeGreaterThanOrEqual(44);
+  await partPicker.click();
+  await sheet.getByRole("menuitem", { name: "Tenor 2", exact: true }).click();
+  const pinnedPicker = second.getByRole("button", { name: /Pinned to Tenor 2/ });
+  const pin = pinnedPicker.locator("svg.public-player__pin-icon");
+  await expect(pin).toBeVisible();
+  await expect(pin).toHaveAttribute("aria-hidden", "true");
+  await expect(first.getByRole("button", { name: /Following default/ })).toBeVisible();
+  await secondOptions.click();
+  const downloadFile = sheet.getByRole("menuitem", { name: "Download file" });
+  await expect(downloadFile).toHaveAttribute("href", /reindeer-t2/);
+  await expect(downloadFile).toHaveAttribute("download", "");
+  await page.keyboard.press("Escape");
+  await expect(secondOptions).toBeFocused();
+  await page.route("**/api/public/player/media/reindeer-t2?*", async (route) => {
+    await route.fulfill({ body: "sample audio", contentType: "audio/mpeg" });
+  });
+  await secondOptions.click();
+  const download = page.waitForEvent("download");
+  await downloadFile.click();
+  expect((await download).url()).toMatch(/reindeer-t2/);
+  await expect(first.locator("button[aria-current=true]")).toBeVisible();
+  await pinnedPicker.click();
+  await expect(sheet.getByRole("menuitem", { name: "Tenor 2", exact: true })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await sheet.getByRole("menuitem", { name: /Follow default/ }).click();
+  await expect(second.getByRole("button", { name: /Following default/ })).toBeVisible();
+  const firstOptions = first.getByRole("button", {
+    name: "Track options for Men's Chorus Christmas Medley",
+  });
   await expect(first.getByText("Saved offline", { exact: true })).toBeVisible();
-  await expect(first.getByRole("button", { name: "Remove offline copy" })).toBeVisible();
+  await firstOptions.click();
+  await sheet.getByRole("menuitem", { name: "Remove offline copy" }).click();
+  await expect(first.getByText("Saved offline", { exact: true })).toBeHidden();
+  await expect(firstOptions).toHaveAttribute("aria-expanded", "false");
+  await firstOptions.press("Enter");
+  await sheet.getByRole("menuitem", { name: "Save offline", exact: true }).press("Enter");
+  await expect(first.getByText("Saved offline", { exact: true })).toBeVisible();
+  await expect(firstOptions).toBeFocused();
   for (const theme of ["dark", "light"]) {
     await page.evaluate((value) => {
       document.documentElement.setAttribute("data-theme", value);
@@ -780,7 +809,7 @@ test("mobile track options pin one song independently and can follow default aga
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       390,
     );
-    expect((await rows.nth(2).boundingBox())?.height).toBeLessThan(155);
+    expect((await rows.nth(2).boundingBox())?.height).toBeLessThan(100);
     const audit = await new AxeBuilder({ page }).include(".sheet").analyze();
     expect(
       audit.violations.filter((issue) => issue.impact === "serious" || issue.impact === "critical"),

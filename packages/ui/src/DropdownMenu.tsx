@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 interface DropdownMenuItem {
   readonly current?: boolean;
   readonly disabled?: boolean;
+  readonly download?: boolean;
   readonly href?: string;
   readonly id?: string;
   readonly label: string;
@@ -44,7 +45,7 @@ export function DropdownMenu({
           {...(item.disabled === undefined ? {} : { disabled: item.disabled })}
         >
           {item.href ? (
-            <a className="dropdown-menu__item" href={item.href}>
+            <a className="dropdown-menu__item" download={item.download} href={item.href}>
               {item.label}
             </a>
           ) : (

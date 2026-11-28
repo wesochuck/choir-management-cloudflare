@@ -1,5 +1,5 @@
 import { DropdownMenu } from "@choir/ui";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef } from "react";
 
 import { displayTrackName, sortVoiceParts } from "../../playerVoiceParts";
 import { formatTrackKey, resolveEffectiveTrack } from "../format";
@@ -28,21 +28,63 @@ function PlayerSetListActions({
   readonly source: PracticeTrackSource;
   readonly track: ResolvedTrack;
 }) {
+  const savedOffline = offlineIds.has(track.fileId);
+  const saving = pendingOfflineIds.has(track.fileId);
+  const mediaUrl = source.mediaUrl(track.fileId);
+  if (mobilePicker) {
+    return (
+      <DropdownMenu
+        accessibleLabel={`Track options for ${item.title}`}
+        contentClassName="public-player__piece-track-picker-options"
+        disablePortal
+        items={[
+          { download: true, href: mediaUrl, label: "Download file" },
+          ...(savedOffline
+            ? [
+                {
+                  label: "Remove offline copy",
+                  onSelect: () => {
+                    onRemoveOfflineCopy(track.fileId);
+                  },
+                },
+              ]
+            : online && !saving
+              ? [
+                  {
+                    label: "Save offline",
+                    onSelect: () => {
+                      onSaveOfflineCopy(track.fileId);
+                    },
+                  },
+                ]
+              : []),
+        ]}
+        trigger={
+          <button className="public-player__track-options" type="button">
+            <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24" width="24" height="24">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
+        }
+      />
+    );
+  }
+
   return (
-    <div
-      className={`public-player__set-list-actions${mobilePicker ? " public-player__set-list-actions--mobile-picker" : ""}`}
-    >
+    <div className="public-player__set-list-actions">
       <a
         aria-label={`Download ${item.title}`}
         className="button button--secondary button--small public-player__download-btn"
         download
-        href={source.mediaUrl(track.fileId)}
+        href={mediaUrl}
       >
-        {mobilePicker ? "Download file" : "Download"}
+        Download
       </a>
-      {offlineIds.has(track.fileId) ? (
+      {savedOffline ? (
         <span className="public-player__offline-row">
-          {mobilePicker ? null : <span className="public-player__offline-pill">Saved offline</span>}
+          <span className="public-player__offline-pill">Saved offline</span>
           <button
             className="text-button"
             onClick={() => {
@@ -50,10 +92,10 @@ function PlayerSetListActions({
             }}
             type="button"
           >
-            {mobilePicker ? "Remove offline copy" : "Remove"}
+            Remove
           </button>
         </span>
-      ) : pendingOfflineIds.has(track.fileId) ? (
+      ) : saving ? (
         <span className="public-player__offline-pill" role="status">
           Saving…
         </span>
@@ -100,10 +142,14 @@ function PlayerPieceTrackPicker({
     track.fallback && !track.pinned
       ? `${formatTrackKey(track.key)} fallback`
       : formatTrackKey(track.key);
+  const partName = displayTrackName(track.key, trackLabels);
+  const partStatus = track.pinned
+    ? `Pinned to ${partName}`
+    : `Following default, ${mobilePicker ? partName : trackLabel}`;
 
   return (
     <DropdownMenu
-      accessibleLabel={`${track.pinned ? `Pinned to ${displayTrackName(track.key, trackLabels)}` : `Following default, ${trackLabel}`} for ${item.title}. Choose track for this song`}
+      accessibleLabel={`${mobilePicker ? `Part ${partName}. ` : ""}${partStatus} for ${item.title}. Choose track for this song`}
       contentClassName="public-player__piece-track-picker-options"
       disablePortal={mobilePicker}
       items={[
@@ -130,7 +176,14 @@ function PlayerPieceTrackPicker({
           type="button"
         >
           {track.pinned ? <PlayerPinIcon /> : null}
-          {trackLabel}
+          {mobilePicker ? (
+            <span className="public-player__song-part">
+              <small>Part</small>
+              <span>{partName}</span>
+            </span>
+          ) : (
+            trackLabel
+          )}
         </button>
       }
     />
@@ -184,12 +237,14 @@ function PlayerSetListRowStatus({
   active,
   item,
   savedOffline = false,
+  saving = false,
   showTrackLabel,
   track,
 }: {
   readonly active: boolean;
   readonly item: PlayerPlaylistItem;
   readonly savedOffline?: boolean;
+  readonly saving?: boolean;
   readonly showTrackLabel: boolean;
   readonly track: ResolvedTrack | null;
 }) {
@@ -199,72 +254,12 @@ function PlayerSetListRowStatus({
       <PlayerSetListItemStatus item={item} showTrackLabel={showTrackLabel} track={track} />
       {savedOffline ? (
         <span className="public-player__song-offline-status">Saved offline</span>
+      ) : saving ? (
+        <span className="public-player__song-offline-status" role="status">
+          Saving…
+        </span>
       ) : null}
     </span>
-  );
-}
-
-function PlayerSetListTrackStatus({
-  activeTrackKey,
-  availableKeys,
-  item,
-  mobilePicker,
-  onPinPieceTrack,
-  track,
-  trackLabels,
-}: {
-  readonly activeTrackKey: string;
-  readonly availableKeys: readonly string[];
-  readonly item: PlayerPlaylistItem;
-  readonly mobilePicker: boolean;
-  readonly onPinPieceTrack?: ((pieceId: string, trackKey: string | null) => void) | undefined;
-  readonly track: ResolvedTrack | null;
-  readonly trackLabels?: Readonly<Record<string, string>> | undefined;
-}) {
-  if (!track) return null;
-  if (item.pieceId && availableKeys.length > 1 && onPinPieceTrack) {
-    return (
-      <PlayerPieceTrackPicker
-        activeTrackKey={activeTrackKey}
-        availableKeys={availableKeys}
-        item={item}
-        mobilePicker={mobilePicker}
-        onPinPieceTrack={onPinPieceTrack}
-        track={track}
-        trackLabels={trackLabels}
-      />
-    );
-  }
-  return null;
-}
-
-function PlayerTrackOptions({
-  active,
-  children,
-  hasPartPicker,
-  mobilePicker,
-  title,
-  track,
-}: {
-  readonly active: boolean;
-  readonly children: ReactNode;
-  readonly hasPartPicker: boolean;
-  readonly mobilePicker: boolean;
-  readonly title: string;
-  readonly track: ResolvedTrack | null;
-}) {
-  if (!mobilePicker) return children;
-  if (!track) return null;
-  return (
-    <details className="public-player__track-options" open={active}>
-      <summary aria-label={`Track options for ${title}`}>Track options</summary>
-      <div className="public-player__track-options-body">
-        {hasPartPicker ? (
-          <span className="public-player__song-part-label">Part for this song</span>
-        ) : null}
-        {children}
-      </div>
-    </details>
   );
 }
 
@@ -315,10 +310,9 @@ function PlayerSetListRow({
   );
   const itemIndex = playableItemIndices.get(item) ?? -1;
   const active = itemIndex === currentIndex && currentIndex !== -1;
-  const hasPieceTrackPicker = Boolean(item.pieceId && availableKeys.length > 1 && onPinPieceTrack);
-  const controls = (
-    <>
-      <PlayerSetListTrackStatus
+  const partPicker =
+    track && item.pieceId && availableKeys.length > 1 && onPinPieceTrack ? (
+      <PlayerPieceTrackPicker
         activeTrackKey={activeTrackKey}
         availableKeys={availableKeys}
         item={item}
@@ -327,21 +321,7 @@ function PlayerSetListRow({
         track={track}
         trackLabels={trackLabels}
       />
-      {track ? (
-        <PlayerSetListActions
-          item={item}
-          mobilePicker={mobilePicker}
-          offlineIds={offlineIds}
-          onRemoveOfflineCopy={onRemoveOfflineCopy}
-          onSaveOfflineCopy={onSaveOfflineCopy}
-          online={online}
-          pendingOfflineIds={pendingOfflineIds}
-          source={source}
-          track={track}
-        />
-      ) : null}
-    </>
-  );
+    ) : null;
 
   return (
     <li className={active ? "is-active" : undefined} ref={active ? activeRowRef : undefined}>
@@ -362,19 +342,25 @@ function PlayerSetListRow({
           active={active}
           item={item}
           savedOffline={mobilePicker && track !== null && offlineIds.has(track.fileId)}
-          showTrackLabel={mobilePicker || !hasPieceTrackPicker}
+          saving={mobilePicker && track !== null && pendingOfflineIds.has(track.fileId)}
+          showTrackLabel={!partPicker || (mobilePicker && track?.fallback === true)}
           track={track}
         />
       </button>
-      <PlayerTrackOptions
-        active={active}
-        hasPartPicker={hasPieceTrackPicker}
-        mobilePicker={mobilePicker}
-        title={item.title}
-        track={track}
-      >
-        {controls}
-      </PlayerTrackOptions>
+      {partPicker}
+      {track ? (
+        <PlayerSetListActions
+          item={item}
+          mobilePicker={mobilePicker}
+          offlineIds={offlineIds}
+          onRemoveOfflineCopy={onRemoveOfflineCopy}
+          onSaveOfflineCopy={onSaveOfflineCopy}
+          online={online}
+          pendingOfflineIds={pendingOfflineIds}
+          source={source}
+          track={track}
+        />
+      ) : null}
     </li>
   );
 }

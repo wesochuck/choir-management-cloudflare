@@ -1289,7 +1289,7 @@
       max-height: none;
       min-width: 0;
       min-height: 0;
-      gap: var(--spacing-2xs);
+      gap: 0;
       padding: 0 var(--spacing-2xs) var(--spacing-sm);
       scroll-padding-block: var(--spacing-xs) var(--spacing-sm);
       overflow-x: hidden;
@@ -1299,69 +1299,57 @@
     }
 
     .public-player__queue-list--mobile-picker li {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      min-width: 0;
-      align-items: stretch;
-      gap: var(--spacing-3xs);
-      padding: var(--spacing-2xs);
+      position: relative;
+      justify-content: flex-start;
+      gap: var(--spacing-2xs);
+      padding: var(--spacing-xs) var(--spacing-3xs) var(--spacing-xs) var(--spacing-xs);
       border: 0;
-      border-radius: var(--radius-control);
-      border-inline-start: 3px solid transparent;
+      border-block-end: 1px solid var(--color-border);
+      border-radius: 0;
       background: transparent;
       scroll-margin-block: var(--spacing-xs);
     }
 
-    .public-player__queue-list--mobile-picker .public-player__piece-track-picker-trigger {
-      justify-self: start;
-      max-width: 100%;
+    .public-player__queue-list--mobile-picker li.is-active {
+      border-color: var(--color-border);
+      background: transparent;
     }
 
-    .public-player__queue-list--mobile-picker li.is-active {
-      border-color: transparent;
-      border-inline-start-color: var(--color-accent);
-      background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+    .public-player__queue-list--mobile-picker li.is-active::before {
+      position: absolute;
+      inset-block: var(--spacing-xs);
+      inset-inline-start: 0;
+      width: 3px;
+      border-radius: var(--radius-full);
+      background: var(--color-accent);
+      content: "";
     }
 
     .public-player__set-list-item--mobile-picker {
-      display: flex;
       flex-direction: column;
       align-items: flex-start;
-      justify-content: flex-start;
-      width: 100%;
-      min-width: 0;
+      justify-content: center;
       min-height: 2.75rem;
-      gap: var(--spacing-xs);
-      padding: var(--spacing-2xs);
+      gap: var(--spacing-3xs);
+      padding: 0;
       font: inherit;
-    }
-
-    .public-player__set-list-item--mobile-picker .public-player__set-list-item-main {
-      flex: 1 1 auto;
-      min-width: 0;
       overflow-wrap: anywhere;
     }
 
-    .public-player__set-list-item--mobile-picker .public-player__set-list-item-status {
-      display: flex;
-      flex-direction: row;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: flex-start;
-      gap: var(--spacing-3xs);
-      align-self: flex-start;
-      padding-block-start: 1px;
-      min-height: var(--control-height);
-      padding-inline-end: 7rem;
-      box-sizing: border-box;
+    .public-player__set-list-item--mobile-picker:disabled {
+      opacity: 1;
+      color: var(--color-text-muted);
     }
 
-    .public-player__track-options {
-      margin-block-start: calc(-1 * var(--control-height) - var(--spacing-3xs));
+    .public-player__set-list-item--mobile-picker .public-player__set-list-item-status {
+      flex-wrap: wrap;
+      gap: 0 var(--spacing-2xs);
+      max-width: 100%;
     }
 
     .public-player__set-list-item--mobile-picker .public-player__item-track,
-    .public-player__set-list-item--mobile-picker .public-player__now-playing-pill {
+    .public-player__set-list-item--mobile-picker .public-player__now-playing-pill,
+    .public-player__song-offline-status {
       padding: 0;
       border: 0;
       background: transparent;
@@ -1373,104 +1361,63 @@
     }
 
     .public-player__set-list-item--mobile-picker .public-player__now-playing-pill {
-      color: var(--color-accent);
+      color: var(--color-text);
       font-weight: var(--font-weight-semibold);
     }
 
     .public-player__set-list-item--mobile-picker
       .public-player__set-list-item-status
-      > .public-player__item-track:not(:first-child)::before {
-      content: "·";
-      margin-inline-end: var(--spacing-3xs);
+      > span:not(:first-child)::before {
+      content: "·" / "";
+      margin-inline-end: var(--spacing-2xs);
     }
 
-    .public-player__song-offline-status,
-    .public-player__song-part-label {
-      color: var(--color-text-muted);
-      font-size: var(--font-size-sm);
-    }
-
-    .public-player__track-options summary {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: var(--spacing-xs);
-      min-height: var(--control-height);
-      padding-inline: var(--spacing-xs);
-      cursor: pointer;
-      list-style: none;
-      width: max-content;
-      margin-inline-start: auto;
-      color: var(--color-text-muted);
-      font-size: var(--font-size-sm);
-    }
-
-    .public-player__track-options summary::-webkit-details-marker {
-      display: none;
-    }
-    .public-player__track-options summary::after {
-      content: "⌃";
-      transform: rotate(180deg);
-    }
-    .public-player__track-options[open] summary::after {
-      transform: rotate(0deg);
-    }
-    .public-player__track-options summary:focus-visible {
-      outline: 2px solid var(--color-accent);
-      outline-offset: 2px;
-    }
-
-    .public-player__track-options-body {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      align-items: center;
-      gap: var(--spacing-xs);
-      padding: var(--spacing-xs);
-      border-top: 1px solid var(--color-border);
+    .public-player__queue-list--mobile-picker .public-player__piece-track-picker-trigger {
+      max-width: 40%;
+      min-height: 2.75rem;
+      padding: var(--spacing-3xs) var(--spacing-2xs);
+      border-color: var(--color-border);
+      border-radius: var(--radius-control);
+      background: transparent;
+      color: var(--color-text);
+      text-align: start;
     }
 
     .public-player__queue-list--mobile-picker
-      li.is-active
-      .public-player__set-list-item-status
-      > span,
-    .public-player__queue-list--mobile-picker li.is-active .public-player__track-options summary,
-    .public-player__queue-list--mobile-picker li.is-active .public-player__song-part-label {
-      color: var(--color-text);
+      .public-player__piece-track-picker-trigger.public-player__item-track--pinned {
+      border-color: var(--color-accent);
     }
 
-    .public-player__set-list-actions--mobile-picker {
-      display: flex;
-      grid-column: 1 / -1;
-      min-width: 0;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--spacing-2xs);
-      padding-inline-start: var(--spacing-2xs);
-    }
-
-    .public-player__set-list-actions--mobile-picker .public-player__download-btn {
-      min-height: var(--control-height);
-      padding: var(--spacing-3xs) var(--spacing-xs);
-      border-color: var(--color-border);
-      background: var(--color-surface);
-      color: var(--color-text);
+    .public-player__song-part {
+      display: grid;
       font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-semibold);
+      overflow-wrap: anywhere;
     }
 
-    .public-player__set-list-actions--mobile-picker .text-button {
-      min-height: var(--control-height);
-      padding: var(--spacing-3xs) var(--spacing-2xs);
+    .public-player__song-part small {
+      color: var(--color-text-muted);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-normal);
+    }
+
+    .public-player__track-options {
+      display: grid;
+      flex: 0 0 2.75rem;
+      min-height: 2.75rem;
+      place-items: center;
+      padding: 0;
       border: 0;
+      border-radius: var(--radius-control);
       background: transparent;
       color: var(--color-text);
-      font: inherit;
-      font-size: var(--font-size-sm);
       cursor: pointer;
     }
 
-    .public-player__set-list-actions--mobile-picker .public-player__offline-row {
-      max-width: 100%;
-      flex-wrap: wrap;
+    .public-player__track-options:focus-visible,
+    .public-player__set-list-item--mobile-picker:focus-visible {
+      outline: 2px solid var(--color-accent);
+      outline-offset: 2px;
     }
   }
 
